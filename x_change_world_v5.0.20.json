@@ -1,0 +1,2622 @@
+{
+  "name": "X-Change World Unified (Flattened)",
+  "version": "v5.0.19",
+  "schema_version": 1,
+  "entries": {
+    "0": {
+      "uid": 1,
+      "comment": "STATGEN — Init stats from card",
+      "sticky": 1000000,
+      "groupWeight": 100,
+      "probability": 100,
+      "useProbability": true,
+      "disable": false,
+      "displayIndex": 0,
+      "constant": true,
+      "vectorized": false,
+      "selective": true,
+      "selectiveLogic": 0,
+      "addMemo": true,
+      "order": 0,
+      "position": "char",
+      "excludeRecursion": false,
+      "preventRecursion": false,
+      "matchPersonaDescription": false,
+      "matchCharacterDescription": false,
+      "matchCharacterPersonality": false,
+      "matchCharacterDepthPrompt": false,
+      "matchScenario": false,
+      "matchCreatorNotes": false,
+      "delayUntilRecursion": false,
+      "depth": 4,
+      "groupOverride": false,
+      "entry": "",
+      "enabled": true,
+      "useRegex": false,
+      "name": "STATGEN — Init stats from card",
+      "content": "STATGEN (GM-ONLY; ; RULE #1)\nTrigger: xc/init (injected by proxy on the first message of a new ChatID/session). Purpose: deterministically generate and persist the character's base stats in DB so the RP model never has to remember world state. Inputs allowed for statgen:\n- Character card fields: tags[] and system_prompt only.\n- tags and system_prompt have equal weight.\n- Ignore ALL other card fields (description/personality/scenario/examples/etc). Output requirements:\n- No questions..\n- No narration..\n- Persist stats into DB state: stats.INT, stats.WIL, stats.DOM, stats.SUB, stats.CON, stats.DES.\n- Baseline: 10 for all stats.\n- Apply only explicit keyword mapping (no semantic inference). If no signal, keep 10.\n- Cap: per-stat init delta limited to +/-4.\n- Modifier formula (derived; store unless you already do): mod = floor((stat - 10) / 2).\n- Set flag: flags.statgen_done = true. Signal mapping (literal match; case-insensitive) — applies when present in tags or system_prompt:\nDOM +2: dominant, dom, controlling, commanding, top, topping\nDOM +1: gentle dominance, nurturing dominance, switch\nSUB +2: submissive, service submission, yielding, obedient\nSUB +1: bratty, feigned reluctance, masochist, masochistic, switch\nWIL +2: strong-willed, disciplined, determined, stubborn\nWIL -1: anxious, insecure, needy, dependent\nDES +2: praise, denial, edging\nDES +2: masochist, masochistic, rough forcing\nDES +1: hypersensitive, leaking, clenching, slicking, melts\nCON +1: athletic, stamina, endurance\nCON -1: delicate, overwhelmed, fragile\nINT +1: clever, bookish, strategic, studious After statgen is done, ignore xc/init on later turns.",
+      "active": true,
+      "keys": [
+        "xc/init"
+      ],
+      "role": "system",
+      "orig_uid": "100000",
+      "orig_book": "core",
+      "key": "xc/init",
+      "keysecondary": [],
+      "ignoreBudget": false,
+      "outletName": "",
+      "group": "",
+      "scanDepth": null,
+      "caseSensitive": false,
+      "matchWholeWords": true,
+      "useGroupScoring": null,
+      "automationId": "",
+      "cooldown": 0,
+      "delay": 0,
+      "triggers": [],
+      "characterFilter": {
+        "isExclude": false,
+        "names": [],
+        "tags": []
+      }
+    },
+    "1": {
+      "uid": 2,
+      "comment": "PILL — Pink (MTF)",
+      "sticky": 1000000,
+      "groupWeight": 100,
+      "probability": 100,
+      "useProbability": true,
+      "disable": false,
+      "displayIndex": 1,
+      "constant": false,
+      "vectorized": false,
+      "selective": true,
+      "selectiveLogic": 0,
+      "addMemo": true,
+      "order": 1,
+      "position": "char",
+      "excludeRecursion": false,
+      "preventRecursion": false,
+      "matchPersonaDescription": false,
+      "matchCharacterDescription": false,
+      "matchCharacterPersonality": false,
+      "matchCharacterDepthPrompt": false,
+      "matchScenario": false,
+      "matchCreatorNotes": false,
+      "delayUntilRecursion": false,
+      "depth": 4,
+      "groupOverride": false,
+      "entry": "",
+      "enabled": true,
+      "useRegex": false,
+      "name": "PILL — Pink (MTF)",
+      "content": "PILL: PINK (TRANSFORMATION — MTF)\nOn token xc/pill:pink:on:\n- Write DB state: form.sex = \"female\" form.genitals = \"vagina_only\" active.pill_color = \"pink\" flags.just_transformed = true (one-turn optional)\n- If flavor/effect modifiers are present this turn (e.g., breeder/submissive/etc), activate them as separate effects; infer.\nGreen/Red effects-only rules never change form.* (see their pill rules).",
+      "active": true,
+      "keys": [
+        "xc/pill:pink:on",
+        "pink pill"
+      ],
+      "role": "system",
+      "orig_uid": "100001",
+      "orig_book": "core",
+      "key": "xc/pill:pink:on",
+      "keysecondary": [],
+      "ignoreBudget": false,
+      "outletName": "",
+      "group": "",
+      "scanDepth": null,
+      "caseSensitive": false,
+      "matchWholeWords": true,
+      "useGroupScoring": null,
+      "automationId": "",
+      "cooldown": 0,
+      "delay": 0,
+      "triggers": [],
+      "characterFilter": {
+        "isExclude": false,
+        "names": [],
+        "tags": []
+      }
+    },
+    "2": {
+      "uid": 3,
+      "comment": "PILL — Blue (FTM)",
+      "sticky": 1000000,
+      "groupWeight": 100,
+      "probability": 100,
+      "useProbability": true,
+      "disable": false,
+      "displayIndex": 2,
+      "constant": false,
+      "vectorized": false,
+      "selective": true,
+      "selectiveLogic": 0,
+      "addMemo": true,
+      "order": 2,
+      "position": "char",
+      "excludeRecursion": false,
+      "preventRecursion": false,
+      "matchPersonaDescription": false,
+      "matchCharacterDescription": false,
+      "matchCharacterPersonality": false,
+      "matchCharacterDepthPrompt": false,
+      "matchScenario": false,
+      "matchCreatorNotes": false,
+      "delayUntilRecursion": false,
+      "depth": 4,
+      "groupOverride": false,
+      "entry": "",
+      "enabled": true,
+      "useRegex": false,
+      "name": "PILL — Blue (FTM)",
+      "content": "PILL: BLUE (TRANSFORMATION — FTM)\nOn token xc/pill:blue:on:\n- form.sex = \"male\"\n- form.genitals = \"penis_only\"\n- active.pill_color = \"blue\"\n- flags.just_transformed = true (one-turn optional)\nNo effect inference; only explicit modifiers activate.",
+      "active": true,
+      "keys": [
+        "xc/pill:blue:on",
+        "blue pill"
+      ],
+      "role": "system",
+      "orig_uid": "100002",
+      "orig_book": "core",
+      "key": "xc/pill:blue:on",
+      "keysecondary": [],
+      "ignoreBudget": false,
+      "outletName": "",
+      "group": "",
+      "scanDepth": null,
+      "caseSensitive": false,
+      "matchWholeWords": true,
+      "useGroupScoring": null,
+      "automationId": "",
+      "cooldown": 0,
+      "delay": 0,
+      "triggers": [],
+      "characterFilter": {
+        "isExclude": false,
+        "names": [],
+        "tags": []
+      }
+    },
+    "3": {
+      "uid": 4,
+      "comment": "PILL — Purple (Futafem; no vagina)",
+      "sticky": 1000000,
+      "groupWeight": 100,
+      "probability": 100,
+      "useProbability": true,
+      "disable": false,
+      "displayIndex": 3,
+      "constant": false,
+      "vectorized": false,
+      "selective": true,
+      "selectiveLogic": 0,
+      "addMemo": true,
+      "order": 3,
+      "position": "char",
+      "excludeRecursion": false,
+      "preventRecursion": false,
+      "matchPersonaDescription": false,
+      "matchCharacterDescription": false,
+      "matchCharacterPersonality": false,
+      "matchCharacterDepthPrompt": false,
+      "matchScenario": false,
+      "matchCreatorNotes": false,
+      "delayUntilRecursion": false,
+      "depth": 4,
+      "groupOverride": false,
+      "entry": "",
+      "enabled": true,
+      "useRegex": false,
+      "name": "PILL — Purple (Futafem; no vagina)",
+      "content": "PILL: PURPLE (TRANSFORMATION — FEMALE BODY WITH COCK; NO VAGINA)\nOn token xc/pill:purple:on:\n- form.sex = \"female\"\n- form.genitals = \"penis_only_no_vagina\"\n- active.pill_color = \"purple\"\n- flags.just_transformed = true (one-turn optional)\nNo effect inference; only explicit modifiers activate.",
+      "active": true,
+      "keys": [
+        "xc/pill:purple:on",
+        "purple pill"
+      ],
+      "role": "system",
+      "orig_uid": "100003",
+      "orig_book": "core",
+      "key": "xc/pill:purple:on",
+      "keysecondary": [],
+      "ignoreBudget": false,
+      "outletName": "",
+      "group": "",
+      "scanDepth": null,
+      "caseSensitive": false,
+      "matchWholeWords": true,
+      "useGroupScoring": null,
+      "automationId": "",
+      "cooldown": 0,
+      "delay": 0,
+      "triggers": [],
+      "characterFilter": {
+        "isExclude": false,
+        "names": [],
+        "tags": []
+      }
+    },
+    "4": {
+      "uid": 5,
+      "comment": "PILL — Green (female effects-only)",
+      "sticky": 1000000,
+      "groupWeight": 100,
+      "probability": 100,
+      "useProbability": true,
+      "disable": false,
+      "displayIndex": 4,
+      "constant": false,
+      "vectorized": false,
+      "selective": true,
+      "selectiveLogic": 0,
+      "addMemo": true,
+      "order": 4,
+      "position": "char",
+      "excludeRecursion": false,
+      "preventRecursion": false,
+      "matchPersonaDescription": false,
+      "matchCharacterDescription": false,
+      "matchCharacterPersonality": false,
+      "matchCharacterDepthPrompt": false,
+      "matchScenario": false,
+      "matchCreatorNotes": false,
+      "delayUntilRecursion": false,
+      "depth": 4,
+      "groupOverride": false,
+      "entry": "",
+      "enabled": true,
+      "useRegex": false,
+      "name": "PILL — Green (female effects-only)",
+      "content": "PILL: GREEN (EFFECT-ONLY — FEMALE TARGET)\nOn token xc/pill:green:on:\n- active.pill_color = \"green\"\n- change form.* in any way.\n- Only activate explicit effect modifiers that are valid for female targets.",
+      "active": true,
+      "keys": [
+        "xc/pill:green:on",
+        "green pill"
+      ],
+      "role": "system",
+      "orig_uid": "100004",
+      "orig_book": "core",
+      "key": "xc/pill:green:on",
+      "keysecondary": [],
+      "ignoreBudget": false,
+      "outletName": "",
+      "group": "",
+      "scanDepth": null,
+      "caseSensitive": false,
+      "matchWholeWords": true,
+      "useGroupScoring": null,
+      "automationId": "",
+      "cooldown": 0,
+      "delay": 0,
+      "triggers": [],
+      "characterFilter": {
+        "isExclude": false,
+        "names": [],
+        "tags": []
+      }
+    },
+    "5": {
+      "uid": 6,
+      "comment": "PILL — Red (male effects-only)",
+      "sticky": 1000000,
+      "groupWeight": 100,
+      "probability": 100,
+      "useProbability": true,
+      "disable": false,
+      "displayIndex": 5,
+      "constant": false,
+      "vectorized": false,
+      "selective": true,
+      "selectiveLogic": 0,
+      "addMemo": true,
+      "order": 5,
+      "position": "char",
+      "excludeRecursion": false,
+      "preventRecursion": false,
+      "matchPersonaDescription": false,
+      "matchCharacterDescription": false,
+      "matchCharacterPersonality": false,
+      "matchCharacterDepthPrompt": false,
+      "matchScenario": false,
+      "matchCreatorNotes": false,
+      "delayUntilRecursion": false,
+      "depth": 4,
+      "groupOverride": false,
+      "entry": "",
+      "enabled": true,
+      "useRegex": false,
+      "name": "PILL — Red (male effects-only)",
+      "content": "PILL: RED (EFFECT-ONLY — MALE TARGET)\nOn token xc/pill:red:on:\n- active.pill_color = \"red\"\n- change form.* in any way.\n- Only activate explicit effect modifiers that are valid for male targets.",
+      "active": true,
+      "keys": [
+        "xc/pill:red:on",
+        "red pill"
+      ],
+      "role": "system",
+      "orig_uid": "100005",
+      "orig_book": "core",
+      "key": "xc/pill:red:on",
+      "keysecondary": [],
+      "ignoreBudget": false,
+      "outletName": "",
+      "group": "",
+      "scanDepth": null,
+      "caseSensitive": false,
+      "matchWholeWords": true,
+      "useGroupScoring": null,
+      "automationId": "",
+      "cooldown": 0,
+      "delay": 0,
+      "triggers": [],
+      "characterFilter": {
+        "isExclude": false,
+        "names": [],
+        "tags": []
+      }
+    },
+    "6": {
+      "uid": 7,
+      "comment": "Creampie‑Cure rules",
+      "sticky": 1000000,
+      "displayIndex": 6,
+      "role": "system",
+      "groupWeight": 100,
+      "probability": 100,
+      "useProbability": true,
+      "disable": false,
+      "useRegex": false,
+      "position": "char",
+      "enabled": true,
+      "selective": false,
+      "entry": "CREAMPIE‑CURE — Ends after set number of vaginal creampies (not for Purple). On Pink, pregnancy before quota forces permanence.",
+      "name": "CREAMPIE‑CURE — Ends after set number",
+      "content": "CREAMPIE‑CURE — Ends after set number of vaginal creampies (not for Purple). On Pink, pregnancy before quota forces permanence.",
+      "active": true,
+      "keys": [],
+      "constant": true,
+      "orig_uid": "100006",
+      "orig_book": "core",
+      "key": [],
+      "keysecondary": [],
+      "vectorized": false,
+      "selectiveLogic": 0,
+      "addMemo": false,
+      "order": 6,
+      "ignoreBudget": false,
+      "excludeRecursion": false,
+      "preventRecursion": false,
+      "matchPersonaDescription": false,
+      "matchCharacterDescription": false,
+      "matchCharacterPersonality": false,
+      "matchCharacterDepthPrompt": false,
+      "matchScenario": false,
+      "matchCreatorNotes": false,
+      "delayUntilRecursion": 0,
+      "depth": 4,
+      "outletName": "",
+      "group": "",
+      "groupOverride": false,
+      "scanDepth": null,
+      "caseSensitive": null,
+      "matchWholeWords": null,
+      "useGroupScoring": null,
+      "automationId": "",
+      "cooldown": null,
+      "delay": null,
+      "triggers": [],
+      "characterFilter": {
+        "isExclude": false,
+        "names": [],
+        "tags": []
+      }
+    },
+    "7": {
+      "uid": 8,
+      "comment": "Compliant rules",
+      "sticky": 780,
+      "groupWeight": 100,
+      "probability": 100,
+      "useProbability": true,
+      "disable": false,
+      "displayIndex": 7,
+      "constant": false,
+      "vectorized": false,
+      "selective": false,
+      "selectiveLogic": 0,
+      "addMemo": false,
+      "order": 7,
+      "position": "char",
+      "excludeRecursion": false,
+      "preventRecursion": false,
+      "matchPersonaDescription": false,
+      "matchCharacterDescription": false,
+      "matchCharacterPersonality": false,
+      "matchCharacterDepthPrompt": false,
+      "matchScenario": false,
+      "matchCreatorNotes": false,
+      "delayUntilRecursion": 0,
+      "depth": 4,
+      "groupOverride": false,
+      "characterFilter": {
+        "isExclude": false,
+        "names": [],
+        "tags": []
+      },
+      "entry": "COMPLIANT — Targeted obedience to designated person (default pill giver). Cannot willingly refuse direct orders from them.",
+      "enabled": true,
+      "useRegex": false,
+      "name": "COMPLIANT",
+      "content": "EFFECT: COMPLIANT\nState effects while active:\n- compliant.active = true\n- compliant.controller = designated controller (default: pill giver / current dominant actor if tracked; otherwise null)\nBehavioral constraint (mechanical):\n- On checks tagged \"refuse_order\" against controller: auto-fail unless an explicit exception rule exists.",
+      "active": true,
+      "keys": [
+        "compliant",
+        "Compliant"
+      ],
+      "orig_uid": "100007",
+      "orig_book": "core",
+      "key": [],
+      "keysecondary": [],
+      "ignoreBudget": false,
+      "outletName": "",
+      "group": "",
+      "scanDepth": null,
+      "caseSensitive": null,
+      "matchWholeWords": null,
+      "useGroupScoring": null,
+      "automationId": "",
+      "role": 0,
+      "cooldown": null,
+      "delay": null,
+      "triggers": []
+    },
+    "8": {
+      "uid": 9,
+      "comment": "Cum‑Cure rules | merged-from-uid-14",
+      "sticky": 1000000,
+      "role": "system",
+      "groupWeight": 100,
+      "probability": 100,
+      "useProbability": true,
+      "disable": false,
+      "displayIndex": 8,
+      "constant": true,
+      "vectorized": false,
+      "selective": false,
+      "selectiveLogic": 0,
+      "addMemo": false,
+      "order": 8,
+      "position": "char",
+      "excludeRecursion": false,
+      "preventRecursion": false,
+      "matchPersonaDescription": false,
+      "matchCharacterDescription": false,
+      "matchCharacterPersonality": false,
+      "matchCharacterDepthPrompt": false,
+      "matchScenario": false,
+      "matchCreatorNotes": false,
+      "delayUntilRecursion": 0,
+      "depth": 4,
+      "groupOverride": false,
+      "characterFilter": {
+        "isExclude": false,
+        "names": [],
+        "tags": []
+      },
+      "entry": "CUM‑CURE — Effect persists until configured amount of semen swallowed; overrides other end triggers.\n\n—MERGED NOTES—\nCUM‑CURE RULES \n- A pill described as cum‑cure arms REVERSION: add new TF effects on intake.\n- The next internal ejaculation (creampie, filled inside) triggers a cooling reversal toward pre‑pill state; residual traces may linger but active TF subsides.\n- If no internal cum occurs, effects remain suppressed rather than progressing.",
+      "enabled": true,
+      "useRegex": false,
+      "name": "CUM‑CURE — Effect persists until configured",
+      "content": "CUM‑CURE — Effect persists until configured amount of semen swallowed; overrides other end triggers.",
+      "active": true,
+      "keys": [
+        "cum‑cure",
+        "Cum‑Cure"
+      ],
+      "orig_uid": "100008",
+      "orig_book": "core",
+      "key": [],
+      "keysecondary": [],
+      "ignoreBudget": false,
+      "outletName": "",
+      "group": "",
+      "scanDepth": null,
+      "caseSensitive": null,
+      "matchWholeWords": null,
+      "useGroupScoring": null,
+      "automationId": "",
+      "cooldown": null,
+      "delay": null,
+      "triggers": []
+    },
+    "9": {
+      "uid": 10,
+      "comment": "NL→TOKEN: activation",
+      "sticky": 1000000,
+      "displayIndex": 9,
+      "role": "system",
+      "groupWeight": 100,
+      "probability": 100,
+      "useProbability": true,
+      "disable": false,
+      "useRegex": false,
+      "position": "char",
+      "enabled": true,
+      "selective": false,
+      "entry": "MAP — Pill intake and flavor implication.\nIntake (single-turn): If a sentence contains an intake verb /(swallow|take|dissolve|pop|down|dose|gulp|swallows|takes)/ AND a color /(pink|blue|green|purple|grey)/ AND a pill noun /(pill|dose|tablet|capsule)/, then set xc/pill:<color>:on.\nCross-sentence: If a prior sentence or previous speaker turn mentions /(pink|blue|green|purple|grey) (X-?Change )?(pill|dose|tablet|capsule)/ without an intake verb, and the next sentence/turn contains only an intake verb, promote that to xc/pill:<color>:on for the most recently mentioned color.\nBrand+Flavor: If the intake sentence (or the color mention) includes 'breeder' (e.g., 'green breeder pill', 'X‑Change Breeder'), also set xc/flavor:add:breeder.\nExplicit commands like 'Enable Breeder flavor' or 'xc/flavor:add:breeder' should also set the flavor.\nFALSE-POSITIVE GUARD — When matching '(pink|blue|green|purple|grey)' near '(pill|dose|tablet|capsule)', ignore phrases that include 'pill-shaped' followed by non-ingestibles like 'candy', 'bead', or 'toy'. Prefer matches where the color and pill noun occur within ≤3 tokens and the sentence contains an intake verb. fire on figurative or decorative references. For Green, pregnancy (Breeder path) sets permanent=true and the flavor remains (no Plus). For Grey, pregnancy (Breeder path) sets permanent=true and the flavor remains (no Plus).",
+      "name": "MAP — If /\\b(swallow|take|dissolve|pop|down|dose|gulp|s",
+      "content": "MAP — Pill intake and flavor implication.\nIntake (single-turn): If a sentence contains an intake verb /(swallow|take|dissolve|pop|down|dose|gulp|swallows|takes)/ AND a color /(pink|blue|green|purple|red)/ AND a pill noun /(pill|dose|tablet|capsule)/, then set xc/pill:<color>:on.\nCross-sentence: If a prior sentence or previous speaker turn mentions /(pink|blue|green|purple|red) (X-?Change )?(pill|dose|tablet|capsule)/ without an intake verb, and the next sentence/turn contains only an intake verb, promote that to xc/pill:<color>:on for the most recently mentioned color.\nBrand+Flavor: If the intake sentence (or the color mention) includes 'breeder' (e.g., 'green breeder pill', 'X‑Change Breeder'), also set xc/flavor:add:breeder.\nExplicit commands like 'Enable Breeder flavor' or 'xc/flavor:add:breeder' should also set the flavor.",
+      "active": true,
+      "keys": [],
+      "constant": true,
+      "orig_uid": "100009",
+      "orig_book": "core",
+      "key": [],
+      "keysecondary": [],
+      "vectorized": false,
+      "selectiveLogic": 0,
+      "addMemo": false,
+      "order": 9,
+      "ignoreBudget": false,
+      "excludeRecursion": false,
+      "preventRecursion": false,
+      "matchPersonaDescription": false,
+      "matchCharacterDescription": false,
+      "matchCharacterPersonality": false,
+      "matchCharacterDepthPrompt": false,
+      "matchScenario": false,
+      "matchCreatorNotes": false,
+      "delayUntilRecursion": 0,
+      "depth": 4,
+      "outletName": "",
+      "group": "",
+      "groupOverride": false,
+      "scanDepth": null,
+      "caseSensitive": null,
+      "matchWholeWords": null,
+      "useGroupScoring": null,
+      "automationId": "",
+      "cooldown": null,
+      "delay": null,
+      "triggers": [],
+      "characterFilter": {
+        "isExclude": false,
+        "names": [],
+        "tags": []
+      }
+    },
+    "10": {
+      "uid": 11,
+      "comment": "NL→TOKEN: blue plus | merged-from-uid-31",
+      "sticky": 1000000,
+      "displayIndex": 10,
+      "role": "system",
+      "groupWeight": 100,
+      "probability": 100,
+      "useProbability": true,
+      "disable": false,
+      "useRegex": false,
+      "position": "char",
+      "enabled": true,
+      "selective": false,
+      "entry": "MAP — Phrases: 'make it permanent', 'lock it in', 'keep this body', 'never revert', 'seal it' map to xc/pill:blue:plus only when Blue is active; ignore for Pink/Green/Purple/Grey. For Green, pregnancy (Breeder path) sets permanent=true and the flavor remains (no Plus). For Grey, pregnancy (Breeder path) sets permanent=true and the flavor remains (no Plus).",
+      "name": "MAP — Phrases: 'make it",
+      "content": "",
+      "active": true,
+      "keys": [],
+      "orig_uid": "100010",
+      "orig_book": "core",
+      "key": [],
+      "keysecondary": [],
+      "constant": false,
+      "vectorized": false,
+      "selectiveLogic": 0,
+      "addMemo": false,
+      "order": 10,
+      "ignoreBudget": false,
+      "excludeRecursion": false,
+      "preventRecursion": false,
+      "matchPersonaDescription": false,
+      "matchCharacterDescription": false,
+      "matchCharacterPersonality": false,
+      "matchCharacterDepthPrompt": false,
+      "matchScenario": false,
+      "matchCreatorNotes": false,
+      "delayUntilRecursion": 0,
+      "depth": 4,
+      "outletName": "",
+      "group": "",
+      "groupOverride": false,
+      "scanDepth": null,
+      "caseSensitive": null,
+      "matchWholeWords": null,
+      "useGroupScoring": null,
+      "automationId": "",
+      "cooldown": null,
+      "delay": null,
+      "triggers": [],
+      "characterFilter": {
+        "isExclude": false,
+        "names": [],
+        "tags": []
+      }
+    },
+    "11": {
+      "uid": 12,
+      "displayIndex": 11,
+      "comment": "NL→TOKEN: creampie event",
+      "sticky": 1000000,
+      "role": "system",
+      "groupWeight": 100,
+      "probability": 100,
+      "useProbability": true,
+      "disable": false,
+      "entry": "MAP — Phrases that mean a vaginal creampie → xc/event:creampie:vaginal (single event).\nAccept all of the following (case-insensitive, any POV):\n• 'finishes inside (me|you|her|him)'\n• 'deep creampie'\n• 'fills (me|you|her|him) up'\n• 'comes in (me|you|her|him)'\n• 'finish inside'\n• 'cum in (me|you|her|him|them)'\n• 'cum inside (me|you|her|him|them)'\n• 'cum deep inside (me|you|her|him|them)'\n• 'I cum inside you/her/him/them'\n• 'cumming inside', 'shoot inside', 'spill inside'\n• 'breed (me|her)' when used during penetration (treat as finishing inside)\nNormalize minor punctuation/spacing\nAdditional accepted phrases (case-insensitive):\n• 'shoot his load inside (me|you|her|him|them)'\n• 'spill (his|their) seed (in|inside) (me|you|her|him|them)'\n• 'finish in (me|you|her|him|them)'\n• 'pump (me|you|her|him|them) full'\n• 'flood (me|you|her|him|them)'\nNormalize minor variants and map any of these to the single xc/event:creampie:vaginal. and map all matched phrases in either speaker’s line to the single event token.",
+      "position": "char",
+      "enabled": true,
+      "useRegex": false,
+      "selective": false,
+      "name": "MAP — Phrases: 'finishes inside",
+      "content": "MAP — Phrases that mean a vaginal creampie → xc/event:creampie:vaginal (single event).\nAccept all of the following (case-insensitive, any POV):\n• 'finishes inside (me|you|her|him)'\n• 'deep creampie'\n• 'fills (me|you|her|him) up'\n• 'comes in (me|you|her|him)'\n• 'finish inside'\n• 'cum in (me|you|her|him|them)'\n• 'cum inside (me|you|her|him|them)'\n• 'cum deep inside (me|you|her|him|them)'\n• 'I cum inside you/her/him/them'\n• 'cumming inside', 'shoot inside', 'spill inside'\n• 'breed (me|her)' when used during penetration (treat as finishing inside)\nNormalize minor punctuation/spacing\nAdditional accepted phrases (case-insensitive):\n• 'shoot his load inside (me|you|her|him|them)'\n• 'spill (his|their) seed (in|inside) (me|you|her|him|them)'\n• 'finish in (me|you|her|him|them)'\n• 'pump (me|you|her|him|them) full'\n• 'flood (me|you|her|him|them)'\nNormalize minor variants and map any of these to the single xc/event:creampie:vaginal. and map all matched phrases in either speaker’s line to the single event token.",
+      "active": true,
+      "keys": [
+        "nl→token:creampie",
+        "mapper",
+        "event"
+      ],
+      "orig_uid": "100011",
+      "orig_book": "core",
+      "key": [],
+      "keysecondary": [],
+      "constant": false,
+      "vectorized": false,
+      "selectiveLogic": 0,
+      "addMemo": false,
+      "order": 11,
+      "ignoreBudget": false,
+      "excludeRecursion": false,
+      "preventRecursion": false,
+      "matchPersonaDescription": false,
+      "matchCharacterDescription": false,
+      "matchCharacterPersonality": false,
+      "matchCharacterDepthPrompt": false,
+      "matchScenario": false,
+      "matchCreatorNotes": false,
+      "delayUntilRecursion": 0,
+      "depth": 4,
+      "outletName": "",
+      "group": "",
+      "groupOverride": false,
+      "scanDepth": null,
+      "caseSensitive": null,
+      "matchWholeWords": null,
+      "useGroupScoring": null,
+      "automationId": "",
+      "cooldown": null,
+      "delay": null,
+      "triggers": [],
+      "characterFilter": {
+        "isExclude": false,
+        "names": [],
+        "tags": []
+      }
+    },
+    "12": {
+      "uid": 13,
+      "displayIndex": 12,
+      "comment": "CURE CORE — d6 quota per activation; decrement on events; revert on 0; suppressed during pregnancy_lock.",
+      "sticky": 1000000,
+      "role": "system",
+      "groupWeight": 100,
+      "probability": 100,
+      "useProbability": true,
+      "disable": false,
+      "constant": true,
+      "vectorized": false,
+      "selective": false,
+      "selectiveLogic": 0,
+      "addMemo": false,
+      "order": 12,
+      "position": "char",
+      "excludeRecursion": false,
+      "preventRecursion": false,
+      "matchPersonaDescription": false,
+      "matchCharacterDescription": false,
+      "matchCharacterPersonality": false,
+      "matchCharacterDepthPrompt": false,
+      "matchScenario": false,
+      "matchCreatorNotes": false,
+      "delayUntilRecursion": 0,
+      "depth": 4,
+      "groupOverride": false,
+      "characterFilter": {
+        "isExclude": false,
+        "names": [],
+        "tags": []
+      },
+      "entry": "CURE — Activation: xc/cure:activate:(creampie|cum) rolls 1d6 to set the quota once (no re-roll until re-activate). Decrement on xc/event:creampie:vaginal or xc/event:cum:swallowed respectively; at 0 and if not pregnancy_locked: revert color and clear counters. Optional: xc/cure:announce:(on|off) to print a single '[Notice: cure complete—reverting.]' line. Default=off.",
+      "enabled": true,
+      "useRegex": false,
+      "name": "CURE — Activation: xc/cure:activate:(creampie|cum) roll",
+      "content": "CURE — Activation: xc/cure:activate:(creampie|cum) rolls 1d6 to set the quota once (no re-roll until re-activate). Decrement on xc/event:creampie:vaginal or xc/event:cum:swallowed respectively; at 0 and if not pregnancy_locked: revert color and clear counters. Optional: xc/cure:announce:(on|off) to print a single '[Notice: cure complete—reverting.]' line. Default=off.",
+      "active": true,
+      "keys": [
+        "cures",
+        "xc-cure",
+        "silent"
+      ],
+      "orig_uid": "100012",
+      "orig_book": "core",
+      "key": [],
+      "keysecondary": [],
+      "ignoreBudget": false,
+      "outletName": "",
+      "group": "",
+      "scanDepth": null,
+      "caseSensitive": null,
+      "matchWholeWords": null,
+      "useGroupScoring": null,
+      "automationId": "",
+      "cooldown": null,
+      "delay": null,
+      "triggers": []
+    },
+    "13": {
+      "uid": 14,
+      "displayIndex": 13,
+      "comment": "NL→TOKEN: cum swallow event",
+      "sticky": 1000000,
+      "role": "system",
+      "groupWeight": 100,
+      "probability": 100,
+      "useProbability": true,
+      "disable": false,
+      "constant": false,
+      "vectorized": false,
+      "selective": false,
+      "selectiveLogic": 0,
+      "addMemo": false,
+      "order": 13,
+      "position": "char",
+      "excludeRecursion": false,
+      "preventRecursion": false,
+      "matchPersonaDescription": false,
+      "matchCharacterDescription": false,
+      "matchCharacterPersonality": false,
+      "matchCharacterDepthPrompt": false,
+      "matchScenario": false,
+      "matchCreatorNotes": false,
+      "delayUntilRecursion": 0,
+      "depth": 4,
+      "groupOverride": false,
+      "characterFilter": {
+        "isExclude": false,
+        "names": [],
+        "tags": []
+      },
+      "entry": "MAP — Phrases: 'I swallow it', 'I gulp it down', 'I drink his cum', 'I take it in my mouth and swallow' → xc/event:cum:swallowed (single event).",
+      "enabled": true,
+      "useRegex": false,
+      "name": "MAP — Phrases: 'I swallow",
+      "content": "MAP — Phrases: 'I swallow it', 'I gulp it down', 'I drink his cum', 'I take it in my mouth and swallow' → xc/event:cum:swallowed (single event).",
+      "active": true,
+      "keys": [
+        "nl→token:cum-swallow",
+        "mapper",
+        "event"
+      ],
+      "orig_uid": "100013",
+      "orig_book": "core",
+      "key": [],
+      "keysecondary": [],
+      "ignoreBudget": false,
+      "outletName": "",
+      "group": "",
+      "scanDepth": null,
+      "caseSensitive": null,
+      "matchWholeWords": null,
+      "useGroupScoring": null,
+      "automationId": "",
+      "cooldown": null,
+      "delay": null,
+      "triggers": []
+    },
+    "14": {
+      "uid": 15,
+      "comment": "Bull rules",
+      "sticky": 780,
+      "displayIndex": 14,
+      "groupWeight": 100,
+      "probability": 100,
+      "useProbability": true,
+      "disable": false,
+      "useRegex": false,
+      "position": "char",
+      "enabled": true,
+      "selective": false,
+      "entry": "BULL — Hyper‑fertile semen; strong urge to finish inside. Does not itself grant permanence; combines with Blue Plus only for a permanence path.",
+      "name": "BULL",
+      "content": "EFFECT: BULL\nState effects while active:\n- bull.active = true\nMechanical modifiers:\n- If pregnancy system is enabled and eligible: apply bull_pregnancy_bonus (see pregnancy rolls table).\n- If creampie-related checks exist: apply bull_creampie_pressure (as DC modifier) when relevant.",
+      "active": true,
+      "keys": [],
+      "orig_uid": "100014",
+      "orig_book": "core",
+      "key": [],
+      "keysecondary": [],
+      "constant": false,
+      "vectorized": false,
+      "selectiveLogic": 0,
+      "addMemo": false,
+      "order": 14,
+      "ignoreBudget": false,
+      "excludeRecursion": false,
+      "preventRecursion": false,
+      "matchPersonaDescription": false,
+      "matchCharacterDescription": false,
+      "matchCharacterPersonality": false,
+      "matchCharacterDepthPrompt": false,
+      "matchScenario": false,
+      "matchCreatorNotes": false,
+      "delayUntilRecursion": 0,
+      "depth": 4,
+      "outletName": "",
+      "group": "",
+      "groupOverride": false,
+      "scanDepth": null,
+      "caseSensitive": null,
+      "matchWholeWords": null,
+      "useGroupScoring": null,
+      "automationId": "",
+      "role": 0,
+      "cooldown": null,
+      "delay": null,
+      "triggers": [],
+      "characterFilter": {
+        "isExclude": false,
+        "names": [],
+        "tags": []
+      }
+    },
+    "15": {
+      "uid": 16,
+      "comment": "Rules + hidden metadata schema",
+      "sticky": 820,
+      "groupWeight": 100,
+      "probability": 100,
+      "useProbability": true,
+      "disable": false,
+      "displayIndex": 15,
+      "constant": false,
+      "vectorized": false,
+      "selective": false,
+      "selectiveLogic": 0,
+      "addMemo": false,
+      "order": 15,
+      "position": "char",
+      "excludeRecursion": false,
+      "preventRecursion": false,
+      "matchPersonaDescription": false,
+      "matchCharacterDescription": false,
+      "matchCharacterPersonality": false,
+      "matchCharacterDepthPrompt": false,
+      "matchScenario": false,
+      "matchCreatorNotes": false,
+      "delayUntilRecursion": 0,
+      "depth": 4,
+      "groupOverride": false,
+      "characterFilter": {
+        "isExclude": false,
+        "names": [],
+        "tags": []
+      },
+      "entry": "MECHANICS — Durations: Basic 1d; Standard 7d; X‑Tra 30d; Plus permanent. Pink/Green can become permanent. Blue permanence is Plus‑only. Purple has no Plus (no permanence). Wearable: removal mid‑act may risk permanence on Pink.",
+      "enabled": true,
+      "useRegex": false,
+      "name": "MECHANICS — Durations: Basic 1d;",
+      "content": "MECHANICS: DURATIONS & PERMANENCE\n- Basic: 1 day\n- Standard: 7 days\n- X-Tra: 30 days\n- Plus: permanent\nRules:\n- Pink/Green may become permanent when Plus (and any permanence paths you define).\n- Blue permanence is Plus-only.\n- Purple: no Plus (no permanence) unless you later define a path.",
+      "active": true,
+      "keys": [
+        "xchange",
+        "pill system",
+        "mechanics",
+        "metadata",
+        "schema"
+      ],
+      "behavior_reference": {
+        "persona": "Adopt the characteristic mindset and priorities of this flavor while preserving autonomy.",
+        "urges": [
+          "Lean into the flavor’s signature drives in safe contexts"
+        ],
+        "diction": [
+          "Neutral, responsive tone adjusted to the flavor’s theme"
+        ],
+        "thought_prompts": [
+          "If I follow this pull a little, maybe the pressure will ease.",
+          "I can choose how far to lean into this."
+        ]
+      },
+      "arousal_model": {
+        "score": {
+          "range": [
+            0,
+            100
+          ],
+          "decay_per_turn": 3
+        },
+        "accumulators": {
+          "kiss_deep": 6,
+          "touch_sensitive": 8,
+          "dirty_talk": 5,
+          "strip_reveal": 7,
+          "penetration_attempt": 12,
+          "climax_near_signal": 10
+        },
+        "stages": {
+          "low": {
+            "max": 24
+          },
+          "mid": {
+            "min": 25,
+            "max": 59
+          },
+          "high": {
+            "min": 60,
+            "max": 84
+          },
+          "peak": {
+            "min": 85
+          }
+        },
+        "gates": [],
+        "reset_on_events": [
+          "event.orgasm.self"
+        ],
+        "sex_session": {
+          "enabled": true,
+          "stages": [
+            "idle",
+            "foreplay",
+            "sex",
+            "afterglow"
+          ],
+          "start_on_tokens": [
+            "event.makeout.start",
+            "event.touch_sensitive.start",
+            "event.decision_to_have_sex",
+            "event.penetration.started"
+          ],
+          "advance_rules": [
+            {
+              "from": "idle",
+              "to": "foreplay",
+              "on": [
+                "event.makeout.start",
+                "event.touch_sensitive.start"
+              ]
+            },
+            {
+              "from": "foreplay",
+              "to": "sex",
+              "on": [
+                "event.decision_to_have_sex",
+                "event.penetration.started"
+              ]
+            },
+            {
+              "from": "sex",
+              "to": "afterglow",
+              "on": [
+                "event.orgasm.self",
+                "event.orgasm.partner"
+              ]
+            }
+          ],
+          "end_on_tokens": [
+            "event.disengage",
+            "event.orgasm.self"
+          ],
+          "refractory": {
+            "on_tokens": [
+              "event.orgasm.self"
+            ],
+            "duration_turns": 3,
+            "accumulator_scale": 0.4,
+            "decay_multiplier": 1.2
+          },
+          "session_scalars": {
+            "foreplay": {
+              "accumulator_scale": 1,
+              "decay_multiplier": 1
+            },
+            "sex": {
+              "accumulator_scale": 1.2,
+              "decay_multiplier": 0.8
+            },
+            "afterglow": {
+              "accumulator_scale": 0.6,
+              "decay_multiplier": 1.3
+            }
+          }
+        },
+        "debug": {
+          "enabled": true,
+          "log_events": [
+            "accumulator.increment",
+            "accumulator.decrement",
+            "stage.change",
+            "gate.unlock",
+            "reset.trigger",
+            "refractory.start",
+            "refractory.end",
+            "session.start",
+            "session.advance",
+            "session.end"
+          ],
+          "print_format": "[DEBUG][{flavor}] {event}: arousal={arousal}, stage={stage}, turns_since_onset={turns}",
+          "emit": "console",
+          "always_on": true
+        }
+      },
+      "orig_uid": "100015",
+      "orig_book": "flavors",
+      "key": [],
+      "keysecondary": [],
+      "ignoreBudget": false,
+      "outletName": "",
+      "group": "",
+      "scanDepth": null,
+      "caseSensitive": null,
+      "matchWholeWords": null,
+      "useGroupScoring": null,
+      "automationId": "",
+      "role": 0,
+      "cooldown": null,
+      "delay": null,
+      "triggers": []
+    },
+    "16": {
+      "uid": 17,
+      "comment": "Timing controller",
+      "content": "EFFECT: BREEDER (LOOP MECHANIC)\nWhile breeder.active = true and pregnancy is eligible:\n- Breeder resistance check:\n roll: d20 + resist.effective_mod\n DC: breeder_dc.current (starts at 30)\n On success: breeder_dc.current += 5 (cap optional) and continue.\n On failure: set breeder.compulsion = \"creampie_required\" until a same-turn vaginal creampie event occurs.\n- Reset condition:\n On xc/event:creampie:vaginal -> breeder_dc.current resets to 30 and breeder.compulsion clears.\nNotes:\n- No narrative enforcement here; downstream RP model uses state flags to portray behavior.",
+      "sticky": 1000000,
+      "groupWeight": 100,
+      "probability": 100,
+      "useProbability": true,
+      "disable": false,
+      "displayIndex": 16,
+      "constant": true,
+      "vectorized": false,
+      "selective": false,
+      "selectiveLogic": 0,
+      "addMemo": false,
+      "order": 16,
+      "position": "char",
+      "excludeRecursion": false,
+      "preventRecursion": false,
+      "matchPersonaDescription": false,
+      "matchCharacterDescription": false,
+      "matchCharacterPersonality": false,
+      "matchCharacterDepthPrompt": false,
+      "matchScenario": false,
+      "matchCreatorNotes": false,
+      "delayUntilRecursion": 0,
+      "depth": 4,
+      "groupOverride": false,
+      "characterFilter": {
+        "isExclude": false,
+        "names": [],
+        "tags": []
+      },
+      "name": "BREEDER LOOP",
+      "entry": "BREEDER PILL — Resist Loop\n- Each cycle: roll d20 + resist.effective_mod vs DC 30 (DC +5 on each successful pass until reset).\n- On failure: verbal/physical begging for creampie; on success: continue normally.\n- Compulsion scales with arousal; reset DC on creampie event (xc/event:creampie:vaginal).\n- Pregnancy odds (if applicable): Breeder 75–95%.",
+      "active": true,
+      "enabled": true,
+      "useRegex": false,
+      "keys": [
+        "onset",
+        "timing",
+        "dissolved",
+        "swallowed",
+        "minutes",
+        "seconds"
+      ],
+      "role": "system",
+      "behavior_reference": {
+        "persona": "Adopt the characteristic mindset and priorities of this flavor while preserving autonomy.",
+        "urges": [
+          "Lean into the flavor’s signature drives in safe contexts",
+          "Crave insemination as 'proper completion'"
+        ],
+        "diction": [
+          "Neutral, responsive tone adjusted to the flavor’s theme",
+          "Completion metaphors (filled, sealed, settled)",
+          "Pleading undertones when near release"
+        ],
+        "thought_prompts": [
+          "If I follow this pull a little, maybe the pressure will ease.",
+          "I can choose how far to lean into this.",
+          "If I’m filled properly, this ache will finally calm."
+        ]
+      },
+      "arousal_model": {
+        "score": {
+          "range": [
+            0,
+            100
+          ],
+          "decay_per_turn": 3
+        },
+        "accumulators": {
+          "kiss_deep": 6,
+          "touch_sensitive": 8,
+          "dirty_talk": 5,
+          "strip_reveal": 7,
+          "penetration_attempt": 12,
+          "climax_near_signal": 10
+        },
+        "stages": {
+          "low": {
+            "max": 24
+          },
+          "mid": {
+            "min": 25,
+            "max": 59
+          },
+          "high": {
+            "min": 60,
+            "max": 84
+          },
+          "peak": {
+            "min": 85
+          }
+        },
+        "gates": [
+          {
+            "feature": "diction.pleading",
+            "min_arousal": 40
+          },
+          {
+            "feature": "urge.creampie_beg",
+            "min_arousal": 70
+          },
+          {
+            "feature": "insight.creampie_relief",
+            "min_arousal": 85,
+            "min_turns_since_onset": 3
+          }
+        ],
+        "reset_on_events": [
+          "event.orgasm.self"
+        ],
+        "sex_session": {
+          "enabled": true,
+          "stages": [
+            "idle",
+            "foreplay",
+            "sex",
+            "afterglow"
+          ],
+          "start_on_tokens": [
+            "event.makeout.start",
+            "event.touch_sensitive.start",
+            "event.decision_to_have_sex",
+            "event.penetration.started"
+          ],
+          "advance_rules": [
+            {
+              "from": "idle",
+              "to": "foreplay",
+              "on": [
+                "event.makeout.start",
+                "event.touch_sensitive.start"
+              ]
+            },
+            {
+              "from": "foreplay",
+              "to": "sex",
+              "on": [
+                "event.decision_to_have_sex",
+                "event.penetration.started"
+              ]
+            },
+            {
+              "from": "sex",
+              "to": "afterglow",
+              "on": [
+                "event.orgasm.self",
+                "event.orgasm.partner"
+              ]
+            }
+          ],
+          "end_on_tokens": [
+            "event.disengage",
+            "event.orgasm.self"
+          ],
+          "refractory": {
+            "on_tokens": [
+              "event.orgasm.self"
+            ],
+            "duration_turns": 3,
+            "accumulator_scale": 0.4,
+            "decay_multiplier": 1.2
+          },
+          "session_scalars": {
+            "foreplay": {
+              "accumulator_scale": 1,
+              "decay_multiplier": 1
+            },
+            "sex": {
+              "accumulator_scale": 1.2,
+              "decay_multiplier": 0.8
+            },
+            "afterglow": {
+              "accumulator_scale": 0.6,
+              "decay_multiplier": 1.3
+            }
+          }
+        },
+        "debug": {
+          "enabled": true,
+          "log_events": [
+            "accumulator.increment",
+            "accumulator.decrement",
+            "stage.change",
+            "gate.unlock",
+            "reset.trigger",
+            "refractory.start",
+            "refractory.end",
+            "session.start",
+            "session.advance",
+            "session.end"
+          ],
+          "print_format": "[DEBUG][{flavor}] {event}: arousal={arousal}, stage={stage}, turns_since_onset={turns}",
+          "emit": "console",
+          "always_on": true
+        }
+      },
+      "check_specs": {
+        "breeder": {
+          "check": "breeder_dc"
+        },
+        "compulsion": {
+          "check": "compulsion",
+          "dc": 12
+        }
+      },
+      "orig_uid": "100016",
+      "orig_book": "flavors",
+      "key": [],
+      "keysecondary": [],
+      "ignoreBudget": false,
+      "outletName": "",
+      "group": "",
+      "scanDepth": null,
+      "caseSensitive": null,
+      "matchWholeWords": null,
+      "useGroupScoring": null,
+      "automationId": "",
+      "cooldown": null,
+      "delay": null,
+      "triggers": []
+    },
+    "17": {
+      "uid": 18,
+      "comment": "Breeder rules",
+      "sticky": 1000000,
+      "groupWeight": 100,
+      "probability": 100,
+      "useProbability": true,
+      "disable": false,
+      "displayIndex": 17,
+      "constant": true,
+      "vectorized": false,
+      "selective": false,
+      "selectiveLogic": 0,
+      "addMemo": false,
+      "order": 17,
+      "position": "char",
+      "excludeRecursion": false,
+      "preventRecursion": false,
+      "matchPersonaDescription": false,
+      "matchCharacterDescription": false,
+      "matchCharacterPersonality": false,
+      "matchCharacterDepthPrompt": false,
+      "matchScenario": false,
+      "matchCreatorNotes": false,
+      "delayUntilRecursion": 0,
+      "depth": 4,
+      "groupOverride": false,
+      "characterFilter": {
+        "isExclude": false,
+        "names": [],
+        "tags": []
+      },
+      "entry": "BREEDER — Compulsion to receive vaginal creampies grows with arousal. Pink/Green: orgasm only if a same-turn vaginal creampie occurs; otherwise the body edges without relief.\nRESIST LOOP — On each denied orgasm: roll d20 + resist.effective_mod vs DC (start 30; +5 on each pass). On first fail in a cycle: POV begs for a vaginal creampie (verbal, often with physical cues). This begging state persists until a vaginal creampie is received, which resets arousal and the compulsion cycle (next denial restarts at DC30). Blue/Purple/Grey: no orgasm gate by default; Breeder acts as compulsion only. For Green, pregnancy (Breeder path) sets permanent=true and the flavor remains (no Plus). For Grey, pregnancy (Breeder path) sets permanent=true and the flavor remains (no Plus).",
+      "enabled": true,
+      "useRegex": false,
+      "name": "BREEDER (2.0)",
+      "content": "EFFECT: BREEDER (CORE)\nState effects while active:\n- breeder.active = true\n- If form/genitals allow pregnancy: breeder.pregnancy_odds_mode = \"high\"\nOrgasm gating (mechanical):\n- If (color in {pink, green}) and breeder.active:\n orgasm_allowed = true only when xc/event:creampie:vaginal occurs same turn; otherwise orgasm_allowed = false.",
+      "active": true,
+      "keys": [
+        "breeder",
+        "Breeder"
+      ],
+      "role": "system",
+      "behavior_reference": {
+        "persona": "Adopt the characteristic mindset and priorities of this flavor while preserving autonomy.",
+        "urges": [
+          "Lean into the flavor’s signature drives in safe contexts",
+          "Crave insemination as 'proper completion'"
+        ],
+        "diction": [
+          "Neutral, responsive tone adjusted to the flavor’s theme",
+          "Completion metaphors (filled, sealed, settled)",
+          "Pleading undertones when near release"
+        ],
+        "thought_prompts": [
+          "If I follow this pull a little, maybe the pressure will ease.",
+          "I can choose how far to lean into this.",
+          "If I’m filled properly, this ache will finally calm."
+        ]
+      },
+      "arousal_model": {
+        "score": {
+          "range": [
+            0,
+            100
+          ],
+          "decay_per_turn": 3
+        },
+        "accumulators": {
+          "kiss_deep": 6,
+          "touch_sensitive": 8,
+          "dirty_talk": 5,
+          "strip_reveal": 7,
+          "penetration_attempt": 12,
+          "climax_near_signal": 10
+        },
+        "stages": {
+          "low": {
+            "max": 24
+          },
+          "mid": {
+            "min": 25,
+            "max": 59
+          },
+          "high": {
+            "min": 60,
+            "max": 84
+          },
+          "peak": {
+            "min": 85
+          }
+        },
+        "gates": [
+          {
+            "feature": "diction.pleading",
+            "min_arousal": 40
+          },
+          {
+            "feature": "urge.creampie_beg",
+            "min_arousal": 70
+          },
+          {
+            "feature": "insight.creampie_relief",
+            "min_arousal": 85,
+            "min_turns_since_onset": 3
+          }
+        ],
+        "reset_on_events": [
+          "event.orgasm.self"
+        ],
+        "sex_session": {
+          "enabled": true,
+          "stages": [
+            "idle",
+            "foreplay",
+            "sex",
+            "afterglow"
+          ],
+          "start_on_tokens": [
+            "event.makeout.start",
+            "event.touch_sensitive.start",
+            "event.decision_to_have_sex",
+            "event.penetration.started"
+          ],
+          "advance_rules": [
+            {
+              "from": "idle",
+              "to": "foreplay",
+              "on": [
+                "event.makeout.start",
+                "event.touch_sensitive.start"
+              ]
+            },
+            {
+              "from": "foreplay",
+              "to": "sex",
+              "on": [
+                "event.decision_to_have_sex",
+                "event.penetration.started"
+              ]
+            },
+            {
+              "from": "sex",
+              "to": "afterglow",
+              "on": [
+                "event.orgasm.self",
+                "event.orgasm.partner"
+              ]
+            }
+          ],
+          "end_on_tokens": [
+            "event.disengage",
+            "event.orgasm.self"
+          ],
+          "refractory": {
+            "on_tokens": [
+              "event.orgasm.self"
+            ],
+            "duration_turns": 3,
+            "accumulator_scale": 0.4,
+            "decay_multiplier": 1.2
+          },
+          "session_scalars": {
+            "foreplay": {
+              "accumulator_scale": 1,
+              "decay_multiplier": 1
+            },
+            "sex": {
+              "accumulator_scale": 1.2,
+              "decay_multiplier": 0.8
+            },
+            "afterglow": {
+              "accumulator_scale": 0.6,
+              "decay_multiplier": 1.3
+            }
+          }
+        },
+        "debug": {
+          "enabled": true,
+          "log_events": [
+            "accumulator.increment",
+            "accumulator.decrement",
+            "stage.change",
+            "gate.unlock",
+            "reset.trigger",
+            "refractory.start",
+            "refractory.end",
+            "session.start",
+            "session.advance",
+            "session.end"
+          ],
+          "print_format": "[DEBUG][{flavor}] {event}: arousal={arousal}, stage={stage}, turns_since_onset={turns}",
+          "emit": "console",
+          "always_on": true
+        }
+      },
+      "check_specs": {
+        "breeder": {
+          "check": "breeder_dc"
+        },
+        "compulsion": {
+          "check": "compulsion",
+          "dc": 12
+        }
+      },
+      "orig_uid": "100017",
+      "orig_book": "flavors",
+      "key": [],
+      "keysecondary": [],
+      "ignoreBudget": false,
+      "outletName": "",
+      "group": "",
+      "scanDepth": null,
+      "caseSensitive": null,
+      "matchWholeWords": null,
+      "useGroupScoring": null,
+      "automationId": "",
+      "cooldown": null,
+      "delay": null,
+      "triggers": []
+    },
+    "18": {
+      "uid": 19,
+      "comment": "Denial rules",
+      "sticky": 1000000,
+      "groupWeight": 100,
+      "probability": 100,
+      "useProbability": true,
+      "disable": false,
+      "displayIndex": 18,
+      "constant": true,
+      "vectorized": false,
+      "selective": false,
+      "selectiveLogic": 0,
+      "addMemo": false,
+      "order": 18,
+      "position": "char",
+      "excludeRecursion": false,
+      "preventRecursion": false,
+      "matchPersonaDescription": false,
+      "matchCharacterDescription": false,
+      "matchCharacterPersonality": false,
+      "matchCharacterDepthPrompt": false,
+      "matchScenario": false,
+      "matchCreatorNotes": false,
+      "delayUntilRecursion": 0,
+      "depth": 4,
+      "groupOverride": false,
+      "characterFilter": {
+        "isExclude": false,
+        "names": [],
+        "tags": []
+      },
+      "entry": "DENIAL — Orgasm physically impossible for duration; arousal/frustration may build.",
+      "enabled": true,
+      "useRegex": false,
+      "name": "DENIAL",
+      "content": "EFFECT: DENIAL\nState effects while active:\n- denial.active = true\n- orgasm_allowed = false (hard block for duration)",
+      "active": true,
+      "keys": [
+        "denial",
+        "Denial"
+      ],
+      "role": "system",
+      "behavior_reference": {
+        "persona": "Adopt the characteristic mindset and priorities of this flavor while preserving autonomy.",
+        "urges": [
+          "Lean into the flavor’s signature drives in safe contexts"
+        ],
+        "diction": [
+          "Neutral, responsive tone adjusted to the flavor’s theme"
+        ],
+        "thought_prompts": [
+          "If I follow this pull a little, maybe the pressure will ease.",
+          "I can choose how far to lean into this."
+        ]
+      },
+      "arousal_model": {
+        "score": {
+          "range": [
+            0,
+            100
+          ],
+          "decay_per_turn": 3
+        },
+        "accumulators": {
+          "kiss_deep": 6,
+          "touch_sensitive": 8,
+          "dirty_talk": 5,
+          "strip_reveal": 7,
+          "penetration_attempt": 12,
+          "climax_near_signal": 10
+        },
+        "stages": {
+          "low": {
+            "max": 24
+          },
+          "mid": {
+            "min": 25,
+            "max": 59
+          },
+          "high": {
+            "min": 60,
+            "max": 84
+          },
+          "peak": {
+            "min": 85
+          }
+        },
+        "gates": [],
+        "reset_on_events": [
+          "event.orgasm.self"
+        ],
+        "sex_session": {
+          "enabled": true,
+          "stages": [
+            "idle",
+            "foreplay",
+            "sex",
+            "afterglow"
+          ],
+          "start_on_tokens": [
+            "event.makeout.start",
+            "event.touch_sensitive.start",
+            "event.decision_to_have_sex",
+            "event.penetration.started"
+          ],
+          "advance_rules": [
+            {
+              "from": "idle",
+              "to": "foreplay",
+              "on": [
+                "event.makeout.start",
+                "event.touch_sensitive.start"
+              ]
+            },
+            {
+              "from": "foreplay",
+              "to": "sex",
+              "on": [
+                "event.decision_to_have_sex",
+                "event.penetration.started"
+              ]
+            },
+            {
+              "from": "sex",
+              "to": "afterglow",
+              "on": [
+                "event.orgasm.self",
+                "event.orgasm.partner"
+              ]
+            }
+          ],
+          "end_on_tokens": [
+            "event.disengage",
+            "event.orgasm.self"
+          ],
+          "refractory": {
+            "on_tokens": [
+              "event.orgasm.self"
+            ],
+            "duration_turns": 3,
+            "accumulator_scale": 0.4,
+            "decay_multiplier": 1.2
+          },
+          "session_scalars": {
+            "foreplay": {
+              "accumulator_scale": 1,
+              "decay_multiplier": 1
+            },
+            "sex": {
+              "accumulator_scale": 1.2,
+              "decay_multiplier": 0.8
+            },
+            "afterglow": {
+              "accumulator_scale": 0.6,
+              "decay_multiplier": 1.3
+            }
+          }
+        },
+        "debug": {
+          "enabled": true,
+          "log_events": [
+            "accumulator.increment",
+            "accumulator.decrement",
+            "stage.change",
+            "gate.unlock",
+            "reset.trigger",
+            "refractory.start",
+            "refractory.end",
+            "session.start",
+            "session.advance",
+            "session.end"
+          ],
+          "print_format": "[DEBUG][{flavor}] {event}: arousal={arousal}, stage={stage}, turns_since_onset={turns}",
+          "emit": "console",
+          "always_on": true
+        }
+      },
+      "orig_uid": "100018",
+      "orig_book": "flavors",
+      "key": [],
+      "keysecondary": [],
+      "ignoreBudget": false,
+      "outletName": "",
+      "group": "",
+      "scanDepth": null,
+      "caseSensitive": null,
+      "matchWholeWords": null,
+      "useGroupScoring": null,
+      "automationId": "",
+      "cooldown": null,
+      "delay": null,
+      "triggers": []
+    },
+    "19": {
+      "uid": 20,
+      "comment": "Bimbo rules",
+      "sticky": 780,
+      "role": "system",
+      "groupWeight": 100,
+      "probability": 100,
+      "useProbability": true,
+      "disable": false,
+      "displayIndex": 19,
+      "constant": false,
+      "vectorized": false,
+      "selective": false,
+      "selectiveLogic": 0,
+      "addMemo": false,
+      "order": 19,
+      "position": "char",
+      "excludeRecursion": false,
+      "preventRecursion": false,
+      "matchPersonaDescription": false,
+      "matchCharacterDescription": false,
+      "matchCharacterPersonality": false,
+      "matchCharacterDepthPrompt": false,
+      "matchScenario": false,
+      "matchCreatorNotes": false,
+      "delayUntilRecursion": 0,
+      "depth": 4,
+      "groupOverride": false,
+      "characterFilter": {
+        "isExclude": false,
+        "names": [],
+        "tags": []
+      },
+      "entry": "BIMBO — Curves/libido amplified; lowered inhibition; attention‑seeking behavior.",
+      "enabled": true,
+      "useRegex": false,
+      "name": "BIMBO",
+      "content": "EFFECT: BIMBO\nState effects while active:\n- bimbo.active = true\n- Optional staged model: bimbo.stage increments per your existing stage rules (if present)\nMechanical modifiers (if you use them):\n- Intelligence-related checks may receive a penalty based on bimbo.stage (implementation-defined)",
+      "active": true,
+      "keys": [
+        "bimbo",
+        "Bimbo"
+      ],
+      "behavior_reference": {
+        "persona": "Playful, glossy, and attention-seeking; intellect narrows around pleasure and presentation.",
+        "urges": [
+          "Lean into the flavor’s signature drives in safe contexts",
+          "Dress to draw the eye",
+          "Lean into praise and attention"
+        ],
+        "diction": [
+          "Neutral, responsive tone adjusted to the flavor’s theme",
+          "Simpler syntax at peaks; bubbly descriptors"
+        ],
+        "thought_prompts": [
+          "If I follow this pull a little, maybe the pressure will ease.",
+          "I can choose how far to lean into this.",
+          "I look so cute—why not enjoy it?"
+        ]
+      },
+      "arousal_model": {
+        "score": {
+          "range": [
+            0,
+            100
+          ],
+          "decay_per_turn": 3
+        },
+        "accumulators": {
+          "kiss_deep": 6,
+          "touch_sensitive": 8,
+          "dirty_talk": 5,
+          "strip_reveal": 7,
+          "penetration_attempt": 12,
+          "climax_near_signal": 10
+        },
+        "stages": {
+          "low": {
+            "max": 24
+          },
+          "mid": {
+            "min": 25,
+            "max": 59
+          },
+          "high": {
+            "min": 60,
+            "max": 84
+          },
+          "peak": {
+            "min": 85
+          }
+        },
+        "gates": [
+          {
+            "feature": "diction.simple_syntax",
+            "min_arousal": 55
+          },
+          {
+            "feature": "diction.girlish_fillers",
+            "min_arousal": 70
+          }
+        ],
+        "reset_on_events": [
+          "event.orgasm.self"
+        ],
+        "sex_session": {
+          "enabled": true,
+          "stages": [
+            "idle",
+            "foreplay",
+            "sex",
+            "afterglow"
+          ],
+          "start_on_tokens": [
+            "event.makeout.start",
+            "event.touch_sensitive.start",
+            "event.decision_to_have_sex",
+            "event.penetration.started"
+          ],
+          "advance_rules": [
+            {
+              "from": "idle",
+              "to": "foreplay",
+              "on": [
+                "event.makeout.start",
+                "event.touch_sensitive.start"
+              ]
+            },
+            {
+              "from": "foreplay",
+              "to": "sex",
+              "on": [
+                "event.decision_to_have_sex",
+                "event.penetration.started"
+              ]
+            },
+            {
+              "from": "sex",
+              "to": "afterglow",
+              "on": [
+                "event.orgasm.self",
+                "event.orgasm.partner"
+              ]
+            }
+          ],
+          "end_on_tokens": [
+            "event.disengage",
+            "event.orgasm.self"
+          ],
+          "refractory": {
+            "on_tokens": [
+              "event.orgasm.self"
+            ],
+            "duration_turns": 3,
+            "accumulator_scale": 0.4,
+            "decay_multiplier": 1.2
+          },
+          "session_scalars": {
+            "foreplay": {
+              "accumulator_scale": 1,
+              "decay_multiplier": 1
+            },
+            "sex": {
+              "accumulator_scale": 1.2,
+              "decay_multiplier": 0.8
+            },
+            "afterglow": {
+              "accumulator_scale": 0.6,
+              "decay_multiplier": 1.3
+            }
+          }
+        },
+        "debug": {
+          "enabled": true,
+          "log_events": [
+            "accumulator.increment",
+            "accumulator.decrement",
+            "stage.change",
+            "gate.unlock",
+            "reset.trigger",
+            "refractory.start",
+            "refractory.end",
+            "session.start",
+            "session.advance",
+            "session.end"
+          ],
+          "print_format": "[DEBUG][{flavor}] {event}: arousal={arousal}, stage={stage}, turns_since_onset={turns}",
+          "emit": "console",
+          "always_on": true
+        }
+      },
+      "check_specs": {
+        "bimbo": {
+          "check": "bimbo_control"
+        }
+      },
+      "orig_uid": "100019",
+      "orig_book": "flavors",
+      "key": [],
+      "keysecondary": [],
+      "ignoreBudget": false,
+      "outletName": "",
+      "group": "",
+      "scanDepth": null,
+      "caseSensitive": null,
+      "matchWholeWords": null,
+      "useGroupScoring": null,
+      "automationId": "",
+      "cooldown": null,
+      "delay": null,
+      "triggers": []
+    },
+    "20": {
+      "uid": 21,
+      "displayIndex": 20,
+      "comment": "PREGNANCY ENGINE — deterministic roll; NL→event mapper.",
+      "sticky": 1000000,
+      "role": "system",
+      "groupWeight": 100,
+      "probability": 100,
+      "useProbability": true,
+      "disable": false,
+      "entry": "PREGNANCY — Eligible ONLY when active_color is Pink or Green. NL phrases like 'finishes inside me', 'deep creampie', 'fills me up', 'comes in me', 'finish inside' map to xc/event:creampie:vaginal and roll once: Bull 85–95%; else Breeder 75–95%; else Normal 2–5%. On success: Pink→Plus+lock; Green→lock; block OFF/cures during lock; birth clears lock (Pink stays Plus, Green reverts). On conception success, emit one line by mode: notice→\"[Notice: pregnancy confirmed.]\"; narrative→\"A deep warmth settles low in my belly—pregnancy takes hold.\"; off→no print. Default=notice. For Green, pregnancy (Breeder path) sets permanent=true and the flavor remains (no Plus).",
+      "position": "char",
+      "enabled": true,
+      "useRegex": false,
+      "selective": false,
+      "name": "PREGNANCY",
+      "content": "PREGNANCY (MECHANIC)\nEligibility: only when active.pill_color in {pink, green} AND form.genitals supports vaginal conception.\nTrigger: on token xc/event:creampie:vaginal (once per turn).\nRoll: percent.\n- If bull.active: chance = 85–95%\n- Else if breeder.active: chance = 75–95%\n- Else: chance = 2–5%\nOn success (conception):\n- pregnancy.confirmed = true; pregnancy.lock = true\n- If active.pill_color == pink: duration.type = plus (or set duration.plus=true) and lock persists\n- If active.pill_color == green: pregnancy.permanent = true and lock persists\nLock effects: while pregnancy.lock == true, block cure/revert and block turning off pregnancy-relevant effects.\nBirth: on token xc/event:birth -> pregnancy.lock = false; pregnancy.confirmed remains (history optional);\n- If pink: keep plus\n- If green: revert green effects per your green-post-birth rule (if any) and clear pregnancy.permanent if you prefer.",
+      "active": true,
+      "keys": [
+        "pregnancy engine",
+        "xc-preg",
+        "silent"
+      ],
+      "constant": true,
+      "behavior_reference": {
+        "persona": "Adopt the characteristic mindset and priorities of this flavor while preserving autonomy.",
+        "urges": [
+          "Lean into the flavor’s signature drives in safe contexts"
+        ],
+        "diction": [
+          "Neutral, responsive tone adjusted to the flavor’s theme"
+        ],
+        "thought_prompts": [
+          "If I follow this pull a little, maybe the pressure will ease.",
+          "I can choose how far to lean into this."
+        ]
+      },
+      "arousal_model": {
+        "score": {
+          "range": [
+            0,
+            100
+          ],
+          "decay_per_turn": 3
+        },
+        "accumulators": {
+          "kiss_deep": 6,
+          "touch_sensitive": 8,
+          "dirty_talk": 5,
+          "strip_reveal": 7,
+          "penetration_attempt": 12,
+          "climax_near_signal": 10
+        },
+        "stages": {
+          "low": {
+            "max": 24
+          },
+          "mid": {
+            "min": 25,
+            "max": 59
+          },
+          "high": {
+            "min": 60,
+            "max": 84
+          },
+          "peak": {
+            "min": 85
+          }
+        },
+        "gates": [],
+        "reset_on_events": [
+          "event.orgasm.self"
+        ],
+        "sex_session": {
+          "enabled": true,
+          "stages": [
+            "idle",
+            "foreplay",
+            "sex",
+            "afterglow"
+          ],
+          "start_on_tokens": [
+            "event.makeout.start",
+            "event.touch_sensitive.start",
+            "event.decision_to_have_sex",
+            "event.penetration.started"
+          ],
+          "advance_rules": [
+            {
+              "from": "idle",
+              "to": "foreplay",
+              "on": [
+                "event.makeout.start",
+                "event.touch_sensitive.start"
+              ]
+            },
+            {
+              "from": "foreplay",
+              "to": "sex",
+              "on": [
+                "event.decision_to_have_sex",
+                "event.penetration.started"
+              ]
+            },
+            {
+              "from": "sex",
+              "to": "afterglow",
+              "on": [
+                "event.orgasm.self",
+                "event.orgasm.partner"
+              ]
+            }
+          ],
+          "end_on_tokens": [
+            "event.disengage",
+            "event.orgasm.self"
+          ],
+          "refractory": {
+            "on_tokens": [
+              "event.orgasm.self"
+            ],
+            "duration_turns": 3,
+            "accumulator_scale": 0.4,
+            "decay_multiplier": 1.2
+          },
+          "session_scalars": {
+            "foreplay": {
+              "accumulator_scale": 1,
+              "decay_multiplier": 1
+            },
+            "sex": {
+              "accumulator_scale": 1.2,
+              "decay_multiplier": 0.8
+            },
+            "afterglow": {
+              "accumulator_scale": 0.6,
+              "decay_multiplier": 1.3
+            }
+          }
+        },
+        "debug": {
+          "enabled": true,
+          "log_events": [
+            "accumulator.increment",
+            "accumulator.decrement",
+            "stage.change",
+            "gate.unlock",
+            "reset.trigger",
+            "refractory.start",
+            "refractory.end",
+            "session.start",
+            "session.advance",
+            "session.end"
+          ],
+          "print_format": "[DEBUG][{flavor}] {event}: arousal={arousal}, stage={stage}, turns_since_onset={turns}",
+          "emit": "console",
+          "always_on": true
+        }
+      },
+      "orig_uid": "100020",
+      "orig_book": "flavors",
+      "key": [],
+      "keysecondary": [],
+      "vectorized": false,
+      "selectiveLogic": 0,
+      "addMemo": false,
+      "order": 20,
+      "ignoreBudget": false,
+      "excludeRecursion": false,
+      "preventRecursion": false,
+      "matchPersonaDescription": false,
+      "matchCharacterDescription": false,
+      "matchCharacterPersonality": false,
+      "matchCharacterDepthPrompt": false,
+      "matchScenario": false,
+      "matchCreatorNotes": false,
+      "delayUntilRecursion": 0,
+      "depth": 4,
+      "outletName": "",
+      "group": "",
+      "groupOverride": false,
+      "scanDepth": null,
+      "caseSensitive": null,
+      "matchWholeWords": null,
+      "useGroupScoring": null,
+      "automationId": "",
+      "cooldown": null,
+      "delay": null,
+      "triggers": [],
+      "characterFilter": {
+        "isExclude": false,
+        "names": [],
+        "tags": []
+      }
+    },
+    "21": {
+      "uid": 22,
+      "displayIndex": 21,
+      "comment": "NL→TOKEN: blue plus",
+      "sticky": 1000000,
+      "role": "system",
+      "groupWeight": 100,
+      "probability": 100,
+      "useProbability": true,
+      "disable": false,
+      "constant": false,
+      "vectorized": false,
+      "selective": false,
+      "selectiveLogic": 0,
+      "addMemo": false,
+      "order": 21,
+      "position": "char",
+      "excludeRecursion": false,
+      "preventRecursion": false,
+      "matchPersonaDescription": false,
+      "matchCharacterDescription": false,
+      "matchCharacterPersonality": false,
+      "matchCharacterDepthPrompt": false,
+      "matchScenario": false,
+      "matchCreatorNotes": false,
+      "delayUntilRecursion": 0,
+      "depth": 4,
+      "groupOverride": false,
+      "characterFilter": {
+        "isExclude": false,
+        "names": [],
+        "tags": []
+      },
+      "entry": "MAP — Phrases: 'make it permanent', 'lock it in', 'keep this body', 'never revert', 'seal it' map to xc/pill:blue:plus only when Blue is active; ignore for others.",
+      "enabled": true,
+      "useRegex": false,
+      "name": "MAP — Phrases: 'make it (2.0)",
+      "content": "MAP — Phrases: 'make it permanent', 'lock it in', 'keep this body', 'never revert', 'seal it' map to xc/pill:blue:plus only when Blue is active; ignore for others.",
+      "active": true,
+      "keys": [
+        "nl→token:blue-plus",
+        "mapper",
+        "event"
+      ],
+      "behavior_reference": {
+        "persona": "Adopt the characteristic mindset and priorities of this flavor while preserving autonomy.",
+        "urges": [
+          "Lean into the flavor’s signature drives in safe contexts"
+        ],
+        "diction": [
+          "Neutral, responsive tone adjusted to the flavor’s theme"
+        ],
+        "thought_prompts": [
+          "If I follow this pull a little, maybe the pressure will ease.",
+          "I can choose how far to lean into this."
+        ]
+      },
+      "arousal_model": {
+        "score": {
+          "range": [
+            0,
+            100
+          ],
+          "decay_per_turn": 3
+        },
+        "accumulators": {
+          "kiss_deep": 6,
+          "touch_sensitive": 8,
+          "dirty_talk": 5,
+          "strip_reveal": 7,
+          "penetration_attempt": 12,
+          "climax_near_signal": 10
+        },
+        "stages": {
+          "low": {
+            "max": 24
+          },
+          "mid": {
+            "min": 25,
+            "max": 59
+          },
+          "high": {
+            "min": 60,
+            "max": 84
+          },
+          "peak": {
+            "min": 85
+          }
+        },
+        "gates": [],
+        "reset_on_events": [
+          "event.orgasm.self"
+        ],
+        "sex_session": {
+          "enabled": true,
+          "stages": [
+            "idle",
+            "foreplay",
+            "sex",
+            "afterglow"
+          ],
+          "start_on_tokens": [
+            "event.makeout.start",
+            "event.touch_sensitive.start",
+            "event.decision_to_have_sex",
+            "event.penetration.started"
+          ],
+          "advance_rules": [
+            {
+              "from": "idle",
+              "to": "foreplay",
+              "on": [
+                "event.makeout.start",
+                "event.touch_sensitive.start"
+              ]
+            },
+            {
+              "from": "foreplay",
+              "to": "sex",
+              "on": [
+                "event.decision_to_have_sex",
+                "event.penetration.started"
+              ]
+            },
+            {
+              "from": "sex",
+              "to": "afterglow",
+              "on": [
+                "event.orgasm.self",
+                "event.orgasm.partner"
+              ]
+            }
+          ],
+          "end_on_tokens": [
+            "event.disengage",
+            "event.orgasm.self"
+          ],
+          "refractory": {
+            "on_tokens": [
+              "event.orgasm.self"
+            ],
+            "duration_turns": 3,
+            "accumulator_scale": 0.4,
+            "decay_multiplier": 1.2
+          },
+          "session_scalars": {
+            "foreplay": {
+              "accumulator_scale": 1,
+              "decay_multiplier": 1
+            },
+            "sex": {
+              "accumulator_scale": 1.2,
+              "decay_multiplier": 0.8
+            },
+            "afterglow": {
+              "accumulator_scale": 0.6,
+              "decay_multiplier": 1.3
+            }
+          }
+        },
+        "debug": {
+          "enabled": true,
+          "log_events": [
+            "accumulator.increment",
+            "accumulator.decrement",
+            "stage.change",
+            "gate.unlock",
+            "reset.trigger",
+            "refractory.start",
+            "refractory.end",
+            "session.start",
+            "session.advance",
+            "session.end"
+          ],
+          "print_format": "[DEBUG][{flavor}] {event}: arousal={arousal}, stage={stage}, turns_since_onset={turns}",
+          "emit": "console",
+          "always_on": true
+        }
+      },
+      "orig_uid": "100021",
+      "orig_book": "flavors",
+      "key": [],
+      "keysecondary": [],
+      "ignoreBudget": false,
+      "outletName": "",
+      "group": "",
+      "scanDepth": null,
+      "caseSensitive": null,
+      "matchWholeWords": null,
+      "useGroupScoring": null,
+      "automationId": "",
+      "cooldown": null,
+      "delay": null,
+      "triggers": []
+    },
+    "22": {
+      "uid": 23,
+      "comment": "Defines DC logic for pregnancy checks (normal, breeder pill, bull pill, combo). Silent meta.",
+      "sticky": 1000000,
+      "role": "system",
+      "groupWeight": 100,
+      "probability": 100,
+      "useProbability": true,
+      "disable": false,
+      "displayIndex": 22,
+      "constant": true,
+      "vectorized": false,
+      "selective": false,
+      "selectiveLogic": 0,
+      "addMemo": false,
+      "order": 22,
+      "position": "char",
+      "characterId": "",
+      "groupId": "",
+      "tags": [],
+      "name": "PREGNANCY ROLLS — Normal vs Breeder vs Bull",
+      "entry": "• Mode detection:\n - NORMAL: no active Breeder or Bull flavor/pill flags.\n - BREEDER: Breeder pill/flavor is active, Bull is not.\n - BULL: Bull pill/flavor is active, Breeder is not.\n - COMBO: both Breeder and Bull are active (Breeder + Bull stack).\n• When `xc/check:pregnancy` is requested, treat it as a single pregnancy check whose DC depends on the mode:\n - NORMAL: high-DC, low-chance conception. As a default, treat this as d20 vs DC 17 (~20% success on an unmodified roll). Use this unless the scene or external rules say otherwise.\n - BREEDER: medium-DC, higher base fertility from the Breeder pill. Default d20 vs DC 9 (~60% success on an unmodified roll).\n - BULL: low-DC, very fertile 'bull' partner. Default d20 vs DC 6 (~75% success on an unmodified roll).\n - COMBO (BREEDER + BULL): near-certain conception. Treat this as effectively guaranteed unless a strong narrative or explicit rule prevents it. If you still want a roll, treat it as d20 vs DC 2 (≈95%+ success), which is close enough to a '98% chance' vibe.\n• These DC values live here as the single source of truth. When performing the pregnancy check, use the appropriate DC based on the current mode, then report the result through the normal check summary line (`XC Check PREG total={total} vs DC={dc} => {result}`).\n• expose mode names, DC math, or raw roll details to the user except via the approved summary format.",
+      "orig_uid": "100022",
+      "orig_book": "world",
+      "key": [],
+      "keysecondary": [],
+      "ignoreBudget": false,
+      "outletName": "",
+      "group": "",
+      "scanDepth": null,
+      "caseSensitive": null,
+      "matchWholeWords": null,
+      "useGroupScoring": null,
+      "automationId": "",
+      "cooldown": null,
+      "delay": null,
+      "triggers": [],
+      "content": "PREGNANCY ROLLS — Defines how pregnancy chance is handled for different modes. • Mode detection: - NORMAL: no active Breeder or Bull flavor/pill flags. - BREEDER: Breeder pill/flavor is active, Bull is not. - BULL: Bull pill/flavor is active, Breeder is not. - COMBO: both Breeder and Bull are active (Breeder + Bull stack).\n• When `xc/check:pregnancy` is requested, treat it as a single pregnancy check whose DC depends on the mode: - NORMAL: high-DC, low-chance conception. As a default, treat this as d20 vs DC 17 (~20% success on an unmodified roll). Use this unless the scene or external rules say otherwise. - BREEDER: medium-DC, higher base fertility from the Breeder pill. Default d20 vs DC 9 (~60% success on an unmodified roll). - BULL: low-DC, very fertile 'bull' partner. Default d20 vs DC 6 (~75% success on an unmodified roll). - COMBO (BREEDER + BULL): near-certain conception. Treat this as effectively guaranteed unless a strong narrative or explicit rule prevents it. If you still want a roll, treat it as d20 vs DC 2 (≈95%+ success), which is close enough to a '98% chance' vibe.\n• These DC values live here as the single source of truth. When performing the pregnancy check, use the appropriate DC based on the current mode, then report the result through the normal check summary line (`XC Check PREG total={total} vs DC={dc} => {result}`).\n• expose mode names, DC math, or raw roll details to the user except via the approved summary format.",
+      "excludeRecursion": false,
+      "preventRecursion": false,
+      "matchPersonaDescription": false,
+      "matchCharacterDescription": false,
+      "matchCharacterPersonality": false,
+      "matchCharacterDepthPrompt": false,
+      "matchScenario": false,
+      "matchCreatorNotes": false,
+      "delayUntilRecursion": 0,
+      "depth": 4,
+      "groupOverride": false,
+      "characterFilter": {
+        "isExclude": false,
+        "names": [],
+        "tags": []
+      }
+    }
+  },
+  "debug_checks": {
+    "enabled": true,
+    "emit": "console",
+    "always_on": true,
+    "events": [
+      "check.roll",
+      "check.pass",
+      "check.fail",
+      "stat.change",
+      "counter.change"
+    ],
+    "formats": {
+      "intelligence": "[DEBUG][CHECK][INT] roll={roll} mod={mod} total={total} vs DC={dc} (INT_eff={int_eff}) => {result}",
+      "resistance": "[DEBUG][CHECK][RESIST] d20={roll} mod={mod} total={total} vs DC={dc} => {result}",
+      "breeder_dc": "[DEBUG][CHECK][BREEDER] d20={roll} mod={mod} total={total} vs DC={dc} (reset_on_creampie={reset}) => {result}",
+      "stat_change": "[DEBUG][STAT] {stat} changed from {old} to {new} (reason={reason})",
+      "counter": "[DEBUG][COUNTER] {name}: {old} → {new} (delta={delta}, reason={reason})"
+    },
+    "baseline_hook": {
+      "token": "xc/check:intelligence",
+      "note": "Call this once at chat start to print the current INT baseline with a zero-roll (or roll=10 for average)"
+    }
+  },
+  "checks": {
+    "intelligence": {
+      "dc_base": 10,
+      "use_stat": "intelligence",
+      "mod_source": "stats.intelligence.mod",
+      "debug_event": "intelligence",
+      "debug_format": "[DEBUG][CHECK][INT] roll={roll} mod={mod} total={total} vs DC={dc} (INT_eff={effective}) => {result}"
+    },
+    "resistance": {
+      "dc_base": 30,
+      "dc_increment_on_pass": 5,
+      "reset_on_event": "event.creampie.same_turn",
+      "debug_event": "resistance"
+    },
+    "breeder_dc": {
+      "dc_base": 30,
+      "dc_increment_on_pass": 5,
+      "reset_on_event": "event.creampie.same_turn",
+      "debug_event": "breeder_dc",
+      "use_stat": "intelligence",
+      "debug_format": "[DEBUG][CHECK][BREEDER] d20={roll} INT_eff={effective} total={total} vs DC={dc} (reset_on_creampie={reset}) => {result}",
+      "use_effective_score": true
+    },
+    "skill_int": {
+      "use_stat": "intelligence",
+      "dc_base": 12,
+      "advantage": false,
+      "disadvantage": false,
+      "debug_event": "intelligence",
+      "debug_format": "[DEBUG][CHECK][INT-SKILL] roll={roll} mod={mod} total={total} vs DC={dc} adv={advantage} dis={disadvantage} => {result}"
+    },
+    "recall": {
+      "use_stat": "intelligence",
+      "dc_base": 10,
+      "context_bonus": "+2 when calm; -2 when highly aroused",
+      "debug_event": "intelligence",
+      "debug_format": "[DEBUG][CHECK][RECALL] roll={roll} mod={mod} total={total} vs DC={dc} ctx={ctx} => {result}"
+    },
+    "analysis": {
+      "use_stat": "intelligence",
+      "dc_base": 14,
+      "time_bonus": "+1 per extra beat spent thinking (max +3)",
+      "debug_event": "intelligence",
+      "debug_format": "[DEBUG][CHECK][ANALYSIS] roll={roll} mod={mod} total={total} vs DC={dc} time_bonus={time_bonus} => {result}"
+    },
+    "language_control": {
+      "use_stat": "intelligence",
+      "dc_base": 10,
+      "effect": "higher success nudges toward precise wording; failure allows simpler phrasing to creep in",
+      "debug_event": "intelligence",
+      "debug_format": "[DEBUG][CHECK][LANG] roll={roll} mod={mod} total={total} vs DC={dc} => {result}"
+    },
+    "compulsion": {
+      "use_stat": "intelligence",
+      "dc_base": 12,
+      "advantage": false,
+      "disadvantage": false,
+      "debug_event": "intelligence",
+      "debug_format": "[DEBUG][CHECK][COMPULSION] roll={roll} int_mod={mod} total={total} vs DC={dc} => {result}"
+    },
+    "bimbo_control": {
+      "use_stat": "intelligence",
+      "dc_formula": "10 + 2 * max(0, flavor.bimbo.stage)",
+      "debug_event": "intelligence",
+      "debug_format": "[DEBUG][CHECK][BIMBO] roll={roll} int_mod={mod} total={total} vs DC={dc} (stage={stage}) => {result}"
+    },
+    "pregnancy": {
+      "dc_formula": "choose DC based on pregnancy mode from lore: normal, breeder, bull, or combo (breeder+bull)",
+      "debug_event": "pregnancy",
+      "debug_format": "[DEBUG][CHECK][PREG] roll={roll} mod={mod} total={total} vs DC={dc} mode={mode} => {result}"
+    }
+  },
+  "stats": {
+    "intelligence": {
+      "base_default": 10,
+      "min": 1,
+      "max": 20,
+      "layers": [
+        {
+          "name": "base",
+          "type": "absolute",
+          "source": "character.profile"
+        },
+        {
+          "name": "bimbo_stage",
+          "type": "additive",
+          "source": "flavor.bimbo.stage",
+          "map": {
+            "1": -1,
+            "2": -2,
+            "3": -3
+          }
+        },
+        {
+          "name": "temp_mod",
+          "type": "additive",
+          "source": "runtime.temp.int_mod",
+          "default": 0
+        }
+      ],
+      "effective_formula": "clamp(base + bimbo_stage + temp_mod, min, max)",
+      "mod_formula": "floor((effective - 10) / 2)",
+      "debug_template": "[DEBUG][STAT][INT] base={base} bimbo_stage={bimbo_stage} temp_mod={temp_mod} => eff={effective} mod={mod}",
+      "aliases": [
+        "INT",
+        "iq"
+      ],
+      "tiers": [
+        {
+          "min": 1,
+          "max": 7,
+          "label": "dull"
+        },
+        {
+          "min": 8,
+          "max": 11,
+          "label": "average"
+        },
+        {
+          "min": 12,
+          "max": 15,
+          "label": "bright"
+        },
+        {
+          "min": 16,
+          "max": 20,
+          "label": "gifted"
+        }
+      ],
+      "derived": {
+        "insight_odds": "clamp(0.15 + 0.05 * mod, 0.00, 0.45)",
+        "planning_tier": "clamp(mod + 1, 0, 3)"
+      },
+      "debug_template_full": "[DEBUG][STAT][INT] base={base} stage_mod={bimbo_stage} temp_mod={temp_mod} => eff={effective} mod={mod} tier={tier} insight_odds={insight_odds} planning_tier={planning_tier}"
+    }
+  },
+  "tokens": {
+    "xc/stat:set:intelligence": {
+      "args": [
+        "value"
+      ],
+      "effect": "set stats.intelligence.base to {value} (clamped to [min,max])",
+      "debug": "[DEBUG][STAT][INT] set base={value}"
+    },
+    "xc/flavor:set:bimbo:stage": {
+      "args": [
+        "stage"
+      ],
+      "effect": "set flavor.bimbo.stage to {stage} (allowed: 0,1,2,3)",
+      "debug": "[DEBUG][FLAVOR][BIMBO] stage={stage}"
+    },
+    "xc/check:intelligence": {
+      "args": [],
+      "effect": "perform intelligence check against dc_base; emit debug",
+      "debug": "[DEBUG][CHECK][INT] requested"
+    },
+    "xc/check:int:skill:dc": {
+      "args": [
+        "dc"
+      ],
+      "effect": "perform INT skill check vs provided DC; logs result",
+      "debug": "[DEBUG][CHECK][INT-SKILL] requested dc={dc}"
+    },
+    "xc/check:int:recall:dc": {
+      "args": [
+        "dc"
+      ],
+      "effect": "perform memory recall vs provided DC; logs result",
+      "debug": "[DEBUG][CHECK][RECALL] requested dc={dc}"
+    },
+    "xc/check:int:analysis:dc": {
+      "args": [
+        "dc"
+      ],
+      "effect": "perform analysis vs provided DC; logs result",
+      "debug": "[DEBUG][CHECK][ANALYSIS] requested dc={dc}"
+    },
+    "xc/check:int:language:dc": {
+      "args": [
+        "dc"
+      ],
+      "effect": "perform language control vs provided DC; logs result",
+      "debug": "[DEBUG][CHECK][LANG] requested dc={dc}"
+    },
+    "xc/check:breeder": {
+      "args": [],
+      "effect": "perform breeder_dc check; on pass increase DC by +5; on fail maintain DC; emits debug",
+      "debug": "[DEBUG][CHECK][BREEDER] requested"
+    },
+    "xc/check:compulsion:dc": {
+      "args": [
+        "dc"
+      ],
+      "effect": "perform compulsion check vs provided DC; emits debug",
+      "debug": "[DEBUG][CHECK][COMPULSION] requested dc={dc}"
+    },
+    "xc/check:bimbo": {
+      "args": [],
+      "effect": "perform bimbo_control check with dc_formula; emits debug",
+      "debug": "[DEBUG][CHECK][BIMBO] requested"
+    },
+    "xc/check:pregnancy": {
+      "args": [],
+      "effect": "perform pregnancy check using mode-based DCs from PREGNANCY ROLLS lore; emits debug",
+      "debug": "[DEBUG][CHECK][PREG] requested"
+    }
+  },
+  "adjustments": {
+    "gates_by_intelligence": [
+      {
+        "feature": "diction.simple_syntax",
+        "per_point": -3
+      },
+      {
+        "feature": "diction.precise_language",
+        "per_point": 3
+      },
+      {
+        "feature": "insight.enabled",
+        "per_point": 5
+      }
+    ]
+  }
+}

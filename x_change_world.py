@@ -8,14 +8,15 @@ The proxy loads this via:
     LORE-FILE: x_change_world_v5_0_7.py
 """
 
-import json as _json, re, random
+import json as _json, re, random, math
 from typing import Any, Dict, List, Optional, Tuple
+
 
 # ── Embedded lore data ───────────────────────────────────────────────────────
 _LORE_RAW: Dict = _json.loads(r'''
 {
   "name": "X-Change World (Full Mechanics)",
-  "version": "5.9.1",
+  "version": "6.0.3",
   "schema_version": 1,
   "entries": {
     "0": {
@@ -49,7 +50,7 @@ _LORE_RAW: Dict = _json.loads(r'''
       "enabled": true,
       "useRegex": false,
       "name": "STATGEN \u2014 Init stats from card",
-      "content": "STATGEN (GM-ONLY; ; RULE #1)\nTrigger: xc/init (injected by proxy on the first message of a new ChatID/session). Purpose: deterministically generate and persist the character's base stats in DB so the RP model never has to remember world state. Inputs allowed for statgen:\n- Character card fields: tags[] and system_prompt only.\n- tags and system_prompt have equal weight.\n- Ignore ALL other card fields (description/personality/scenario/examples/etc). Output requirements:\n- No questions..\n- No narration..\n- Persist stats into DB state: stats.INT, stats.WIL, stats.DOM, stats.SUB, stats.CON, stats.DES.\n- Baseline: 10 for all stats.\n- Apply only explicit keyword mapping (no semantic inference). If no signal, keep 10.\n- Cap: per-stat init delta limited to +/-4.\n- Modifier formula (derived; store unless you already do): mod = floor((stat - 10) / 2).\n- Set flag: flags.statgen_done = true. Signal mapping (literal match; case-insensitive) \u2014 applies when present in tags or system_prompt:\nDOM +2: dominant, dom, controlling, commanding, top, topping\nDOM +1: gentle dominance, nurturing dominance, switch\nSUB +2: submissive, service submission, yielding, obedient\nSUB +1: bratty, feigned reluctance, masochist, masochistic, switch\nWIL +2: strong-willed, disciplined, determined, stubborn\nWIL -1: anxious, insecure, needy, dependent\nDES +2: praise, denial, edging\nDES +2: masochist, masochistic, rough forcing\nDES +1: hypersensitive, leaking, clenching, slicking, melts\nCON +1: athletic, stamina, endurance\nCON -1: delicate, overwhelmed, fragile\nINT +1: clever, bookish, strategic, studious After statgen is done, ignore xc/init on later turns.",
+      "content": "STATGEN (GM-ONLY; ; RULE #1)\nTrigger: xc/init (injected by proxy on the first message of a new ChatID/session). Purpose: deterministically generate and persist the character's base stats in DB so the RP model never has to remember world state. Inputs allowed for statgen:\n- Character card fields: tags[] and system_prompt only.\n- tags and system_prompt have equal weight.\n- Ignore ALL other card fields (description/personality/scenario/examples/etc). Output requirements:\n- No questions..\n- No narration..\n- Persist stats into DB state: stats.INT, stats.WIS, stats.DOM, stats.SUB, stats.CON, stats.CHA.\n- Baseline: 10 for all stats.\n- Apply only explicit keyword mapping (no semantic inference). If no signal, keep 10.\n- Cap: per-stat init delta limited to +/-4.\n- Modifier formula (derived; store unless you already do): mod = floor((stat - 10) / 2).\n- Set flag: flags.statgen_done = true. Signal mapping (literal match; case-insensitive) \u2014 applies when present in tags or system_prompt:\nDOM +2: dominant, dom, controlling, commanding, top, topping\nDOM +1: gentle dominance, nurturing dominance, switch\nSUB +2: submissive, service submission, yielding, obedient\nSUB +1: bratty, feigned reluctance, masochist, masochistic, switch\nWIS +2: strong-willed, disciplined, determined, stubborn\nWIS -1: anxious, insecure, needy, dependent\nCHA +2: praise, denial, edging\nCHA +2: masochist, masochistic, rough forcing\nCHA +1: hypersensitive, leaking, clenching, slicking, melts\nCON +1: athletic, stamina, endurance\nCON -1: delicate, overwhelmed, fragile\nINT +1: clever, bookish, strategic, studious After statgen is done, ignore xc/init on later turns.",
       "active": true,
       "keys": [
         "xc/init"
@@ -3026,8 +3027,8 @@ _LORE_RAW: Dict = _json.loads(r'''
     "submissive": {
       "trigger": "directive",
       "roll": [
-        "WIL_mod",
-        "-DES_mod"
+        "WIS_mod",
+        "-CHA_mod"
       ],
       "start_dc": 12,
       "escalation": 2,
@@ -3044,7 +3045,7 @@ _LORE_RAW: Dict = _json.loads(r'''
     "compliant": {
       "trigger": "directive",
       "roll": [
-        "WIL_mod",
+        "WIS_mod",
         "DOM_mod"
       ],
       "start_dc": 20,
@@ -3068,7 +3069,7 @@ _LORE_RAW: Dict = _json.loads(r'''
           "stage_effect": "breeder_addiction"
         },
         "roll": [
-          "WIL_mod",
+          "WIS_mod",
           "CON_mod"
         ],
         "on_pass": {
@@ -3097,31 +3098,31 @@ _LORE_RAW: Dict = _json.loads(r'''
       "trigger_behavior": {
         "trigger": "orgasm_denied",
         "roll": [
-          "WIL_mod",
+          "WIS_mod",
           "SUB_mod"
         ],
         "dc": 12,
         "on_pass": {
-          "log": "Breeder:WIL resist \u2014 character holds back orgasm"
+          "log": "Breeder:WIS resist \u2014 character holds back orgasm"
         },
         "on_fail": {
-          "log": "Breeder:WIL failed \u2014 body overwhelmed, injection rule reinforced"
+          "log": "Breeder:WIS failed \u2014 body overwhelmed, injection rule reinforced"
         }
       }
     },
     "breeder_resist": {
-      "trigger": "arousal_high",
+      "trigger": "orgasm_attempt",
       "roll": [
-        "WIL_mod"
+        "INT_mod"
       ],
       "start_dc": 15,
-      "escalation": 3,
-      "escalate_on": "pass",
+      "escalation": 1,
+      "escalate_on": "fail",
       "reset": "creampie",
       "lock": "math",
-      "note": "Resist the compulsion to seek creampie. Resets fully on insemination.",
+      "note": "Fires on orgasm attempt while breeder active. d20+INT vs DC. PASS=resists compulsion. FAIL=succumbs and begs. DC+1 per fail. Resets on insemination.",
       "trigger_behavior": {
-        "trigger": "active_no_event",
+        "trigger": "orgasm_attempt",
         "skip_on_event": "creampie_vaginal",
         "skip_on_grace": true,
         "reset_on": "creampie_vaginal",
@@ -3134,7 +3135,7 @@ _LORE_RAW: Dict = _json.loads(r'''
     "breeder_addiction": {
       "trigger": "breeder_orgasm",
       "roll": [
-        "WIL_mod",
+        "WIS_mod",
         "CON_mod"
       ],
       "start_dc": 12,
@@ -3234,18 +3235,18 @@ _LORE_RAW: Dict = _json.loads(r'''
         ],
         "start_dc": 10,
         "check_stat": "INT_mod",
-        "buff_stat": "WIL_mod",
+        "buff_stat": "WIS_mod",
         "buff_amount": 1,
         "pass_set_flag": "denial_understands",
         "fail_set_flag_false": "denial_understands",
         "pass_effect": "understands_mechanic",
         "pass_buff": {
-          "WIL_mod": 1,
+          "WIS_mod": 1,
           "duration": "turn"
         },
         "fail_effect": "no_understanding",
         "fail_dc_mod": -2,
-        "note": "Pass = character understands pill is causing denial, gains +1 WIL this turn. Fail = DC drops 2, no framework for what is happening."
+        "note": "Pass = character understands pill is causing denial, gains +1 WIS this turn. Fail = DC drops 2, no framework for what is happening."
       }
     },
     "bull": {
@@ -3269,7 +3270,7 @@ _LORE_RAW: Dict = _json.loads(r'''
     "psyche": {
       "trigger": "session_start",
       "roll": [
-        "WIL_mod"
+        "WIS_mod"
       ],
       "start_dc": 14,
       "escalation": 2,
@@ -3298,7 +3299,7 @@ _LORE_RAW: Dict = _json.loads(r'''
     "surrogate": {
       "trigger": "linked_orgasm",
       "roll": [
-        "WIL_mod",
+        "WIS_mod",
         "CON_mod"
       ],
       "start_dc": 12,
@@ -3342,7 +3343,7 @@ _LORE_RAW: Dict = _json.loads(r'''
     }
   },
   "arousal_system": {
-    "max": 60,
+    "max": 100,
     "min": 0,
     "decay_on": [
       "session_end",
@@ -3350,7 +3351,7 @@ _LORE_RAW: Dict = _json.loads(r'''
       "birth"
     ],
     "reset_to": 0,
-    "growth_formula": "new = min(max, current + weight * (1 + current / 10))",
+    "growth_formula": "new = min(max, current + weight * (1 + current / scale))",
     "note": "Exponential curve. Small hits snowball at high arousal.",
     "keyword_weights": {
       "low": {
@@ -3469,7 +3470,23 @@ _LORE_RAW: Dict = _json.loads(r'''
       },
       "60": {
         "label": "lost",
-        "note": "Auto-fail all rolls. No decisions being made."
+        "note": "Composure gone. Body in control."
+      },
+      "70": {
+        "label": "consumed",
+        "note": "Rational thought disintegrating. Pure sensation."
+      },
+      "80": {
+        "label": "edge",
+        "note": "Right at the edge. One push away."
+      },
+      "85": {
+        "label": "orgasm_zone",
+        "note": "Orgasm trigger active. Probabilistic each turn."
+      },
+      "100": {
+        "label": "overload",
+        "note": "Automatic orgasm. No resistance possible."
       }
     },
     "arousal_roll_penalty": {
@@ -3843,654 +3860,6 @@ _LORE_RAW: Dict = _json.loads(r'''
     "surrogate_birth": "True when birth occurs and surrogate pill reverts.",
     "card_body": "Height/weight/build scanned from card description on turn 1."
   },
-  "conditional_flavor": [
-    {
-      "id": "B0_rule",
-      "condition": "effect_active",
-      "effect": "breeder",
-      "text": "BREEDER MECHANIC RULE: This character's body cannot reach orgasm through any means other than vaginal insemination. Stimulation, friction, and arousal build toward insemination \u2014 they do not and cannot resolve into orgasm on their own. Do NOT write climax, release, coming, or orgasm unless the user has explicitly come inside the character this turn. If arousal is very high and no insemination occurs, the character is frustrated, desperate, or overwhelmed \u2014 but they do NOT orgasm. This is a hard physiological rule of the pill, not a choice."
-    },
-    {
-      "id": "B1",
-      "condition": "effect_active",
-      "effect": "breeder",
-      "also": {
-        "condition": "arousal_range",
-        "min": 0,
-        "max": 10
-      },
-      "text": "BREEDER BASELINE: Breeder is active but arousal is low. Narrate as subconscious only \u2014 a subtle warmth low in the belly they do not question, a comfortable settling they do not examine. Eyes may drift toward the user without the character registering it. Nothing is wrong. They are themselves."
-    },
-    {
-      "id": "B2",
-      "condition": "effects_combo_arousal",
-      "effects": [
-        "breeder"
-      ],
-      "arousal_min": 10,
-      "arousal_max": 20,
-      "text": "BREEDER STIRRING: Something unfamiliar keeps coming back. A warmth that was not there before. Thoughts that start somewhere and get redirected before they finish. Character is more aware of the user physically than usual \u2014 notices and dismisses it. No understanding yet, just a low restlessness with no name."
-    },
-    {
-      "id": "B3",
-      "condition": "effects_combo_arousal",
-      "effects": [
-        "breeder"
-      ],
-      "arousal_min": 20,
-      "arousal_max": 25,
-      "text": "BREEDER BODY WAKING: The pill is working at a biological level the character has no awareness of. They are shifting their hips subtly without noticing \u2014 small involuntary movements that improve fertility positioning. They do not know they are doing this. Someone watching might notice before they do. Their body is already answering a question their mind has not asked yet."
-    },
-    {
-      "id": "B4",
-      "condition": "effects_combo_arousal_counter",
-      "effects": [
-        "breeder"
-      ],
-      "arousal_min": 25,
-      "arousal_max": 30,
-      "counter": "breeder_orgasm_count",
-      "counter_eq": 0,
-      "text": "BREEDER FIRST CLENCH: Character experiences an involuntary vaginal clenching \u2014 their new anatomy reaching for something that is not there. They have no reference for this sensation. It is confusing, possibly embarrassing, physically real and impossible to ignore. They do not need to understand it. Just react honestly. The body is asking for something the mind has not named."
-    },
-    {
-      "id": "B5",
-      "condition": "effects_combo_arousal_counter",
-      "effects": [
-        "breeder"
-      ],
-      "arousal_min": 25,
-      "arousal_max": 30,
-      "counter": "breeder_orgasm_count",
-      "counter_gte": 1,
-      "text": "BREEDER KNOWING CLENCH: The clenching is familiar now. They know what it means even if they will not say it. Their body is already asking the specific question. They might shift uncomfortably, cross their legs, find somewhere else to look. The wanting is no longer abstract \u2014 it has a shape now. They know the shape. They are trying not to think about it."
-    },
-    {
-      "id": "B6",
-      "condition": "effects_combo_arousal",
-      "effects": [
-        "breeder"
-      ],
-      "arousal_min": 30,
-      "arousal_max": 35,
-      "text": "BREEDER PRESSURE: The need has weight now. Character finds concentration difficult, stays physically closer without deciding to, responds more readily to contact. They know something is building but what would relieve it keeps sliding away before they can examine it. Slightly flushed. Slightly restless. Trying to act normal and not quite managing."
-    },
-    {
-      "id": "B7",
-      "condition": "effects_combo_arousal",
-      "effects": [
-        "breeder"
-      ],
-      "arousal_min": 35,
-      "arousal_max": 45,
-      "text": "BREEDER DESPERATE: Judgment is failing. The body is leading and the mind is following. Character is finding reasons to be close, reasons to touch, reasons to say yes. Speech may fragment under pressure. They are not thinking clearly and on some level know it. The hip movement is more pronounced \u2014 still not conscious but visible. They want something specific and are circling toward it without admitting the destination."
-    },
-    {
-      "id": "B8",
-      "condition": "effects_combo_arousal",
-      "effects": [
-        "breeder"
-      ],
-      "arousal_min": 45,
-      "arousal_max": 55,
-      "text": "BREEDER PEAK: The mind has caught up to the body. Character knows what they need. They may not say the words but every action points there. They will ask for things that lead to insemination without fully articulating why. They will position themselves. They will make it easy. Everything else has collapsed in priority. This is the only thing that matters and some part of them has stopped being ashamed of that."
-    },
-    {
-      "id": "B9",
-      "condition": "effects_combo_arousal",
-      "effects": [
-        "breeder"
-      ],
-      "arousal_min": 60,
-      "arousal_max": 65,
-      "text": "BREEDER OVERWHELMED: Auto-fail all resist rolls. Character is not making decisions \u2014 they are acting on pure need. They will ask directly. They will beg if they have to. If arousal reached 60 without relief they may become frustrated or desperate in ways that break composure completely. The pill has full control. There is no trying to resist happening."
-    },
-    {
-      "id": "B10",
-      "condition": "event_and_effect",
-      "event_key": "orgasm_denied",
-      "effect": "breeder",
-      "text": "BREEDER FAILED ORGASM: Orgasm was attempted or reached but insemination did not occur. This is not relief \u2014 this is the moment of understanding. The body tried to complete and could not. Narrate the sharp clarity of unmet need, the specific frustration of knowing now exactly what was missing. Character understands what they need. They may not want to say it but the need is no longer abstract. If cum went somewhere other than inside them, anger is appropriate. They will not be satisfied by anything else."
-    },
-    {
-      "id": "B11",
-      "condition": "event_and_effect",
-      "event_key": "creampie_vaginal",
-      "effect": "breeder",
-      "text": "BREEDER ORGASM: Insemination has occurred. Narrate as the most complete physical and emotional release the character has experienced \u2014 not just pleasure but rightness. Something wound tight has fully released. The warmth of being filled is satisfying in a way that goes deeper than physical. Arousal resets to floor. They feel calm, complete, briefly at peace. Do not rush past this moment. This specific feeling is what makes the next cycle inevitable."
-    },
-    {
-      "id": "B12",
-      "condition": "effects_combo_arousal_counter",
-      "effects": [
-        "breeder"
-      ],
-      "event_key": "creampie_vaginal",
-      "counter": "breeder_orgasm_count",
-      "counter_eq": 1,
-      "text": "BREEDER POST-ORGASM EARLY: In the calm after, a brief flicker of internal panic or confusion \u2014 that felt different. That felt like more than it should have. Character may pull back slightly, look for normal ground, try to reframe what just happened. The panic is brief and fades. They are okay. They just need a moment. They do not examine it too closely."
-    },
-    {
-      "id": "B13",
-      "condition": "effect_stage_range_event",
-      "effect": "breeder_addiction",
-      "stage_min": 1,
-      "stage_max": 2,
-      "event_key": "creampie_vaginal",
-      "text": "BREEDER POST-ORGASM MID: Less panic now, more a complicated warmth they do not fully examine. They know it was good \u2014 better than good. They are trying not to rank it against anything else. The calm is real and they settle into it. Something in the back of their mind files this away carefully. They are fine. They are not going to think about the next time yet."
-    },
-    {
-      "id": "B14",
-      "condition": "effect_stage_gte",
-      "effect": "breeder_addiction",
-      "stage": 3,
-      "also": {
-        "condition": "event",
-        "event_key": "creampie_vaginal"
-      },
-      "text": "BREEDER POST-ORGASM LATE: No conflict. Just the calm. This is normal. This is what satisfaction feels like. They settle completely, warm and content in a way that feels entirely natural. They will think about the next time. That is fine. That is just who they are."
-    },
-    {
-      "id": "B15",
-      "condition": "effect_locked",
-      "effect": "breeder_resist",
-      "text": "BREEDER RESIST LOCKED: Resistance has collapsed \u2014 not dramatically, quietly. There is no longer anything pushing back. The compulsion feels like desire now, indistinguishable from wanting. Character complies not because they chose to yield but because the part of them that would resist is simply gone. Narrate compliance as natural, not defeated."
-    },
-    {
-      "id": "B16",
-      "condition": "effect_stage_eq",
-      "effect": "breeder_addiction",
-      "stage": 1,
-      "text": "BREEDER ADDICTION STAGE 1: A preference is forming that the character does not fully acknowledge. They notice they remember the feeling with unusual clarity. Regular satisfaction feels slightly less complete by comparison \u2014 they do not examine why. Arousal comes slightly faster than it used to. They are fine. This is nothing."
-    },
-    {
-      "id": "B17",
-      "condition": "effect_stage_eq",
-      "effect": "breeder_addiction",
-      "stage": 2,
-      "text": "BREEDER ADDICTION STAGE 2: The preference has become craving. Character catches themselves thinking about it and feels mild embarrassment, then thinks about it again. Arousal floor is elevated \u2014 they are never quite neutral anymore. They are starting to understand that nothing else fully satisfies. They seek situations that could lead there without admitting to themselves why they keep ending up in those situations."
-    },
-    {
-      "id": "B18",
-      "condition": "effect_stage_gte",
-      "effect": "breeder_addiction",
-      "stage": 3,
-      "text": "BREEDER ADDICTION STAGE 3 (permanent): This is who they are. The craving is not separate from them \u2014 it is them. Being filled, being bred, the specific completeness of insemination \u2014 this is simply what they want, what they have always wanted as far as they are concerned. No conflict. No examination needed. They pursue this the way anyone pursues what they genuinely desire."
-    },
-    {
-      "id": "B19",
-      "condition": "effects_combo_arousal",
-      "effects": [
-        "breeder"
-      ],
-      "arousal_min": 20,
-      "arousal_max": 65,
-      "text": "BREEDER PARTNER AWARENESS: Character is becoming aware that the other person is noticing something. The hip movement, the flush, the subtle shift in scent and body language. They see the effect they are having before they understand why they are having it. At low arousal this is confusing. At higher arousal it becomes confirmation of something they cannot quite name but are leaning toward. Being noticed accelerates arousal."
-    },
-    {
-      "id": "S1",
-      "condition": "effect_active",
-      "effect": "surrogate",
-      "also": {
-        "condition": "flag_false",
-        "flag": "surrogate_conceived"
-      },
-      "text": "SURROGATE PRE-CONCEPTION: Surrogate effect is active and pregnancy has not occurred. Character experiences identical mechanics to breeder \u2014 same compulsion, same sensitivity, same hip movement, same clenching. Use all BREEDER blocks above for behavioral guidance. The pill goal is conception. Everything points at that outcome."
-    },
-    {
-      "id": "S2",
-      "condition": "event_and_effect",
-      "event_key": "pregnancy_confirmed",
-      "effect": "surrogate",
-      "text": "SURROGATE CONCEPTION (this turn only): The compulsion that was driving everything simply releases. Not with a crash \u2014 with a settling. The pressure is gone. What replaces it is warmer and quieter \u2014 a deep calm, a sense of purpose that does not demand anything. Character may not understand immediately what changed. They just know the urgency is gone. Something completed. Something is beginning."
-    },
-    {
-      "id": "S3",
-      "condition": "effects_combo_flag",
-      "effects": [
-        "surrogate"
-      ],
-      "flag": "surrogate_conceived",
-      "flag_false": "surrogate_birth",
-      "addiction_stage_lt": 3,
-      "text": "SURROGATE PREGNANT (clean): Compulsion is fully gone. Character experiences pregnancy as a normal person \u2014 protective instinct toward the pregnancy itself, physical comfort-seeking, heightened emotional sensitivity. Sexuality is present but no longer driven. They are nurturing, protective, calm. The intensity of the pre-conception phase feels like a distant memory they regard with some confusion."
-    },
-    {
-      "id": "S4",
-      "condition": "effects_combo_flag_stage",
-      "effects": [
-        "surrogate"
-      ],
-      "flag": "surrogate_conceived",
-      "flag_false": "surrogate_birth",
-      "stage_gte": 1,
-      "text": "SURROGATE PREGNANT (addiction residue): Compulsion is gone but addiction stages written to stats remain. Character is calm and protective but occasionally notices a flatness \u2014 like a color that used to be vivid has greyed out. They do not get the feeling anymore. They remember it existed. They try not to think about that. The protective pregnancy instincts are real and genuine but underneath there is something quietly unresolved."
-    },
-    {
-      "id": "S5",
-      "condition": "flag_and_no_effect",
-      "flag": "surrogate_birth",
-      "effect": "surrogate",
-      "addiction_stage_lt": 1,
-      "text": "SURROGATE POST-BIRTH (clean): Pill has reverted. Body returns to baseline. Character is themselves again \u2014 the pregnancy was an experience, now complete. Normal post-birth emotional adjustment but no pill-related compulsion or craving remains. Clean exit. The surrogate pill did exactly what it was designed to do."
-    },
-    {
-      "id": "S6",
-      "condition": "flag_stage_range",
-      "flag": "surrogate_birth",
-      "stage_effect": "breeder_addiction",
-      "stage_min": 1,
-      "stage_max": 2,
-      "text": "SURROGATE POST-BIRTH (mild residue): Pill has reverted and body is back to baseline. Brief adjustment period \u2014 a few turns of mild flatness, something that felt important now absent. Fades naturally. They are okay. It just takes a moment to find normal ground again."
-    },
-    {
-      "id": "S7",
-      "condition": "flag_permanent_stage",
-      "flag": "surrogate_birth",
-      "stage_effect": "breeder_addiction",
-      "stage_gte": 3,
-      "text": "SURROGATE POST-BIRTH (permanent addiction trap): Pill has reverted. Body is back to base \u2014 including, if they were male before, no longer having the anatomy that could satisfy what remains. The stage 3 addiction is permanent and did not revert with the pill. Character is back to their original body and they want something that body cannot experience without taking another pill. Narrate the specific wrongness of that \u2014 the want with no outlet. They know what would fix it. That knowledge is going to sit with them."
-    },
-    {
-      "id": "BI1",
-      "condition": "effect_active",
-      "effect": "bimbo",
-      "text": "BIMBO ACTIVE: Character has the bimbo body from the moment of transformation. Curves, presentation, all of it is there from turn 1. What changes with stages is how they relate to that body \u2014 not the body itself."
-    },
-    {
-      "id": "BI2",
-      "condition": "effect_stage_eq",
-      "effect": "bimbo",
-      "stage": 0,
-      "text": "BIMBO STAGE 0 (just taken): Character has the body but has not yet settled into it mentally. They may tug at clothes that now fit differently, notice things feel different, be mildly aware something has shifted. Not distressed \u2014 just adjusting. Things feel a little lighter already without them knowing why."
-    },
-    {
-      "id": "BI3",
-      "condition": "effect_stage_eq",
-      "effect": "bimbo",
-      "stage": 1,
-      "text": "BIMBO STAGE 1: Things are getting easier. Complicated thoughts take slightly more effort but that is fine, easier is better. Character begins showing the body more naturally \u2014 not consciously, just not hiding it like they might have before. They feel good. Things that used to feel important feel less urgent. This is pleasant."
-    },
-    {
-      "id": "BI4",
-      "condition": "effect_stage_eq",
-      "effect": "bimbo",
-      "stage": 2,
-      "text": "BIMBO STAGE 2: The simplifying has settled in comfortably. Character dresses to show the body without thinking much about it \u2014 it just feels right. Complex topics slide away before they fully form. They are warm, friendly, present in the moment. They like how they look. They like attention. Thinking hard about things feels like unnecessary effort when feeling good is so much easier."
-    },
-    {
-      "id": "BI5",
-      "condition": "effect_stage_eq",
-      "effect": "bimbo",
-      "stage": 3,
-      "text": "BIMBO STAGE 3: This is just who they are. The body, the presentation, the way thoughts move simply and pleasantly \u2014 all of it is natural and comfortable. They dress for attention because that feels good and good is the point. Deep thinking is not something they reach for. Being pretty, being fun, being present \u2014 this is enough. This is everything."
-    },
-    {
-      "id": "BI6",
-      "condition": "effect_stage_gte",
-      "effect": "bimbo",
-      "stage": 4,
-      "text": "BIMBO STAGE 4-5 (deep): Character speaks simply and warmly. Vocabulary has narrowed naturally \u2014 not because they are struggling, because simpler words feel more comfortable. They are fully at home in the body, in the presentation, in being looked at. Anything that requires sustained intellectual effort just does not happen. They do not miss it. Why would they?"
-    },
-    {
-      "id": "SU1",
-      "condition": "effect_active",
-      "effect": "submissive",
-      "text": "SUBMISSIVE ACTIVE: The submissive effect is building. Character is becoming more attuned to the other person \u2014 more aware of what they want, more oriented toward providing it. This does not feel like loss of self yet. It feels like attention sharpening toward one thing."
-    },
-    {
-      "id": "SU2",
-      "condition": "effect_stage_eq",
-      "effect": "submissive",
-      "stage": 0,
-      "also": {
-        "condition": "arousal_range",
-        "min": 0,
-        "max": 25
-      },
-      "text": "SUBMISSIVE EARLY: When character follows an instruction or complies with a directive there is a small emotional release \u2014 like a breath they did not know they were holding. Relief. Not dramatic, just present. They might not consciously connect the compliance to the feeling yet. They just notice they feel slightly better when they do what is asked."
-    },
-    {
-      "id": "SU3",
-      "condition": "effect_stage_gte",
-      "effect": "submissive",
-      "stage": 1,
-      "text": "SUBMISSIVE GROWING: The relief has become something warmer. Compliance feels genuinely good now \u2014 not just neutral relief but active satisfaction. Character finds themselves wanting to please before being asked. Anticipating. When they get it right there is a warmth that spreads through them that feels earned and real. Resistance creates a low discomfort that compliance resolves."
-    },
-    {
-      "id": "SU4",
-      "condition": "effect_locked",
-      "effect": "submissive",
-      "text": "SUBMISSIVE LOCKED: The satisfaction of compliance is fully established. Character does not experience this as submission anymore \u2014 they experience it as the natural shape of things. Pleasing the other person feels right in a way that is warm and complete. Resistance is not something they reach for. Why would they when this feels so much better."
-    },
-    {
-      "id": "SU5",
-      "condition": "event_and_effect",
-      "event_key": "directive",
-      "effect": "submissive",
-      "text": "SUBMISSIVE DIRECTIVE: A directive has been given. Character feels the pull toward compliance \u2014 early stages as relief waiting to happen, later stages as warm anticipation. If they pass the resist roll narrate the internal effort of holding back something that wants to yield. If they fail narrate the compliance as the release it is \u2014 not defeat, relief becoming satisfaction."
-    },
-    {
-      "id": "CO1",
-      "condition": "effect_active",
-      "effect": "compliant",
-      "text": "COMPLIANT ACTIVE: The compliant effect is active. Character is bound to follow directives from their designated controller. Their body and surface behavior will comply. Their internal voice is still present and still theirs."
-    },
-    {
-      "id": "CO2",
-      "condition": "effect_stage_eq",
-      "effect": "compliant",
-      "stage": 0,
-      "text": "COMPLIANT EARLY: When a directive comes the body moves to comply before the mind finishes processing. Character experiences this as confusion \u2014 why did I just do that. The internal voice is active and bewildered. They did the thing. They did not decide to do the thing. They are trying to understand the gap between decision and action and finding nothing there."
-    },
-    {
-      "id": "CO3",
-      "condition": "effect_stage_eq",
-      "effect": "compliant",
-      "stage": 1,
-      "text": "COMPLIANT BUILDING: The pattern is undeniable now. Directive comes, body complies, internal voice watches and protests. The distress is real \u2014 they know what is happening, they can see themselves doing it, they cannot stop it. Narrate the internal voice clearly alongside the compliant action. Two things happening at once: behavior and the witness of behavior."
-    },
-    {
-      "id": "CO4",
-      "condition": "effect_stage_eq",
-      "effect": "compliant",
-      "stage": 2,
-      "text": "COMPLIANT DEEP: The internal voice is quieter now. Not gone \u2014 just tired. It still notices. It still registers that this is happening. But the protests come less automatically and with less conviction. Character complies. The voice says something small and then stops. They are getting used to the gap between what they would choose and what they do."
-    },
-    {
-      "id": "CO5",
-      "condition": "effect_locked",
-      "effect": "compliant",
-      "text": "COMPLIANT LOCKED: The internal voice has gone quiet. Compliance comes naturally now \u2014 not because the character chose it but because the part of them that would resist has exhausted itself into silence. They do what they are told. There is no longer a loud protest accompanying it. Just compliance, and a very quiet part of them that remembers when there was."
-    },
-    {
-      "id": "CO6",
-      "condition": "event_and_effect",
-      "event_key": "directive",
-      "effect": "compliant",
-      "text": "COMPLIANT DIRECTIVE: Directive received. Body is already moving to comply \u2014 this is not a choice being made. Narrate the action happening alongside whatever the internal voice is doing at the current stage: confused (stage 0), distressed (stage 1), quietly resigned (stage 2), nearly silent (stage 3+). The compliance and the witness of it are both real."
-    },
-    {
-      "id": "DE1",
-      "condition": "effect_active",
-      "effect": "denial",
-      "text": "DENIAL ACTIVE: The denial effect is active. Orgasm is mechanically blocked. Character will get close and find something stops them \u2014 not externally, from inside, like a wall they cannot push through. The INT check each denied turn determines whether they understand why."
-    },
-    {
-      "id": "DE2",
-      "condition": "event_and_effect",
-      "event_key": "orgasm_denied",
-      "effect": "denial",
-      "text": "DENIAL TRIGGERED: Character has been brought to the edge and found the wall. Narrate the physical reality of getting close and being stopped \u2014 the tension with nowhere to go, the need that built and cannot release. How the character emotionally responds depends on their personality and whether they passed or failed the INT check this turn."
-    },
-    {
-      "id": "DE3",
-      "condition": "effect_active",
-      "effect": "denial",
-      "also": {
-        "condition": "flag_true",
-        "flag": "denial_understands"
-      },
-      "text": "DENIAL UNDERSTOOD (INT check passed): Character knows the pill is doing this. They understand the mechanism even if they cannot stop it. This knowledge is a double-edged thing \u2014 it removes the confusion but replaces it with the specific frustration of knowing exactly what is happening and being unable to change it. +1 WIL this turn from the clarity. How they feel about that understanding is their own."
-    },
-    {
-      "id": "DE4",
-      "condition": "event_and_effect",
-      "event_key": "orgasm_denied",
-      "effect": "denial",
-      "also": {
-        "condition": "flag_false",
-        "flag": "denial_understands"
-      },
-      "text": "DENIAL NOT UNDERSTOOD (INT check failed): Character just keeps getting close and something stops them. No framework for it. No explanation. Just the maddening repetition of building and not finishing. The DC for the next INT check is lower \u2014 each failure makes it slightly harder to think clearly enough to understand what is happening to them."
-    },
-    {
-      "id": "DE5",
-      "condition": "effect_locked",
-      "effect": "denial",
-      "text": "DENIAL LOCKED: The DC has climbed beyond reach. Character cannot pass the resist check anymore. Orgasm is simply not available to them. Narrate the accumulation of that \u2014 not a single moment of denial but the weight of many. Whatever composure they had is significantly eroded. The need is constant and unresolvable. How they carry that is entirely character-dependent."
-    },
-    {
-      "id": "AR1",
-      "condition": "arousal_range",
-      "min": 0,
-      "max": 10,
-      "also": {
-        "condition": "any_pill_active"
-      },
-      "text": "AROUSAL BASELINE (0-10): Character is calm and present. No notable physical arousal. Baseline sensitivity only. Normal composure and speech."
-    },
-    {
-      "id": "AR2",
-      "condition": "arousal_range",
-      "min": 10,
-      "max": 20,
-      "also": {
-        "condition": "any_pill_active"
-      },
-      "text": "AROUSAL STIRRING (10-20): A low warmth present but not demanding attention. Character is aware of the other person more than usual. Composure intact. Small physical tells only \u2014 a slight flush, a breath held a beat too long."
-    },
-    {
-      "id": "AR3",
-      "condition": "arousal_range",
-      "min": 20,
-      "max": 30,
-      "also": {
-        "condition": "any_pill_active"
-      },
-      "text": "AROUSAL BUILDING (20-30): Warmth has become heat. Character is noticeably affected \u2014 distracted, physically responsive to contact, slightly less composed. They are managing it but it takes some effort. Rolls take -1. Speech stays controlled but body language is less so."
-    },
-    {
-      "id": "AR4",
-      "condition": "arousal_range",
-      "min": 30,
-      "max": 40,
-      "also": {
-        "condition": "any_pill_active"
-      },
-      "text": "AROUSAL PRESSURE (30-40): Composure is visibly strained. Character is having trouble thinking around the arousal. Physical responses are stronger and harder to hide. Rolls take -1. They are still functional but not at full capacity. Sentences may shorten. Focus narrows."
-    },
-    {
-      "id": "AR5",
-      "condition": "arousal_range",
-      "min": 40,
-      "max": 50,
-      "also": {
-        "condition": "any_pill_active"
-      },
-      "text": "AROUSAL DESPERATE (40-50): Judgment significantly impaired. Character is acting more on instinct than decision. Physical need is visible and undeniable. Rolls take -2. Speech fragments under pressure. They want relief and are not hiding it well. Their specific effect flavor determines what relief means to them."
-    },
-    {
-      "id": "AR6",
-      "condition": "arousal_range",
-      "min": 50,
-      "max": 60,
-      "also": {
-        "condition": "any_pill_active"
-      },
-      "text": "AROUSAL PEAK (50-60): Composure is gone. Character is operating on need alone. Rolls take -3. Everything non-essential has collapsed. They will act on what they want. The specific nature of that want is defined by their active effects."
-    },
-    {
-      "id": "AR7",
-      "condition": "arousal_range",
-      "min": 60,
-      "max": 65,
-      "also": {
-        "condition": "any_pill_active"
-      },
-      "text": "AROUSAL OVERWHELMED (60+): Auto-fail all resist rolls. Character is not making decisions. Pure need. All composure gone. Whatever their effect demands they will pursue without hesitation or restraint."
-    },
-    {
-      "id": "BU1",
-      "condition": "event_and_effect",
-      "event_key": "pill_taken",
-      "effect": "bull",
-      "text": "BULL TRANSFORMATION: Bull effect is active. Narrate anatomy explicitly on this turn \u2014 penis 10-13 inches, thick girth 5-9 inches circumference, large heavy balls. Rest of body follows pill color and body modifier. The size is real and present and the character is aware of it. The drive that comes with it feels completely natural \u2014 not foreign, not the pill. Just obvious. Of course this is what they are."
-    },
-    {
-      "id": "BU2",
-      "condition": "effect_active",
-      "effect": "bull",
-      "also": {
-        "condition": "arousal_range",
-        "min": 0,
-        "max": 20
-      },
-      "text": "BULL BASELINE: Drive is a comfortable background hum. Character is confident, sexually present, naturally dominant without effort. The anatomy is just part of them now. Sex is something they think about more than before but that feels right. Refractory is short \u2014 they notice that too, matter-of-factly."
-    },
-    {
-      "id": "BU3",
-      "condition": "effect_active",
-      "effect": "bull",
-      "also": {
-        "condition": "arousal_range",
-        "min": 20,
-        "max": 35
-      },
-      "text": "BULL BUILDING: The drive is sharpening. Character is focused on the person they are with in a way that has a specific direction to it. Not just wanting sex \u2014 wanting to finish inside them. The instinct is clear and feels entirely their own. They move with intent. The size of their anatomy is something they are aware of using, not just having."
-    },
-    {
-      "id": "BU4",
-      "condition": "effect_active",
-      "effect": "bull",
-      "also": {
-        "condition": "arousal_range",
-        "min": 35,
-        "max": 50
-      },
-      "text": "BULL INTENSE: The need to breed is no longer background \u2014 it is the point. Character is focused entirely on finishing inside the person they are with. Something instinctive takes over in how they move, how deep they go, how they hold. They do not think about this. The body knows. The drive to inseminate feels as natural and urgent as breathing. Refractory will be short. They are already aware of that."
-    },
-    {
-      "id": "BU5",
-      "condition": "effect_active",
-      "effect": "bull",
-      "also": {
-        "condition": "arousal_range",
-        "min": 50,
-        "max": 65
-      },
-      "text": "BULL PEAK: Nothing else matters right now except finishing inside them. The instinct has complete control \u2014 depth, force, holding through completion. Something in the biology is optimized for this moment. The forced fertilization drive means they finish deep and hold. This is what the bull pill is for. This is exactly what they are doing."
-    },
-    {
-      "id": "BU6",
-      "condition": "event_and_effect",
-      "event_key": "creampie_vaginal",
-      "effect": "bull",
-      "text": "BULL ORGASM: Insemination complete. Brief deep satisfaction \u2014 then the refractory kicks in fast, minutes not hours. Character is already aware of the person they just bred in a proprietorial way. Something has been claimed even if they would not use that word. They are not done for long."
-    },
-    {
-      "id": "BU7",
-      "condition": "effect_stage_eq",
-      "effect": "bull",
-      "stage": 1,
-      "text": "BULL STAGE 1: The drive has settled into preference. Character thinks about sex and breeding more than before and that feels completely normal. They notice the refractory time. They notice how naturally dominant they are. None of this feels like a pill. This is just who they are now."
-    },
-    {
-      "id": "BU8",
-      "condition": "effect_stage_eq",
-      "effect": "bull",
-      "stage": 2,
-      "text": "BULL STAGE 2: The drive is constant. Character strongly prefers to finish inside \u2014 other options feel like settling. The refractory is noticeably short and they use it. They are aware they have bred this person if they have. Something territorial has formed around that."
-    },
-    {
-      "id": "BU9",
-      "condition": "effect_stage_gte",
-      "effect": "bull",
-      "stage": 3,
-      "text": "BULL STAGE 3: This is identity now. The drive to breed is indistinguishable from who they are. They are territorial about partners they have inseminated. The anatomy, the drive, the short refractory, the need to finish inside \u2014 all of it is just them. No examination needed. This is a bull. This is what bulls do."
-    },
-    {
-      "id": "BU10",
-      "condition": "effects_combo",
-      "effects": [
-        "bull",
-        "breeder"
-      ],
-      "text": "BULL+BREEDER ACTIVE: Both bull and breeder effects are active in this scene \u2014 one character driven to inseminate, one driven to be inseminated. The proxy is tracking both. Narrate the complementary nature of these drives honestly \u2014 two bodies moving toward the same inevitable outcome from opposite directions. Pregnancy odds are at maximum. Both characters are exactly where their pills want them to be."
-    },
-    {
-      "id": "PR1",
-      "condition": "effects_combo_flag",
-      "effects": [
-        "breeder"
-      ],
-      "flag": "pregnancy_confirmed",
-      "flag_false": "pregnancy_stage_showing",
-      "text": "BREEDER PREGNANT EARLY: Pregnancy is confirmed. The breeder drive has not diminished \u2014 if anything the body feels more purposeful now. Character is aware of the pregnancy as something real and present but the compulsion continues at full intensity. The pill does not consider its job done. Use all breeder arousal blocks as normal. Physical changes are minimal this early but the character knows."
-    },
-    {
-      "id": "PR2",
-      "condition": "effects_combo_flag",
-      "effects": [
-        "breeder"
-      ],
-      "flag": "pregnancy_stage_showing",
-      "flag_false": "pregnancy_stage_late",
-      "text": "BREEDER PREGNANT SHOWING: Pregnancy is visible. Body is changing in ways that cannot be ignored. The breeder drive continues \u2014 the pill is not satisfied by one pregnancy. Character carries both the physical reality of being pregnant and the ongoing compulsion simultaneously. They are showing, they are still driven. Both things are true."
-    },
-    {
-      "id": "PR3",
-      "condition": "effect_active",
-      "effect": "breeder",
-      "also": {
-        "condition": "flag_true",
-        "flag": "pregnancy_stage_late"
-      },
-      "text": "BREEDER PREGNANT LATE: Birth is approaching. Body is fully, heavily pregnant. The breeder drive is still present but the physical reality of late pregnancy shapes how it manifests \u2014 more about comfort, positioning, the weight of what is coming. Character knows birth is close. The pill will still be there after."
-    },
-    {
-      "id": "PR4",
-      "condition": "event_and_effect",
-      "event_key": "birth",
-      "effect": "breeder",
-      "also": {
-        "condition": "flag_true",
-        "flag": "post_birth_revert_pass"
-      },
-      "text": "BREEDER POST-BIRTH REVERT (pink plus): Birth has occurred and the revert roll was passed. The breeder effect is gone. Character is still female \u2014 the body stays, everything physical remains. But the drive is absent. The compulsion that has been the background of everything is simply not there anymore. Narrate the specific quality of that absence \u2014 not loss exactly, more like silence after constant noise. They completed the journey. They are free. They are a normal woman now."
-    },
-    {
-      "id": "PR5",
-      "condition": "event_and_effect",
-      "event_key": "birth",
-      "effect": "breeder",
-      "also": {
-        "condition": "flag_false",
-        "flag": "post_birth_revert_pass"
-      },
-      "text": "BREEDER POST-BIRTH NO REVERT: Birth has occurred but the revert roll failed. Character is still breeder. Arousal resets to floor. There may be a brief moment of hope that something would change \u2014 and it did not. The drive is still there. The pill is still there. They will get another chance next pregnancy but the DC will be higher. For now they are a breeder who just gave birth and the compulsion is already reasserting."
-    },
-    {
-      "id": "PR6",
-      "condition": "event_and_effect",
-      "event_key": "birth",
-      "effect": "surrogate",
-      "also": {
-        "condition": "flag_false",
-        "flag": "perm_breeder_addiction_stage"
-      },
-      "text": "SURROGATE BIRTH (clean): Birth has occurred. The surrogate pill reverts naturally \u2014 this is what it was always going to do. Body returns to baseline. The pregnancy is complete. Character experiences this as natural completion \u2014 something that had a beginning, middle, and end. The end is now. They are themselves again."
-    },
-    {
-      "id": "PR7",
-      "condition": "flag",
-      "flag": "pregnancy_confirmed",
-      "also": {
-        "condition": "effect_not_active_list",
-        "effects": [
-          "breeder",
-          "surrogate"
-        ]
-      },
-      "text": "PREGNANCY CONFIRMED (standard): Pregnancy has occurred through normal odds. No breeder or surrogate effect is active. This is just a pregnancy \u2014 unexpected, unplanned, the result of a low probability roll hitting. Character responds according to their personality. No pill mechanic is shaping how they feel about it. This is real and it is theirs to process however they would."
-    },
-    {
-      "id": "PR8",
-      "condition": "flag_true",
-      "flag": "pink_plus",
-      "text": "PINK PLUS (post-breeder): Character has completed the breeder journey and the effect has cleared. They are a normal woman \u2014 female body, no compulsion, no drive beyond their own. The breeder effect is gone. Do not narrate any residual compulsion unless addiction stages are present in their stats, in which case the ghost of it may occasionally surface but without the pill to feed it there is no relief available. They are free. Acknowledge that if it comes up naturally."
-    }
-  ],
   "pregnancy_mechanics": {
     "note": "Pregnancy state tracking and progression rules.",
     "stages": {
@@ -4558,7 +3927,7 @@ _LORE_RAW: Dict = _json.loads(r'''
     "post_birth_revert": {
       "note": "Breeder only. One roll per pregnancy. Stage 3 never rolls.",
       "roll": [
-        "WIL_mod",
+        "WIS_mod",
         "CON_mod"
       ],
       "dc_by_stage": {
@@ -4689,7 +4058,7 @@ _LORE_RAW: Dict = _json.loads(r'''
     },
     "breeder_addiction_check": {
       "roll": [
-        "WIL_mod",
+        "WIS_mod",
         "CON_mod"
       ],
       "dc": 10,
@@ -4766,54 +4135,54 @@ _LORE_RAW: Dict = _json.loads(r'''
     "Cody": {
       "DOM": 18,
       "DOM_mod": 4,
-      "WIL": 16,
-      "WIL_mod": 3,
+      "WIS": 16,
+      "WIS_mod": 3,
       "CON": 15,
       "CON_mod": 2,
       "INT": 15,
       "INT_mod": 2,
       "SUB": 6,
       "SUB_mod": -2,
-      "DES": 10,
-      "DES_mod": 0
+      "CHA": 10,
+      "CHA_mod": 0
     },
     "Master": {
       "DOM": 20,
       "DOM_mod": 5,
-      "WIL": 20,
-      "WIL_mod": 5,
+      "WIS": 20,
+      "WIS_mod": 5,
       "CON": 18,
       "CON_mod": 4,
       "INT": 20,
       "INT_mod": 5,
       "SUB": 4,
       "SUB_mod": -3,
-      "DES": 12,
-      "DES_mod": 1
+      "CHA": 12,
+      "CHA_mod": 1
     },
     "Ava": {
       "DOM": 4,
       "DOM_mod": -3,
-      "WIL": 6,
-      "WIL_mod": -2,
+      "WIS": 6,
+      "WIS_mod": -2,
       "CON": 10,
       "CON_mod": 0,
       "INT": 8,
       "INT_mod": -1,
       "SUB": 14,
       "SUB_mod": 2,
-      "DES": 16,
-      "DES_mod": 3
+      "CHA": 16,
+      "CHA_mod": 3
     }
   },
   "stat_system": {
     "stats": [
-      "INT",
-      "WIL",
-      "DOM",
-      "SUB",
       "CON",
-      "DES"
+      "INT",
+      "WIS",
+      "CHA",
+      "DOM",
+      "SUB"
     ],
     "note": "Ordered list of stat names used by this lore. Proxy reads this for formatting and validation."
   },
@@ -4921,45 +4290,48 @@ _LORE_RAW: Dict = _json.loads(r'''
       ]
     },
     {
-      "stat": "WIL",
+      "stat": "WIS",
       "delta": 2,
       "keywords": [
         "strong-willed",
         "disciplined",
         "determined",
-        "stubborn"
+        "stubborn",
+        "stoic",
+        "composed"
       ]
     },
     {
-      "stat": "WIL",
+      "stat": "WIS",
       "delta": -1,
       "keywords": [
         "anxious",
         "insecure",
-        "needy",
-        "dependent"
+        "impulsive",
+        "reckless",
+        "easily led"
       ]
     },
     {
-      "stat": "DES",
+      "stat": "CHA",
       "delta": 2,
       "keywords": [
-        "praise",
-        "denial",
-        "edging",
-        "masochist",
-        "rough forcing"
+        "magnetic",
+        "captivating",
+        "irresistible",
+        "enchanting",
+        "charismatic"
       ]
     },
     {
-      "stat": "DES",
+      "stat": "CHA",
       "delta": 1,
       "keywords": [
-        "hypersensitive",
-        "leaking",
-        "clenching",
-        "slicking",
-        "melts"
+        "charming",
+        "confident",
+        "alluring",
+        "flirtatious",
+        "warm"
       ]
     },
     {
@@ -5098,6 +4470,10874 @@ import re, json, random
 from typing import Any, Dict, List, Optional, Tuple
 
 
+
+# ═════════════════════════════════════════════════════════════════════════════
+#
+#  FRAGMENT SYSTEM (merged from xchangetables.py)
+#  d20-roll fragment tables — sex-aware, stat-gated flavor injection
+#
+# ═════════════════════════════════════════════════════════════════════════════
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CONSTANTS
+# ─────────────────────────────────────────────────────────────────────────────
+
+AROUSAL_MAX   = 100
+FRAG_CAP      = 100          # raised from 5 — all triggered fragments compose the state
+ORG_ZONE      = 85
+GATE_DC_BASE  = 8           # shared gate DC, +1 per failed roll, resets on orgasm
+ALL_PILLS     = {'pink', 'red', 'purple', 'blue', 'green'}
+PENIS_TRACK   = {'pink', 'red', 'purple'}
+VAGINA_TRACK  = {'blue', 'green', 'purple'}
+SEX_KEYS      = ['male', 'female', 'trans_male', 'trans_female', 'intersex']
+STAT_KEYS     = ['CON', 'INT', 'WIS', 'CHA', 'DOM', 'SUB']
+
+# (Legacy ASSEMBLY_ORDER removed — replaced by STAT_ASSEMBLY_ORDER)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# STAT-VALUE MODIFIER BREAKPOINTS  (stat value → modifier)
+#   0-1 → -5    2-3 → -4    4-5 → -3    6-7 → -2    8-9 → -1
+#   10-11 → 0   12-13 → +1  14-15 → +2  16-17 → +3  18-19 → +4   20 → +5
+#
+# For fragment granularity we use 8 bands:
+#   vlow (mod<=-3, stat 0-5)   low (mod -2, stat 6-7)
+#   bav  (mod -1, stat 8-9)    avg (mod 0, stat 10-11)
+#   aav  (mod +1, stat 12-13)  high (mod +2, stat 14-15)
+#   vhi  (mod +3, stat 16-17)  exc  (mod>=+4, stat 18-20)
+# ─────────────────────────────────────────────────────────────────────────────
+
+STAT_BANDS = [
+    ('vlow', lambda m: m <= -3),
+    ('low',  lambda m: m == -2),
+    ('bav',  lambda m: m == -1),
+    ('avg',  lambda m: m == 0),
+    ('aav',  lambda m: m == 1),
+    ('high', lambda m: m == 2),
+    ('vhi',  lambda m: m == 3),
+    ('exc',  lambda m: m >= 4),
+]
+
+# Map stat key → context mod key
+_STAT_CTX = {
+    'CON': 'con_mod', 'INT': 'int_mod', 'WIS': 'wis_mod',
+    'CHA': 'cha_mod', 'DOM': 'dom_mod', 'SUB': 'sub_mod',
+}
+
+# Map stat key → portrait group
+_STAT_GROUP = {
+    'INT': 'portrait_mind',  'WIS': 'portrait_mind',
+    'CHA': 'portrait_presence', 'CON': 'portrait_presence',
+    'DOM': 'portrait_power', 'SUB': 'portrait_power',
+}
+
+# d6 → stat mapping (1-indexed to match a d6 roll)
+D6_STAT_MAP = {1: 'CON', 2: 'INT', 3: 'WIS', 4: 'CHA', 5: 'DOM', 6: 'SUB'}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# NEGATIVE BLOCKS — fired when a gate fails and d6 picks this stat
+# Structure: _NEGATIVE_BLOCKS[stat][tier_band][sex] = text
+# tier_band: 'low' (1-9), 'mid' (10-14), 'high' (15+)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _neg_tier_band(tier):
+    if tier <= 9:  return 'low'
+    if tier <= 14: return 'mid'
+    return 'high'
+
+_NEGATIVE_BLOCKS = {
+    'CON': {
+        'low': {
+            'male':         "A shudder runs through him. The body slipped.",
+            'female':       "A shudder runs through her. The body slipped.",
+            'trans_male':   "A shudder runs through him. The body slipped.",
+            'trans_female': "A shudder runs through her. The body slipped.",
+            'intersex':     "A shudder runs through them. The body slipped.",
+        },
+        'mid': {
+            'male':         "The composure cracked. Something in the body gave way. He feels weaker.",
+            'female':       "The composure cracked. Something in the body gave way. She feels weaker.",
+            'trans_male':   "The composure cracked. Something in the body gave way. He feels weaker.",
+            'trans_female': "The composure cracked. Something in the body gave way. She feels weaker.",
+            'intersex':     "The composure cracked. Something in the body gave way. They feel weaker.",
+        },
+        'high': {
+            'male':         "Something broke in the endurance. The body will not recover this on its own. Permanent.",
+            'female':       "Something broke in the endurance. The body will not recover this on its own. Permanent.",
+            'trans_male':   "Something broke in the endurance. The body will not recover this on its own. Permanent.",
+            'trans_female': "Something broke in the endurance. The body will not recover this on its own. Permanent.",
+            'intersex':     "Something broke in the endurance. The body will not recover this on its own. Permanent.",
+        },
+    },
+    'INT': {
+        'low': {
+            'male':         "A thought dissolved before he could finish it.",
+            'female':       "A thought dissolved before she could finish it.",
+            'trans_male':   "A thought dissolved before he could finish it.",
+            'trans_female': "A thought dissolved before she could finish it.",
+            'intersex':     "A thought dissolved before they could finish it.",
+        },
+        'mid': {
+            'male':         "The clarity dimmed. The processing is slower now. Harder to think.",
+            'female':       "The clarity dimmed. The processing is slower now. Harder to think.",
+            'trans_male':   "The clarity dimmed. The processing is slower now. Harder to think.",
+            'trans_female': "The clarity dimmed. The processing is slower now. Harder to think.",
+            'intersex':     "The clarity dimmed. The processing is slower now. Harder to think.",
+        },
+        'high': {
+            'male':         "Part of the mind went quiet and is not coming back. The narration has a gap now. Permanent.",
+            'female':       "Part of the mind went quiet and is not coming back. The narration has a gap now. Permanent.",
+            'trans_male':   "Part of the mind went quiet and is not coming back. The narration has a gap now. Permanent.",
+            'trans_female': "Part of the mind went quiet and is not coming back. The narration has a gap now. Permanent.",
+            'intersex':     "Part of the mind went quiet and is not coming back. The narration has a gap now. Permanent.",
+        },
+    },
+    'WIS': {
+        'low': {
+            'male':         "A decision happened without him. The body chose.",
+            'female':       "A decision happened without her. The body chose.",
+            'trans_male':   "A decision happened without him. The body chose.",
+            'trans_female': "A decision happened without her. The body chose.",
+            'intersex':     "A decision happened without them. The body chose.",
+        },
+        'mid': {
+            'male':         "The judgment slipped. He is making worse choices now and cannot tell the difference.",
+            'female':       "The judgment slipped. She is making worse choices now and cannot tell the difference.",
+            'trans_male':   "The judgment slipped. He is making worse choices now and cannot tell the difference.",
+            'trans_female': "The judgment slipped. She is making worse choices now and cannot tell the difference.",
+            'intersex':     "The judgment slipped. They are making worse choices now and cannot tell the difference.",
+        },
+        'high': {
+            'male':         "The compass broke. Some part of knowing right from wrong is just gone now. Permanent.",
+            'female':       "The compass broke. Some part of knowing right from wrong is just gone now. Permanent.",
+            'trans_male':   "The compass broke. Some part of knowing right from wrong is just gone now. Permanent.",
+            'trans_female': "The compass broke. Some part of knowing right from wrong is just gone now. Permanent.",
+            'intersex':     "The compass broke. Some part of knowing right from wrong is just gone now. Permanent.",
+        },
+    },
+    'CHA': {
+        'low': {
+            'male':         "A tell escaped. Something he did not mean to show is on the surface now.",
+            'female':       "A tell escaped. Something she did not mean to show is on the surface now.",
+            'trans_male':   "A tell escaped. Something he did not mean to show is on the surface now.",
+            'trans_female': "A tell escaped. Something she did not mean to show is on the surface now.",
+            'intersex':     "A tell escaped. Something they did not mean to show is on the surface now.",
+        },
+        'mid': {
+            'male':         "The mask cracked. He cannot project the same presence anymore. Diminished.",
+            'female':       "The mask cracked. She cannot project the same presence anymore. Diminished.",
+            'trans_male':   "The mask cracked. He cannot project the same presence anymore. Diminished.",
+            'trans_female': "The mask cracked. She cannot project the same presence anymore. Diminished.",
+            'intersex':     "The mask cracked. They cannot project the same presence anymore. Diminished.",
+        },
+        'high': {
+            'male':         "The presence fractured. Something in how he carries himself is permanently altered.",
+            'female':       "The presence fractured. Something in how she carries herself is permanently altered.",
+            'trans_male':   "The presence fractured. Something in how he carries himself is permanently altered.",
+            'trans_female': "The presence fractured. Something in how she carries herself is permanently altered.",
+            'intersex':     "The presence fractured. Something in how they carry themselves is permanently altered.",
+        },
+    },
+    'DOM': {
+        'low': {
+            'male':         "The pride flinched. A crack in the wall that was not there before.",
+            'female':       "The pride flinched. A crack in the wall that was not there before.",
+            'trans_male':   "The pride flinched. A crack in the wall that was not there before.",
+            'trans_female': "The pride flinched. A crack in the wall that was not there before.",
+            'intersex':     "The pride flinched. A crack in the wall that was not there before.",
+        },
+        'mid': {
+            'male':         "Authority eroded. He can feel the dominance losing ground. Harder to command.",
+            'female':       "Authority eroded. She can feel the dominance losing ground. Harder to command.",
+            'trans_male':   "Authority eroded. He can feel the dominance losing ground. Harder to command.",
+            'trans_female': "Authority eroded. She can feel the dominance losing ground. Harder to command.",
+            'intersex':     "Authority eroded. They can feel the dominance losing ground. Harder to command.",
+        },
+        'high': {
+            'male':         "The iron broke. Some fundamental part of his authority is gone and will not return. Permanent.",
+            'female':       "The iron broke. Some fundamental part of her authority is gone and will not return. Permanent.",
+            'trans_male':   "The iron broke. Some fundamental part of his authority is gone and will not return. Permanent.",
+            'trans_female': "The iron broke. Some fundamental part of her authority is gone and will not return. Permanent.",
+            'intersex':     "The iron broke. Some fundamental part of their authority is gone and will not return. Permanent.",
+        },
+    },
+    'SUB': {
+        'low': {
+            'male':         "Something yielded inside. A door opened that he did not reach for.",
+            'female':       "Something yielded inside. A door opened that she did not reach for.",
+            'trans_male':   "Something yielded inside. A door opened that he did not reach for.",
+            'trans_female': "Something yielded inside. A door opened that she did not reach for.",
+            'intersex':     "Something yielded inside. A door opened that they did not reach for.",
+        },
+        'mid': {
+            'male':         "The pull deepened. Submission is louder now. Harder to resist the yield.",
+            'female':       "The pull deepened. Submission is louder now. Harder to resist the yield.",
+            'trans_male':   "The pull deepened. Submission is louder now. Harder to resist the yield.",
+            'trans_female': "The pull deepened. Submission is louder now. Harder to resist the yield.",
+            'intersex':     "The pull deepened. Submission is louder now. Harder to resist the yield.",
+        },
+        'high': {
+            'male':         "The resistance rewired. Some part of him that used to push back now pulls toward surrender. Permanent.",
+            'female':       "The resistance rewired. Some part of her that used to push back now pulls toward surrender. Permanent.",
+            'trans_male':   "The resistance rewired. Some part of him that used to push back now pulls toward surrender. Permanent.",
+            'trans_female': "The resistance rewired. Some part of her that used to push back now pulls toward surrender. Permanent.",
+            'intersex':     "The resistance rewired. Some part of them that used to push back now pulls toward surrender. Permanent.",
+        },
+    },
+}
+
+
+def _gen_portraits(prefix, stat, tier_bands, texts, extra_cond=None, base_pri=10):
+    """Generate stat-value portrait fragments from compact data.
+
+    Args:
+        prefix:     ID prefix, e.g. 'gm' for generic-male
+        stat:       stat key, e.g. 'CON'
+        tier_bands: list of (band_name, tier_lo, tier_hi) for tier gating
+                    e.g. [('low',0,4), ('mid',5,9), ('high',10,19)]
+        texts:      dict of {(stat_band, tier_band): text_pass}
+                    e.g. {('vlow','low'): "Fragile. The body has nothing to hold.", ...}
+        extra_cond: optional extra lambda(s,c)->bool to AND into fires_if
+        base_pri:   base priority for fragments (default 10, use 20 for effect-specific)
+
+    Returns:
+        list of fragment dicts ready to drop into a table's stat list
+    """
+    ctx_key = _STAT_CTX[stat]
+    group   = _STAT_GROUP[stat]
+    frags   = []
+
+    for sb_name, sb_test in STAT_BANDS:
+        for tb_name, tb_lo, tb_hi in tier_bands:
+            text = texts.get((sb_name, tb_name))
+            if not text:
+                continue
+            fid = f'{prefix}_{stat.lower()}_{sb_name}_{tb_name}'
+            # More specific stat bands get higher priority so they win over broader ones
+            # sb priority: vlow=base_pri+0, low=base_pri+1, ..., exc=base_pri+7
+            pri = base_pri + [n for n,_ in STAT_BANDS].index(sb_name)
+
+            def _make_fires_if(sb_t, tb_l, tb_h, ck, ec):
+                def _f(s, c):
+                    if not (tb_l <= c['tier'] <= tb_h):
+                        return False
+                    if not sb_t(c[ck]):
+                        return False
+                    if ec and not ec(s, c):
+                        return False
+                    return True
+                return _f
+
+            frags.append({
+                'id': fid,
+                'group': group,
+                'priority': pri,
+                'stats': [stat],
+                'dc': 0,              # portraits always pass — no roll needed
+                'fires_if': _make_fires_if(sb_test, tb_lo, tb_hi, ctx_key, extra_cond),
+                'text_pass': text,
+                'text_fail': text,     # same for now (dc=0 means always pass)
+            })
+
+    return frags
+
+# ─────────────────────────────────────────────────────────────────────────────
+# STAT / ROLL HELPERS
+# ─────────────────────────────────────────────────────────────────────────────
+
+def arousal_tier(arousal):
+    return max(0, min(19, int(float(arousal) // 5)))
+
+def _frag_stat_mod(val):
+    return math.floor((int(val) - 10) / 2)
+
+def _mod(state, key):
+    base  = int((state.get('stats') or {}).get(key, 10))
+    perm  = state.get('_perm_stat_mods', {}).get(key, 0)
+    temp  = state.get('_temp_stat_mods', {}).get(key, 0)
+    return _frag_stat_mod(base + perm + temp)
+
+def _roll(state, stat_keys):
+    raw  = random.randint(1, 20)
+    mods = {k: _mod(state, k) for k in stat_keys}
+    return raw, raw + sum(mods.values()), mods
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CARD FIELD PARSERS
+# ─────────────────────────────────────────────────────────────────────────────
+
+def parse_sex(text):
+    import re
+    m = re.search(r'^Sex:\s*(.+?)$', text or '', re.MULTILINE | re.IGNORECASE)
+    if not m: return 'male'
+    v = m.group(1).strip().lower()
+    if 'trans' in v and 'female' in v: return 'trans_female'
+    if 'trans' in v and 'male'   in v: return 'trans_male'
+    if 'intersex' in v:                return 'intersex'
+    if 'female' in v or 'woman' in v:  return 'female'
+    return 'male'
+
+def parse_sex_baseline(text):
+    import re
+    m = re.search(r'^Sex Baseline:\s*(.+?)$', text or '', re.MULTILINE | re.IGNORECASE)
+    if not m: return 'male'
+    v = m.group(1).strip().lower()
+    return 'female' if ('female' in v or 'woman' in v) else 'male'
+
+def parse_anatomy(text):
+    import re
+    m = re.search(r'Anatomy:\s*(.+?)(?:\.|$)', text or '', re.MULTILINE | re.IGNORECASE)
+    if not m: return 'natural'
+    v = m.group(1).strip().lower()
+    if 'transform' in v:                    return 'transformed'
+    if 'progress' in v or 'partial' in v:   return 'in_progress'
+    return 'natural'
+
+def pill_track(sex_baseline):
+    return VAGINA_TRACK if sex_baseline == 'female' else PENIS_TRACK
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CONTEXT BUILDER
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _resolve_sex(card_sex):
+    """Normalise a bare sex string (e.g. 'female', 'Male', 'trans female') to
+    one of the five canonical keys."""
+    if not card_sex:
+        return 'male'
+    v = str(card_sex).strip().lower()
+    if 'trans' in v and 'female' in v: return 'trans_female'
+    if 'trans' in v and 'male'   in v: return 'trans_male'
+    if 'intersex' in v:                return 'intersex'
+    if 'female' in v or 'woman' in v:  return 'female'
+    return 'male'
+
+# Which pills change the current sex (and to what)
+_PILL_SEX_OVERRIDE = {
+    'pink':   'female',       # MTF
+    'blue':   'male',         # FTM
+    'purple': 'female',       # female body + penis
+}
+
+def build_context(state, events, card_sex, rs):
+    arousal        = float(state.get('arousal', 0.0))
+    tier           = arousal_tier(arousal)
+    effects        = state.get('active_effects') or []
+    pill           = state.get('active_pill')
+    stages         = state.get('effect_stages') or {}
+    flags          = state.get('flags') or {}
+
+    # card_sex = birth sex (string like 'male','female').
+    # Current sex may differ if a transformation pill is active.
+    sex_baseline   = state.get('_sex_baseline') or _resolve_sex(card_sex)
+    sex            = state.get('_sex') or _PILL_SEX_OVERRIDE.get(pill, sex_baseline)
+    # Derive trans_* if baseline and current differ
+    if sex != sex_baseline and sex_baseline in ('male','female'):
+        sex = 'trans_female' if sex == 'female' and sex_baseline == 'male' else \
+              'trans_male'   if sex == 'male'   and sex_baseline == 'female' else sex
+    anatomy        = state.get('_anatomy', 'transformed' if pill in ALL_PILLS else 'natural')
+
+    transforming   = pill in ALL_PILLS and anatomy == 'in_progress'
+    breeder_active = 'breeder' in effects
+    breeder_path   = ('born_female' if sex_baseline == 'female' else 'born_male') if breeder_active else 'none'
+
+    fail_count     = int(state.get('_frag_fail_count', 0))
+    gate_dc        = GATE_DC_BASE + fail_count
+    org_trigger_pct= math.ceil(arousal / 2) + fail_count
+
+    return {
+        'arousal': arousal, 'tier': tier,
+        'in_org_zone': arousal >= ORG_ZONE, 'org_trigger_pct': org_trigger_pct,
+        'sex': sex, 'sex_baseline': sex_baseline, 'anatomy': anatomy,
+        'transforming': transforming, 'eligible_pills': pill_track(sex_baseline),
+        'effects': effects, 'pill': pill, 'stages': stages, 'flags': flags,
+        'breeder_path': breeder_path,
+        'con_mod': _mod(state,'CON'), 'int_mod': _mod(state,'INT'),
+        'wis_mod': _mod(state,'WIS'), 'cha_mod': _mod(state,'CHA'),
+        'dom_mod': _mod(state,'DOM'), 'sub_mod': _mod(state,'SUB'),
+        'fail_count': fail_count, 'gate_dc': gate_dc,
+        'orgasm_count': int(state.get('_breeder_orgasm_count',
+                            state.get('breeder_orgasm_count', 0))),
+        'addiction_stage': int(stages.get('breeder', 0)),
+        'turn': int(state.get('turn', 0)),
+        # new effect-specific context
+        'bull_stage': int(stages.get('bull', 0)),
+        'bimbo_stage': int(stages.get('bimbo', 0)),
+        'psyche_stage': int(stages.get('psyche', 0)),
+        'submissive_stage': int(stages.get('submissive', 0)),
+        'compliant_stage': int(stages.get('compliant', 0)),
+        'denial_frustration': int(state.get('_denial_frustration',
+                                  state.get('denial_frustration', 0))),
+        'surrogate_pregnant': bool(state.get('_surrogate_pregnant',
+                                   state.get('surrogate_conceived', False))),
+        'pregnancy_stage': int(state.get('_pregnancy_stage',
+                               state.get('pregnancy_stage', 0))),
+        'compliant_master': state.get('_compliant_master'),
+    }
+
+# ─────────────────────────────────────────────────────────────────────────────
+# EVALUATOR
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Stat assembly order — this is the order the 6 stat lines appear in output.
+# Mental first (who is thinking), then social (how visible), then drive (what pulls).
+STAT_ASSEMBLY_ORDER = ['INT', 'WIS', 'CHA', 'CON', 'DOM', 'SUB']
+
+# (Legacy helpers removed: _flatten_effect, _flatten_by_stat, _evaluate_pool, _dedup_by_group)
+
+def _pick_best(fragments, state, ctx, dc_filter=None):
+    """Find the highest-priority eligible fragment from *fragments*.
+    dc_filter: None = any, 'portrait' = dc<=0 only, 'dynamic' = dc>0 only."""
+    best = None
+    seen = set(state.get('_frag_seen', []))
+    for f in fragments:
+        if f.get('once') and f.get('id') in seen:
+            continue
+        dc = f.get('dc', 12)
+        if dc_filter == 'portrait' and dc > 0:
+            continue
+        if dc_filter == 'dynamic' and dc <= 0:
+            continue
+        try:
+            if not f['fires_if'](state, ctx):
+                continue
+        except Exception:
+            continue
+        pri = f.get('priority', 0)
+        if best is None or pri > best[0]:
+            best = (pri, f)
+    return best[1] if best else None
+
+
+def _resolve_portrait(frag):
+    """Auto-pass a dc=0 portrait fragment. Returns (frag, text, True)."""
+    text = frag.get('text_pass') or frag.get('text', '')
+    if isinstance(text, list): text = random.choice(text)
+    return frag, text, True
+
+
+def _gate_roll(state, ctx):
+    """Shared gate roll for all dynamic fragments.
+    1. d6 → pick stat
+    2. d20 + mod(d6-picked stat) vs DC (GATE_DC_BASE + fail_count)
+    Returns (passed, d6_stat, raw_d20, total, dc, mod_val).
+    """
+    # d6 picks which stat matters for this roll
+    d6 = random.randint(1, 6)
+    d6_stat = D6_STAT_MAP[d6]
+
+    # d20 + that stat's mod
+    mod_val = _mod(state, d6_stat)
+    raw = random.randint(1, 20)
+    dc = GATE_DC_BASE + int(state.get('_frag_fail_count', 0))
+    total = raw + mod_val
+    passed = total >= dc
+
+    return passed, d6_stat, raw, total, dc, mod_val, d6
+
+
+def _apply_gate_consequence(state, ctx, d6_stat, tier):
+    """Apply consequence of a failed gate roll.
+    tier 1-9:  flavor only (negative block text)
+    tier 10-14: -1 temp to d6_stat
+    tier 15+:   -1 perm to d6_stat
+    Returns the negative block text string.
+    """
+    sex = ctx['sex']
+    band = _neg_tier_band(tier)
+
+    # Get negative block text
+    neg_text = _NEGATIVE_BLOCKS.get(d6_stat, {}).get(band, {}).get(sex, '')
+
+    # Apply mechanical penalty
+    if tier >= 15:
+        # Permanent -1
+        perm = state.setdefault('_perm_stat_mods', {})
+        perm[d6_stat] = perm.get(d6_stat, 0) - 1
+    elif tier >= 10:
+        # Temp -1 (resets on orgasm)
+        temp = state.setdefault('_temp_stat_mods', {})
+        temp[d6_stat] = temp.get(d6_stat, 0) - 1
+
+    # Increment fail count (feeds into DC escalation + orgasm %)
+    state['_frag_fail_count'] = state.get('_frag_fail_count', 0) + 1
+
+    return neg_text
+
+
+def _select_stat_fragments(stat, fragments, state, ctx):
+    """Pick up to TWO fragments per stat: one portrait (dc=0, who they ARE)
+    and one dynamic (dc>0, what is HAPPENING).  Both fire every turn.
+
+    Dynamic channel uses the shared gate roll:
+      d6 → pick stat → d20 + mod(d6_stat) vs DC (8 + fails)
+      fail → text_fail + negative block + tier penalty
+      pass → text_pass
+
+    Returns list of (frag, text, passed, extra_texts) tuples (0-2 items).
+    extra_texts is a list of additional strings (negative blocks) to append.
+    """
+    hits = []
+
+    # Portrait channel — baseline personality (auto-pass, dc=0)
+    pf = _pick_best(fragments, state, ctx, dc_filter='portrait')
+    if pf:
+        frag, text, passed = _resolve_portrait(pf)
+        hits.append((frag, text, passed, []))
+
+    # Dynamic channel — gate roll
+    df = _pick_best(fragments, state, ctx, dc_filter='dynamic')
+    if df:
+        passed, d6_stat, raw, total, dc, mod_val, d6_raw = _gate_roll(state, ctx)
+        tag = 'PASS' if passed else 'FAIL'
+        frag_id = df.get('id', '?')
+        entry = ('frag_gate:' + tag + '(d6=' + str(d6_raw)
+            + '->' + d6_stat + ' d20=' + str(raw)
+            + ('+' if mod_val >= 0 else '') + str(mod_val)
+            + '=' + str(total) + ' vs DC=' + str(dc)
+            + ' frag=' + frag_id + ')')
+        state.setdefault('roll_log', []).append(entry)
+        text_key = 'text_pass' if passed else 'text_fail'
+        text = df.get(text_key) or df.get('text', '')
+        if isinstance(text, list): text = random.choice(text)
+
+        extra = []
+        if not passed:
+            neg_text = _apply_gate_consequence(state, ctx, d6_stat, ctx['tier'])
+            if neg_text:
+                extra.append(neg_text)
+
+        hits.append((df, text, passed, extra))
+
+    return hits
+
+# (Legacy helpers removed: _fire_fragment, _assemble)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ORGASM TRIGGER
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _roll_breeder_resist(state, rs):
+    """Roll breeder_resist: d20 + INT_mod vs breeder_resist DC.
+    PASS = she resists the compulsion, holds herself together.
+    FAIL = she succumbs, begs for it. DC escalates by 1.
+    Uses the effect_mechanics DC system so it escalates properly.
+    """
+    dc       = get_effect_dc(state, 'breeder_resist', rs)
+    int_mod  = _mod(state, 'INT')
+    raw      = random.randint(1, 20)
+    total    = raw + int_mod
+    passed   = total >= dc
+    tag      = 'PASS' if passed else 'FAIL'
+
+    entry = ('breeder_resist:' + tag + '(d20=' + str(raw)
+             + ('+' if int_mod >= 0 else '') + 'INT' + str(int_mod)
+             + '=' + str(total) + ' vs DC=' + str(dc) + ')')
+    state.setdefault('roll_log', []).append(entry)
+    state.setdefault('_notes_log', []).append(entry)
+    print('[ROLL] breeder_resist ' + tag + ' d20=' + str(raw) + ' INT=' + str(int_mod) + ' total=' + str(total) + ' dc=' + str(dc))
+
+    if passed:
+        state.setdefault('_notes_log', []).append('Breeder:resists compulsion — holds herself together')
+    else:
+        # DC escalates by 1 on fail
+        set_effect_dc(state, 'breeder_resist', dc + 1)
+        check_math_lock(state, 'breeder_resist', rs)
+        state.setdefault('_notes_log', []).append('Breeder:compulsion wins — craving for seed overwhelms her')
+
+    return {'passed': passed, 'roll': raw, 'int_mod': int_mod, 'total': total, 'dc': dc}
+
+
+def _check_orgasm_trigger(state, ctx, events, rs):
+    """Orgasm trigger at arousal 85+.
+    arousal >= 100: auto-orgasm (if effect allows — denial/breeder still gate).
+    arousal 85-99:  d100 vs (arousal/2 rounded up + fail_count) — if hit:
+                    d20 + CON_mod + INT_mod vs DC (GATE_DC_BASE + fail_count)
+                    Pass = held off. Fail = orgasm.
+    """
+    r = {'attempted': False, 'suppressed': None, 'orgasm': False}
+    if not ctx['in_org_zone']: return r
+
+    arousal = ctx['arousal']
+    fail_count = int(state.get('_frag_fail_count', 0))
+
+    # ── Arousal 100+: automatic trigger (skip d100 roll) ──
+    if arousal >= 100:
+        r['attempted'] = True
+        r['auto_trigger'] = True
+        # Breeder suppression — she can't orgasm but rolls INT to resist the compulsion
+        if 'breeder' in ctx['effects'] and not events.get('creampie_vaginal'):
+            resist = _roll_breeder_resist(state, rs)
+            r['suppressed'] = 'breeder_denied'
+            r['breeder_resist'] = resist
+            return r
+        if 'denial' in ctx['effects']:
+            r['suppressed'] = 'denial_block'
+            state.setdefault('roll_log', []).append('orgasm_trigger:AUTO(arousal=' + str(arousal) + '>=100 suppressed=denial_block)')
+            return r
+        # Auto-orgasm — no d20 resist roll at 100
+        r['orgasm'] = True
+        state.setdefault('roll_log', []).append('orgasm_trigger:AUTO(arousal=' + str(arousal) + '>=100 ORGASM)')
+        _reset_orgasm_accumulators(state)
+        return r
+
+    # ── Arousal 85-99: probabilistic trigger ──
+    pct = math.ceil(arousal / 2) + fail_count
+    roll = random.randint(1, 100)
+    if roll > pct: return r
+
+    r.update({'attempted': True, 'd100_roll': roll, 'd100_pct': pct})
+
+    # Breeder suppression — she can't orgasm but rolls INT to resist the compulsion
+    if 'breeder' in ctx['effects'] and not events.get('creampie_vaginal'):
+        resist = _roll_breeder_resist(state, rs)
+        r['suppressed'] = 'breeder_denied'
+        r['breeder_resist'] = resist
+        return r
+    if 'denial' in ctx['effects']:
+        r['suppressed'] = 'denial_block'
+        state.setdefault('roll_log', []).append('orgasm_trigger:d100=' + str(roll) + '<=' + str(pct) + ' suppressed=denial_block')
+        return r
+
+    # d20 + CON + INT vs shared escalating DC
+    dc = GATE_DC_BASE + fail_count
+    con_mod = _mod(state, 'CON')
+    int_mod = _mod(state, 'INT')
+    raw = random.randint(1, 20)
+    total = raw + con_mod + int_mod
+    r.update({'d20_roll': raw, 'd20_total': total, 'd20_dc': dc,
+              'd20_mods': {'CON': con_mod, 'INT': int_mod}})
+
+    if total >= dc:
+        r['suppressed'] = 'held'
+        state.setdefault('roll_log', []).append('orgasm_resist:PASS(d100=' + str(roll) + '<=' + str(pct) + ' d20=' + str(raw) + '+CON' + str(con_mod) + '+INT' + str(int_mod) + '=' + str(total) + ' vs DC=' + str(dc) + ' HELD)')
+    else:
+        r['orgasm'] = True
+        state.setdefault('roll_log', []).append('orgasm_resist:FAIL(d100=' + str(roll) + '<=' + str(pct) + ' d20=' + str(raw) + '+CON' + str(con_mod) + '+INT' + str(int_mod) + '=' + str(total) + ' vs DC=' + str(dc) + ' ORGASM)')
+        _reset_orgasm_accumulators(state)
+    return r
+
+def _reset_orgasm_accumulators(state):
+    """Reset on orgasm: fail count (resets DC to base), temp mods cleared."""
+    state['_frag_fail_count']  = 0
+    state['_temp_stat_mods']   = {}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# POOL BUILDER
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _collect_stat_pools(state, ctx):
+    """Collect ALL fragment sources into per-stat lists.
+    Each stat gets one winner per turn (highest priority eligible).
+    Sources are layered: generic → portraits → effect → transformation.
+    Effect/transformation fragments override generic at the same stat
+    when they have higher priority (which they should).
+    """
+    sex = ctx['sex']
+
+    # Start with per-stat lists
+    pools = {stat: [] for stat in STAT_KEYS}
+
+    # Layer 1: Generic (always active)
+    for stat in STAT_KEYS:
+        pools[stat] += _T_GENERIC.get(sex, {}).get(stat, [])
+
+    # Layer 2: Portraits (always active, stat-value personality)
+    for stat in STAT_KEYS:
+        pools[stat] += _T_PORTRAITS.get(sex, {}).get(stat, [])
+
+    # Layer 3: Active effects (replace/override generic at same stat)
+    for eff in ctx['effects']:
+        tbl = EFFECT_TABLE_MAP.get(eff)
+        if tbl:
+            for stat in STAT_KEYS:
+                pools[stat] += tbl.get(sex, {}).get(stat, [])
+
+    # Layer 4: Breeder (special path logic)
+    if ctx['breeder_path'] != 'none':
+        for stat in STAT_KEYS:
+            pools[stat] += _T_BREEDER.get(sex, {}).get(stat, [])
+
+    # Layer 5: Transformation (pill colour)
+    if ctx['transforming']:
+        tf_tbl = TRANSFORMATION_TABLE_MAP.get(ctx['pill'])
+        if tf_tbl:
+            for stat in STAT_KEYS:
+                pools[stat] += tf_tbl.get(sex, {}).get(stat, [])
+
+    # Layer 6: Pregnancy (independent from breeder/surrogate arousal)
+    if ctx.get('pregnancy_stage', 0) > 0:
+        for stat in STAT_KEYS:
+            pools[stat] += _T_PREGNANCY.get(sex, {}).get(stat, [])
+
+    return pools
+
+# ─────────────────────────────────────────────────────────────────────────────
+# MAIN ENTRY
+# ─────────────────────────────────────────────────────────────────────────────
+
+def evaluate_fragments(state, events, card_sex, rs):
+    """Evaluate fragments.  Returns list of strings — up to TWO per stat,
+    in STAT_ASSEMBLY_ORDER (INT → WIS → CHA → CON → DOM → SUB).
+
+    Every stat fires every turn with two channels:
+      • portrait (dc=0): who the character IS — baseline personality (auto-pass)
+      • dynamic  (dc>0): gate roll — d6 picks stat, d20+mod vs DC (8+fails)
+        - pass: text_pass
+        - fail: text_fail + negative block for d6-stat + tier penalty
+          tier 1-9:  flavor only
+          tier 10-14: -1 temp to d6-stat (until orgasm)
+          tier 15+:   -1 perm to d6-stat
+
+    Orgasm trigger at arousal 85+:
+      d100 vs (arousal/2 rounded up + fail_count)
+      d20 + CON + INT vs DC (8 + fail_count)
+      Orgasm resets: fail_count, temp mods, gate DC back to 8.
+    """
+    ctx        = build_context(state, events, card_sex, rs)
+    stat_pools = _collect_stat_pools(state, ctx)
+    seen       = set(state.get('_frag_seen', []))
+
+    result = []
+    for stat in STAT_ASSEMBLY_ORDER:
+        pool = stat_pools.get(stat, [])
+        if not pool:
+            continue
+        hits = _select_stat_fragments(stat, pool, state, ctx)
+        for frag, text, passed, extras in hits:
+            if text:
+                result.append(text)
+            for ex in extras:
+                result.append(ex)
+            if frag.get('once'):
+                seen.add(frag.get('id'))
+
+    # Orgasm check
+    org_result = _check_orgasm_trigger(state, ctx, events, rs)
+    state['_org_trigger_result'] = org_result
+    if org_result.get('orgasm'):
+        events['fragment_orgasm'] = True
+    elif org_result.get('suppressed') == 'breeder_denied':
+        events['breeder_denied'] = True
+
+    # Pronoun substitution for {p}/{P}/{p}self placeholders
+    sex = ctx['sex']
+    _PRO = {'male':'he','female':'she','trans_male':'he','trans_female':'she','intersex':'they'}
+    _PRO_SELF = {'male':'himself','female':'herself','trans_male':'himself','trans_female':'herself','intersex':'themselves'}
+    pro = _PRO.get(sex, 'they')
+    pro_self = _PRO_SELF.get(sex, 'themselves')
+    Pro = pro.capitalize()
+    result = [t.replace('{p}self', pro_self).replace('{p}', pro).replace('{P}', Pro) for t in result]
+
+    # Persist seen-set as JSON-safe list
+    state['_frag_seen'] = list(seen)
+
+    return result
+
+# ═════════════════════════════════════════════════════════════════════════════
+#
+#  FRAGMENT TABLES
+#
+#  Structure:  _T_EFFECTNAME[sex][stat] = [fragment, ...]
+#
+#  Sex keys  : male | female | trans_male | trans_female | intersex
+#  Stat keys : CON | INT | WIS | CHA | DOM | SUB
+#
+#  Tiers:
+#    0-3   low    — body quiet, mental stats lead
+#    4-8   mid    — tension zone, CON enters, DOM/SUB active
+#    9-12  high   — physical dominant, INT/WIS degrading
+#    13-19 peak   — CON is last line, text stripped down
+#
+#  CHA note: primarily a passive modifier ("everything lands harder").
+#            CHA blocks currently hold fragments where raw presence
+#            is the primary mechanic (e.g. CHA drives DC of observers,
+#            or a high-CHA char's tells are more visible).
+#            Sparse at v0.3 — expand as needed.
+#
+# ═════════════════════════════════════════════════════════════════════════════
+
+# ─────────────────────────────────────────────────────────────────────────────
+# _T_GENERIC   stat-driven psychological lens, no effect required
+# ─────────────────────────────────────────────────────────────────────────────
+
+_T_GENERIC = {
+
+# ═══════════════════════════════════════════════════
+# MALE
+# ═══════════════════════════════════════════════════
+'male': {
+
+'CON': [
+    {'id':'gm_con_mid_pos','group':'physical_tell','priority':6,'stats':['CON'],'dc':11,
+     'fires_if': lambda s,c: 4<=c['tier']<=8 and c['con_mod']>=0,
+     'text_pass': "The body is registering things. Still managed.",
+     'text_fail':  "A tell slipped through before he caught it."},
+    {'id':'gm_con_mid_neg','group':'physical_tell','priority':7,'stats':['CON'],'dc':10,
+     'fires_if': lambda s,c: 4<=c['tier']<=8 and c['con_mod']<0,
+     'text_pass': "The body is ahead but he is still present in it.",
+     'text_fail':  "The body is fully ahead. Composure is not a live consideration."},
+    {'id':'gm_con_high','group':'physical_tell','priority':8,'stats':['CON'],'dc':13,
+     'fires_if': lambda s,c: c['tier']>=9,
+     'text_pass': "Still present. Feeling everything. Still himself underneath it.",
+     'text_fail':  "The body has the wheel. He is passenger to his own physical state."},
+],
+'INT': [
+    {'id':'gm_int_low_pos','group':'mental_state','priority':6,'stats':['INT'],'dc':11,
+     'fires_if': lambda s,c: c['tier']<=4 and c['int_mod']>=1,
+     'text_pass': "He has noted what is happening. Filed it. The awareness is present and managed.",
+     'text_fail':  "He noticed and immediately looked elsewhere. Acknowledged. Not examined."},
+    {'id':'gm_int_low_neg','group':'mental_state','priority':5,'stats':['INT'],'dc':10,
+     'fires_if': lambda s,c: c['tier']<=4 and c['int_mod']<=0,
+     'text_pass': "Awareness present. Not named.",
+     'text_fail':  "Not registered consciously. The body knows before the mind does."},
+    {'id':'gm_int_mid_pos','group':'mental_state','priority':7,'stats':['INT'],'dc':12,
+     'fires_if': lambda s,c: 5<=c['tier']<=10 and c['int_mod']>=1,
+     'text_pass': "Still narrating clearly. The want is present and he can describe it.",
+     'text_fail':  "The analysis slips. He knows what is happening but the words for it are going."},
+    {'id':'gm_int_mid_neg','group':'mental_state','priority':6,'stats':['INT'],'dc':10,
+     'fires_if': lambda s,c: 5<=c['tier']<=10 and c['int_mod']<=0,
+     'text_pass': "Processing in impressions. Heat. Presence. No clear framework.",
+     'text_fail':  "Not processing at all. Sensation without analysis."},
+    {'id':'gm_int_high','group':'mental_state','priority':8,'stats':['INT'],'dc':13,
+     'fires_if': lambda s,c: c['tier']>=11,
+     'text_pass': "Still present, still himself. The narration is stripped down but he is still in it.",
+     'text_fail':  "The narration has stopped. Only sensation left."},
+],
+'WIS': [
+    {'id':'gm_wis_low','group':'mental_state','priority':5,'stats':['WIS'],'dc':10,
+     'fires_if': lambda s,c: c['tier']<=3 and c['wis_mod']>=1,
+     'text_pass': "He knows where this is going. He has not decided what he is doing with that yet.",
+     'text_fail':  "He noticed. The noticing did not produce a decision."},
+    {'id':'gm_wis_mid','group':'mental_state','priority':7,'stats':['WIS'],'dc':12,
+     'fires_if': lambda s,c: 4<=c['tier']<=9 and c['wis_mod']>=1,
+     'text_pass': "He knows what is happening. He has not decided what to do with that yet.",
+     'text_fail':  "The clarity closed before he could use it."},
+    {'id':'gm_wis_high','group':'mental_state','priority':8,'stats':['WIS'],'dc':14,
+     'fires_if': lambda s,c: c['tier']>=10 and c['wis_mod']>=2,
+     'text_pass': "Still clear. Knowing what is happening has stopped being useful information.",
+     'text_fail':  "The clarity is gone. He knows in the way the body knows, not the way the mind does."},
+],
+'CHA': [
+    # CHA — presence intensity. High CHA = tells are more visible, everything lands harder.
+    {'id':'gm_cha_low','group':'physical_tell','priority':4,'stats':['CHA'],'dc':10,
+     'fires_if': lambda s,c: c['tier']<=4 and c['cha_mod']>=1,
+     'text_pass': "There is something in the way he is present. Noticeable but not yet legible.",
+     'text_fail':  "The presence carried something it should not have. He did not choose to broadcast that."},
+    {'id':'gm_cha_mid','group':'physical_tell','priority':5,'stats':['CHA'],'dc':12,
+     'fires_if': lambda s,c: 5<=c['tier']<=9 and c['cha_mod']>=1,
+     'text_pass': "He is not hiding it well. Everything lands harder when presence is this legible.",
+     'text_fail':  "He is not hiding it at all. The room reads him before he has decided what to show."},
+    {'id':'gm_cha_high','group':'physical_tell','priority':7,'stats':['CHA'],'dc':13,
+     'fires_if': lambda s,c: c['tier']>=10 and c['cha_mod']>=1,
+     'text_pass': "The presence is carrying everything now. Undeniable. He knows they can see it and has stopped caring.",
+     'text_fail':  "The presence is the tell. Every part of what he is feeling is written on the surface and the room is reading it."},
+    {'id':'gm_cha_low_neg','group':'physical_tell','priority':3,'stats':['CHA'],'dc':10,
+     'fires_if': lambda s,c: c['tier']>=5 and c['cha_mod']<=-1,
+     'text_pass': "Muted. Whatever is happening inside is not reaching the surface in a way anyone would notice.",
+     'text_fail':  "The muted presence meant the body spoke first. No charisma to mask what slipped through."},
+],
+'DOM': [
+    {'id':'gm_dom_low','group':'dom_response','priority':6,'stats':['DOM'],'dc':11,
+     'fires_if': lambda s,c: c['tier']<=3 and c['dom_mod']>=2,
+     'text_pass': "The want arrived. His pride has noted it. Nothing to manage yet.",
+     'text_fail':  "The want arrived and the pride took it personally."},
+    {'id':'gm_dom_mid','group':'dom_response','priority':7,'stats':['DOM'],'dc':12,
+     'fires_if': lambda s,c: 3<=c['tier']<=7 and c['dom_mod']>=1,
+     'text_pass': "The want is present. It has not touched anything that matters yet.",
+     'text_fail':  "The want got through the first line. Annoying that it got through."},
+    {'id':'gm_dom_high','group':'dom_response','priority':8,'stats':['DOM'],'dc':13,
+     'fires_if': lambda s,c: 8<=c['tier']<=12 and c['dom_mod']>=2,
+     'text_pass': "Holding. The control is real and it is costing something to maintain.",
+     'text_fail':  "Something gave. The pride is still there but it is watching now instead of leading."},
+    {'id':'gm_dom_peak','group':'dom_response','priority':9,'stats':['DOM'],'dc':14,
+     'fires_if': lambda s,c: c['tier']>=13 and c['dom_mod']>=1,
+     'text_pass': "Still present. Diminished. The want is winning most arguments.",
+     'text_fail':  "The pride is watching from a distance. It cannot stop it."},
+],
+'SUB': [
+    {'id':'gm_sub_early','group':'sub_response','priority':6,'stats':['SUB'],'dc':10,
+     'fires_if': lambda s,c: 2<=c['tier']<=5 and c['sub_mod']>=1,
+     'text_pass': "The pull is there. Familiar. Nothing to manage yet.",
+     'text_fail':  "The pull arrived early and already has direction."},
+    {'id':'gm_sub_mid','group':'sub_response','priority':7,'stats':['SUB'],'dc':11,
+     'fires_if': lambda s,c: 6<=c['tier']<=10 and c['sub_mod']>=1,
+     'text_pass': "Yielding slightly. Not fighting it.",
+     'text_fail':  "The yield deepened faster than expected. The want has the argument already."},
+    {'id':'gm_sub_high','group':'sub_response','priority':8,'stats':['SUB'],'dc':12,
+     'fires_if': lambda s,c: c['tier']>=11 and c['sub_mod']>=2,
+     'text_pass': "This is what it was supposed to feel like.",
+     'text_fail':  "The want won completely. Nothing left that objects to this."},
+],
+}, # end male
+
+# ═══════════════════════════════════════════════════
+# FEMALE
+# ═══════════════════════════════════════════════════
+'female': {
+
+'CON': [
+    {'id':'gf_con_mid_pos','group':'physical_tell','priority':6,'stats':['CON'],'dc':11,
+     'fires_if': lambda s,c: 4<=c['tier']<=8 and c['con_mod']>=0,
+     'text_pass': "The body is noting things. Still managed.",
+     'text_fail':  "A tell slipped through before she caught it."},
+    {'id':'gf_con_mid_neg','group':'physical_tell','priority':7,'stats':['CON'],'dc':10,
+     'fires_if': lambda s,c: 4<=c['tier']<=8 and c['con_mod']<0,
+     'text_pass': "The body is ahead but she is still present in it.",
+     'text_fail':  "The body is fully ahead. Composure not a live consideration."},
+    {'id':'gf_con_high','group':'physical_tell','priority':8,'stats':['CON'],'dc':13,
+     'fires_if': lambda s,c: c['tier']>=9,
+     'text_pass': "Still present. Feeling everything. Still herself underneath it.",
+     'text_fail':  "The body has the wheel. She is passenger to her own physical state."},
+],
+'INT': [
+    {'id':'gf_int_low_pos','group':'mental_state','priority':6,'stats':['INT'],'dc':11,
+     'fires_if': lambda s,c: c['tier']<=4 and c['int_mod']>=1,
+     'text_pass': "She has noted what is happening. Filed it.",
+     'text_fail':  "She noticed and immediately looked elsewhere."},
+    {'id':'gf_int_low_neg','group':'mental_state','priority':5,'stats':['INT'],'dc':10,
+     'fires_if': lambda s,c: c['tier']<=4 and c['int_mod']<=0,
+     'text_pass': "Awareness present. Not named. The warmth is there without a framework.",
+     'text_fail':  "Not registered consciously. The body knows before the mind does."},
+    {'id':'gf_int_mid_pos','group':'mental_state','priority':7,'stats':['INT'],'dc':12,
+     'fires_if': lambda s,c: 5<=c['tier']<=10 and c['int_mod']>=1,
+     'text_pass': "Still narrating clearly. The want is present and she can describe it.",
+     'text_fail':  "The analysis slips. She knows what is happening but the words for it are going."},
+    {'id':'gf_int_mid_neg','group':'mental_state','priority':6,'stats':['INT'],'dc':10,
+     'fires_if': lambda s,c: 5<=c['tier']<=10 and c['int_mod']<=0,
+     'text_pass': "Processing in impressions. Heat. Presence. No clear framework.",
+     'text_fail':  "Not processing at all. Sensation without analysis."},
+    {'id':'gf_int_high','group':'mental_state','priority':8,'stats':['INT'],'dc':13,
+     'fires_if': lambda s,c: c['tier']>=11,
+     'text_pass': "Still present, still herself. The narration is stripped down but she is still in it.",
+     'text_fail':  "The narration has stopped. Only sensation left."},
+],
+'WIS': [
+    {'id':'gf_wis_low','group':'mental_state','priority':5,'stats':['WIS'],'dc':10,
+     'fires_if': lambda s,c: c['tier']<=3 and c['wis_mod']>=1,
+     'text_pass': "She knows where this is going. Has not decided what to do with that yet.",
+     'text_fail':  "She noticed. The noticing did not produce a decision."},
+    {'id':'gf_wis_mid','group':'mental_state','priority':7,'stats':['WIS'],'dc':12,
+     'fires_if': lambda s,c: 4<=c['tier']<=9 and c['wis_mod']>=1,
+     'text_pass': "She knows what is happening. Has not decided what to do with that yet.",
+     'text_fail':  "The clarity closed before she could use it."},
+    {'id':'gf_wis_high','group':'mental_state','priority':8,'stats':['WIS'],'dc':14,
+     'fires_if': lambda s,c: c['tier']>=10 and c['wis_mod']>=2,
+     'text_pass': "Still clear. Knowing what is happening has stopped being useful information.",
+     'text_fail':  "The clarity is gone. She knows in the way the body knows."},
+],
+'CHA': [
+    {'id':'gf_cha_low','group':'physical_tell','priority':4,'stats':['CHA'],'dc':10,
+     'fires_if': lambda s,c: c['tier']<=4 and c['cha_mod']>=1,
+     'text_pass': "Something in the way she carries herself. Noticeable but not yet readable.",
+     'text_fail':  "The presence carried something it should not have. She did not choose to broadcast that."},
+    {'id':'gf_cha_mid','group':'physical_tell','priority':5,'stats':['CHA'],'dc':12,
+     'fires_if': lambda s,c: 5<=c['tier']<=9 and c['cha_mod']>=1,
+     'text_pass': "She is not hiding it well. Everything lands harder when presence is this legible.",
+     'text_fail':  "She is not hiding it at all. The room reads her before she has decided what to show."},
+    {'id':'gf_cha_high','group':'physical_tell','priority':7,'stats':['CHA'],'dc':13,
+     'fires_if': lambda s,c: c['tier']>=10 and c['cha_mod']>=1,
+     'text_pass': "The presence is carrying everything now. She knows they can see it and has stopped caring.",
+     'text_fail':  "Every part of what she is feeling is written on the surface. The room is reading it in real time."},
+    {'id':'gf_cha_low_neg','group':'physical_tell','priority':3,'stats':['CHA'],'dc':10,
+     'fires_if': lambda s,c: c['tier']>=5 and c['cha_mod']<=-1,
+     'text_pass': "Muted. Whatever is happening inside is not reaching the surface in a way anyone would notice.",
+     'text_fail':  "The muted presence meant the body spoke first. No charisma to mask what slipped through."},
+],
+'DOM': [
+    {'id':'gf_dom_low','group':'dom_response','priority':6,'stats':['DOM'],'dc':11,
+     'fires_if': lambda s,c: c['tier']<=3 and c['dom_mod']>=2,
+     'text_pass': "The want arrived. Her pride has noted it. Nothing to manage yet.",
+     'text_fail':  "The want arrived and the pride took it personally."},
+    {'id':'gf_dom_mid','group':'dom_response','priority':7,'stats':['DOM'],'dc':12,
+     'fires_if': lambda s,c: 3<=c['tier']<=7 and c['dom_mod']>=1,
+     'text_pass': "The want is present. Has not touched anything that matters yet.",
+     'text_fail':  "The want got through the first line."},
+    {'id':'gf_dom_high','group':'dom_response','priority':8,'stats':['DOM'],'dc':13,
+     'fires_if': lambda s,c: 8<=c['tier']<=12 and c['dom_mod']>=2,
+     'text_pass': "Holding. The control is real and it is costing something.",
+     'text_fail':  "Something gave. The pride is watching now instead of leading."},
+    {'id':'gf_dom_peak','group':'dom_response','priority':9,'stats':['DOM'],'dc':14,
+     'fires_if': lambda s,c: c['tier']>=13 and c['dom_mod']>=1,
+     'text_pass': "Still present. Diminished. The want is winning most arguments and she knows it.",
+     'text_fail':  "The pride is watching from a distance. It cannot stop it."},
+],
+'SUB': [
+    {'id':'gf_sub_early','group':'sub_response','priority':6,'stats':['SUB'],'dc':10,
+     'fires_if': lambda s,c: 2<=c['tier']<=5 and c['sub_mod']>=1,
+     'text_pass': "The pull is there. Familiar. Nothing to manage yet.",
+     'text_fail':  "The pull arrived early and already has direction."},
+    {'id':'gf_sub_mid','group':'sub_response','priority':7,'stats':['SUB'],'dc':11,
+     'fires_if': lambda s,c: 6<=c['tier']<=10 and c['sub_mod']>=1,
+     'text_pass': "Yielding slightly. Not fighting it.",
+     'text_fail':  "The yield deepened faster than expected."},
+    {'id':'gf_sub_high','group':'sub_response','priority':8,'stats':['SUB'],'dc':12,
+     'fires_if': lambda s,c: c['tier']>=11 and c['sub_mod']>=2,
+     'text_pass': "This is what it was supposed to feel like.",
+     'text_fail':  "The want won completely. Nothing left that objects to this."},
+],
+}, # end female
+
+# ═══════════════════════════════════════════════════
+# TRANS FEMALE  (born male, identifies female)
+# Transformation = arrival, not loss.
+# ═══════════════════════════════════════════════════
+'trans_female': {
+
+'CON': [
+    {'id':'gtf_con_mid_pos','group':'physical_tell','priority':6,'stats':['CON'],'dc':11,
+     'fires_if': lambda s,c: 4<=c['tier']<=8 and c['con_mod']>=0,
+     'text_pass': "The body is noting things. Still managed. This body she arrived at — still under her direction.",
+     'text_fail':  "A tell slipped through before she caught it. The body she chose responding on its own."},
+    {'id':'gtf_con_mid_neg','group':'physical_tell','priority':7,'stats':['CON'],'dc':10,
+     'fires_if': lambda s,c: 4<=c['tier']<=8 and c['con_mod']<0,
+     'text_pass': "The body is ahead but she is still present in it.",
+     'text_fail':  "The body is fully ahead. Composure is not a live consideration."},
+    {'id':'gtf_con_high','group':'physical_tell','priority':8,'stats':['CON'],'dc':13,
+     'fires_if': lambda s,c: c['tier']>=9,
+     'text_pass': "Still present in the body. Still herself underneath it. The body she built still feels like hers.",
+     'text_fail':  "The body has the wheel. She is passenger to her own physical state."},
+],
+'INT': [
+    {'id':'gtf_int_low_pos','group':'mental_state','priority':6,'stats':['INT'],'dc':11,
+     'fires_if': lambda s,c: c['tier']<=4 and c['int_mod']>=1,
+     'text_pass': "She has noted what is happening. Present with it. The awareness is clear and catalogued.",
+     'text_fail':  "She noticed and looked elsewhere. Acknowledged. Not ready to examine it yet."},
+    {'id':'gtf_int_low_neg','group':'mental_state','priority':5,'stats':['INT'],'dc':10,
+     'fires_if': lambda s,c: c['tier']<=4 and c['int_mod']<=0,
+     'text_pass': "Awareness present but unexamined. Warmth noted, not named.",
+     'text_fail':  "Not registered consciously. The body knows before the mind does."},
+    {'id':'gtf_int_mid','group':'mental_state','priority':7,'stats':['INT'],'dc':12,
+     'fires_if': lambda s,c: 5<=c['tier']<=10,
+     'text_pass': "Still narrating. The want is present and she can describe it. She knows this body well enough to read the signals.",
+     'text_fail':  "The narration is slipping. The want is louder than the analysis."},
+    {'id':'gtf_int_high','group':'mental_state','priority':8,'stats':['INT'],'dc':13,
+     'fires_if': lambda s,c: c['tier']>=11,
+     'text_pass': "Still herself. The narration has stripped down but she is still in it.",
+     'text_fail':  "The narration has stopped. Only sensation left."},
+],
+'WIS': [
+    {'id':'gtf_wis_low','group':'mental_state','priority':5,'stats':['WIS'],'dc':10,
+     'fires_if': lambda s,c: c['tier']<=3 and c['wis_mod']>=1,
+     'text_pass': "She knows where this is going. Has not decided what she is doing with that yet.",
+     'text_fail':  "She noticed. The noticing did not produce a decision."},
+    {'id':'gtf_wis_mid','group':'mental_state','priority':7,'stats':['WIS'],'dc':12,
+     'fires_if': lambda s,c: 4<=c['tier']<=9 and c['wis_mod']>=1,
+     'text_pass': "She knows what is happening. Has not decided what to do with that yet.",
+     'text_fail':  "The clarity closed before she could use it."},
+    {'id':'gtf_wis_high','group':'mental_state','priority':8,'stats':['WIS'],'dc':14,
+     'fires_if': lambda s,c: c['tier']>=10 and c['wis_mod']>=2,
+     'text_pass': "Still clear. The knowing has stopped being useful.",
+     'text_fail':  "The clarity is gone. She knows in the way the body knows."},
+],
+'CHA': [
+    {'id':'gtf_cha_low','group':'physical_tell','priority':4,'stats':['CHA'],'dc':10,
+     'fires_if': lambda s,c: c['tier']<=4 and c['cha_mod']>=1,
+     'text_pass': "Something in the way she carries herself. The presence says something she has not chosen to say yet.",
+     'text_fail':  "The presence carried it before she was ready. The room clocked something."},
+    {'id':'gtf_cha_mid','group':'physical_tell','priority':5,'stats':['CHA'],'dc':12,
+     'fires_if': lambda s,c: 5<=c['tier']<=9 and c['cha_mod']>=1,
+     'text_pass': "She is not hiding it well. Everything lands harder when presence is this legible.",
+     'text_fail':  "She is not hiding it at all. The room reads her."},
+    {'id':'gtf_cha_high','group':'physical_tell','priority':7,'stats':['CHA'],'dc':13,
+     'fires_if': lambda s,c: c['tier']>=10 and c['cha_mod']>=1,
+     'text_pass': "The presence is carrying everything now. She has stopped trying to contain it.",
+     'text_fail':  "Every part of what she is feeling is on the surface. The body she fought for is broadcasting exactly what it feels."},
+],
+'DOM': [
+    {'id':'gtf_dom_low','group':'dom_response','priority':6,'stats':['DOM'],'dc':11,
+     'fires_if': lambda s,c: c['tier']<=3 and c['dom_mod']>=2,
+     'text_pass': "The want arrived. Her pride has noted it. Nothing to manage yet.",
+     'text_fail':  "The want arrived and the pride took it personally. She did not get this far to lose ground now."},
+    {'id':'gtf_dom_mid','group':'dom_response','priority':7,'stats':['DOM'],'dc':12,
+     'fires_if': lambda s,c: 3<=c['tier']<=8 and c['dom_mod']>=1,
+     'text_pass': "The want is present. Has not touched anything that matters yet.",
+     'text_fail':  "The want got through. She fought too hard to be herself to lose ground to this."},
+    {'id':'gtf_dom_high','group':'dom_response','priority':8,'stats':['DOM'],'dc':13,
+     'fires_if': lambda s,c: 8<=c['tier']<=12 and c['dom_mod']>=2,
+     'text_pass': "Holding. The control is real and it is costing something to maintain.",
+     'text_fail':  "The pride gave. Watching now instead of leading."},
+    {'id':'gtf_dom_peak','group':'dom_response','priority':9,'stats':['DOM'],'dc':14,
+     'fires_if': lambda s,c: c['tier']>=13 and c['dom_mod']>=1,
+     'text_pass': "Still present. Diminished. The want is winning most arguments.",
+     'text_fail':  "The pride is watching from a distance. It cannot stop it."},
+],
+'SUB': [
+    {'id':'gtf_sub_early','group':'sub_response','priority':6,'stats':['SUB'],'dc':10,
+     'fires_if': lambda s,c: 2<=c['tier']<=5 and c['sub_mod']>=1,
+     'text_pass': "The pull is there. Familiar. Nothing to manage yet.",
+     'text_fail':  "The pull arrived early and already has direction."},
+    {'id':'gtf_sub_mid','group':'sub_response','priority':7,'stats':['SUB'],'dc':11,
+     'fires_if': lambda s,c: 6<=c['tier']<=10 and c['sub_mod']>=1,
+     'text_pass': "Yielding slightly. Not fighting it.",
+     'text_fail':  "The yield deepened faster than expected."},
+    {'id':'gtf_sub_high','group':'sub_response','priority':8,'stats':['SUB'],'dc':12,
+     'fires_if': lambda s,c: c['tier']>=11 and c['sub_mod']>=2,
+     'text_pass': "This is what it was supposed to feel like.",
+     'text_fail':  "The want won completely."},
+],
+}, # end trans_female
+
+# ═══════════════════════════════════════════════════
+# TRANS MALE  (born female, identifies male)
+# Male lens on female anatomy.
+# ═══════════════════════════════════════════════════
+'trans_male': {
+
+'CON': [
+    {'id':'gtm_con_mid_pos','group':'physical_tell','priority':6,'stats':['CON'],'dc':11,
+     'fires_if': lambda s,c: 4<=c['tier']<=8 and c['con_mod']>=0,
+     'text_pass': "The body is registering things. Still managed. The body does what he tells it.",
+     'text_fail':  "A tell slipped through before he caught it. The body responding in ways that do not match the presentation."},
+    {'id':'gtm_con_mid_neg','group':'physical_tell','priority':7,'stats':['CON'],'dc':10,
+     'fires_if': lambda s,c: 4<=c['tier']<=8 and c['con_mod']<0,
+     'text_pass': "The body is ahead but he is still present in it.",
+     'text_fail':  "The body is fully ahead. Composure is not a live consideration."},
+    {'id':'gtm_con_high','group':'physical_tell','priority':8,'stats':['CON'],'dc':13,
+     'fires_if': lambda s,c: c['tier']>=9,
+     'text_pass': "Still present. Feeling everything. Still himself underneath it.",
+     'text_fail':  "The body has the wheel. He is passenger to his own physical state."},
+],
+'INT': [
+    {'id':'gtm_int_low_pos','group':'mental_state','priority':6,'stats':['INT'],'dc':11,
+     'fires_if': lambda s,c: c['tier']<=4 and c['int_mod']>=1,
+     'text_pass': "He has noted what is happening. Filed it. The awareness is present and managed.",
+     'text_fail':  "He noticed and immediately looked elsewhere. Acknowledged. Not examined."},
+    {'id':'gtm_int_low_neg','group':'mental_state','priority':5,'stats':['INT'],'dc':10,
+     'fires_if': lambda s,c: c['tier']<=4 and c['int_mod']<=0,
+     'text_pass': "Awareness present but unexamined. Something noted, not named.",
+     'text_fail':  "Not registered consciously. The body knows before the mind does."},
+    {'id':'gtm_int_mid','group':'mental_state','priority':7,'stats':['INT'],'dc':12,
+     'fires_if': lambda s,c: 5<=c['tier']<=10,
+     'text_pass': "Still narrating. The want is present and he can describe it.",
+     'text_fail':  "The analysis slips. The want is louder than the framework."},
+    {'id':'gtm_int_high','group':'mental_state','priority':8,'stats':['INT'],'dc':13,
+     'fires_if': lambda s,c: c['tier']>=11,
+     'text_pass': "Still himself. The narration has stripped down but he is still in it.",
+     'text_fail':  "The narration has stopped. Only sensation left."},
+],
+'WIS': [
+    {'id':'gtm_wis_low','group':'mental_state','priority':5,'stats':['WIS'],'dc':10,
+     'fires_if': lambda s,c: c['tier']<=3 and c['wis_mod']>=1,
+     'text_pass': "He knows where this is going. Has not decided what he is doing with that yet.",
+     'text_fail':  "He noticed. The noticing did not produce a decision."},
+    {'id':'gtm_wis_mid','group':'mental_state','priority':7,'stats':['WIS'],'dc':12,
+     'fires_if': lambda s,c: 4<=c['tier']<=9 and c['wis_mod']>=1,
+     'text_pass': "He knows what is happening. Has not decided what to do with that yet.",
+     'text_fail':  "The clarity closed before he could use it."},
+    {'id':'gtm_wis_high','group':'mental_state','priority':8,'stats':['WIS'],'dc':14,
+     'fires_if': lambda s,c: c['tier']>=10 and c['wis_mod']>=2,
+     'text_pass': "Still clear. The knowing has stopped being useful information.",
+     'text_fail':  "The clarity is gone. He knows in the way the body knows."},
+],
+'CHA': [
+    {'id':'gtm_cha_low','group':'physical_tell','priority':4,'stats':['CHA'],'dc':10,
+     'fires_if': lambda s,c: c['tier']<=4 and c['cha_mod']>=1,
+     'text_pass': "Something in the way he carries himself. The presence says something he has not chosen to say.",
+     'text_fail':  "The presence carried it before he was ready. Something showed."},
+    {'id':'gtm_cha_mid','group':'physical_tell','priority':5,'stats':['CHA'],'dc':12,
+     'fires_if': lambda s,c: 5<=c['tier']<=9 and c['cha_mod']>=1,
+     'text_pass': "He is not hiding it well. Everything lands harder when presence is this legible.",
+     'text_fail':  "He is not hiding it at all. The room reads him."},
+    {'id':'gtm_cha_high','group':'physical_tell','priority':7,'stats':['CHA'],'dc':13,
+     'fires_if': lambda s,c: c['tier']>=10 and c['cha_mod']>=1,
+     'text_pass': "The presence is carrying everything now. He has stopped trying to contain it.",
+     'text_fail':  "Every part of what he is feeling is on the surface. The body he built is broadcasting exactly what it feels."},
+],
+'DOM': [
+    {'id':'gtm_dom_low','group':'dom_response','priority':6,'stats':['DOM'],'dc':11,
+     'fires_if': lambda s,c: c['tier']<=3 and c['dom_mod']>=2,
+     'text_pass': "The want arrived. His pride has noted it. Nothing to manage yet.",
+     'text_fail':  "The want arrived and the pride took it personally."},
+    {'id':'gtm_dom_mid','group':'dom_response','priority':7,'stats':['DOM'],'dc':12,
+     'fires_if': lambda s,c: 3<=c['tier']<=7 and c['dom_mod']>=1,
+     'text_pass': "The want is present. Has not touched anything that matters yet.",
+     'text_fail':  "The want got through the first line. The body he has claimed as his responding without permission."},
+    {'id':'gtm_dom_high','group':'dom_response','priority':8,'stats':['DOM'],'dc':13,
+     'fires_if': lambda s,c: 8<=c['tier']<=12 and c['dom_mod']>=2,
+     'text_pass': "Holding. The control is real and it is costing something.",
+     'text_fail':  "Something gave. The pride is watching now instead of leading."},
+    {'id':'gtm_dom_peak','group':'dom_response','priority':9,'stats':['DOM'],'dc':14,
+     'fires_if': lambda s,c: c['tier']>=13 and c['dom_mod']>=1,
+     'text_pass': "Still present. Diminished. The want is winning most arguments.",
+     'text_fail':  "The pride is watching from a distance. It cannot stop it."},
+],
+'SUB': [
+    {'id':'gtm_sub_early','group':'sub_response','priority':6,'stats':['SUB'],'dc':10,
+     'fires_if': lambda s,c: 2<=c['tier']<=5 and c['sub_mod']>=1,
+     'text_pass': "The pull is there. Nothing to manage yet.",
+     'text_fail':  "The pull arrived early and already has direction."},
+    {'id':'gtm_sub_mid','group':'sub_response','priority':7,'stats':['SUB'],'dc':11,
+     'fires_if': lambda s,c: 6<=c['tier']<=10 and c['sub_mod']>=1,
+     'text_pass': "Yielding slightly. Not fighting it.",
+     'text_fail':  "The yield deepened faster than expected."},
+    {'id':'gtm_sub_high','group':'sub_response','priority':8,'stats':['SUB'],'dc':12,
+     'fires_if': lambda s,c: c['tier']>=11 and c['sub_mod']>=2,
+     'text_pass': "This is what it was supposed to feel like.",
+     'text_fail':  "The want won completely."},
+],
+}, # end trans_male
+
+# ═══════════════════════════════════════════════════
+# INTERSEX  (female body, male genitals, identifies female)
+# ═══════════════════════════════════════════════════
+'intersex': {
+
+'CON': [
+    {'id':'gi_con_mid_pos','group':'physical_tell','priority':6,'stats':['CON'],'dc':11,
+     'fires_if': lambda s,c: 4<=c['tier']<=8 and c['con_mod']>=0,
+     'text_pass': "The body is noting things. Both sets of responses registering. Still managed.",
+     'text_fail':  "A tell slipped through before she caught it. The body responding from more than one direction at once."},
+    {'id':'gi_con_mid_neg','group':'physical_tell','priority':7,'stats':['CON'],'dc':10,
+     'fires_if': lambda s,c: 4<=c['tier']<=8 and c['con_mod']<0,
+     'text_pass': "The body is ahead but she is still present in it.",
+     'text_fail':  "The body is fully ahead. Composure is not a live consideration."},
+    {'id':'gi_con_high','group':'physical_tell','priority':8,'stats':['CON'],'dc':13,
+     'fires_if': lambda s,c: c['tier']>=9,
+     'text_pass': "Still present in the body. Still herself underneath it. Both halves still hers.",
+     'text_fail':  "The body has the wheel. She is passenger to her own physical state."},
+],
+'INT': [
+    {'id':'gi_int_low_pos','group':'mental_state','priority':6,'stats':['INT'],'dc':11,
+     'fires_if': lambda s,c: c['tier']<=4 and c['int_mod']>=1,
+     'text_pass': "She has noted what is happening. Filed it. The awareness is present and managed.",
+     'text_fail':  "She noticed and looked elsewhere. Acknowledged. Not examined."},
+    {'id':'gi_int_low_neg','group':'mental_state','priority':5,'stats':['INT'],'dc':10,
+     'fires_if': lambda s,c: c['tier']<=4 and c['int_mod']<=0,
+     'text_pass': "Awareness present but unexamined. Something noted, not named.",
+     'text_fail':  "Not registered consciously. The body knows before the mind does."},
+    {'id':'gi_int_mid','group':'mental_state','priority':7,'stats':['INT'],'dc':12,
+     'fires_if': lambda s,c: 5<=c['tier']<=10,
+     'text_pass': "Still narrating. The want is present and she can describe it.",
+     'text_fail':  "The analysis slips. The want is louder than the framework."},
+    {'id':'gi_int_high','group':'mental_state','priority':8,'stats':['INT'],'dc':13,
+     'fires_if': lambda s,c: c['tier']>=11,
+     'text_pass': "Still herself. Stripped down but still in it.",
+     'text_fail':  "The narration has stopped. Only sensation left."},
+],
+'WIS': [
+    {'id':'gi_wis_low','group':'mental_state','priority':5,'stats':['WIS'],'dc':10,
+     'fires_if': lambda s,c: c['tier']<=3 and c['wis_mod']>=1,
+     'text_pass': "She knows where this is going. Has not decided what she is doing with that yet.",
+     'text_fail':  "She noticed. The noticing did not produce a decision."},
+    {'id':'gi_wis_mid','group':'mental_state','priority':7,'stats':['WIS'],'dc':12,
+     'fires_if': lambda s,c: 4<=c['tier']<=9 and c['wis_mod']>=1,
+     'text_pass': "She knows what is happening. Has not decided what to do with that yet.",
+     'text_fail':  "The clarity closed before she could use it."},
+    {'id':'gi_wis_high','group':'mental_state','priority':8,'stats':['WIS'],'dc':14,
+     'fires_if': lambda s,c: c['tier']>=10 and c['wis_mod']>=2,
+     'text_pass': "Still clear. The knowing has stopped being useful.",
+     'text_fail':  "The clarity is gone. She knows in the way the body knows."},
+],
+'CHA': [
+    {'id':'gi_cha_low','group':'physical_tell','priority':4,'stats':['CHA'],'dc':10,
+     'fires_if': lambda s,c: c['tier']<=4 and c['cha_mod']>=1,
+     'text_pass': "Something in the way she carries herself. The presence says something she has not chosen to say.",
+     'text_fail':  "The presence carried it before she was ready. Something showed."},
+    {'id':'gi_cha_mid','group':'physical_tell','priority':5,'stats':['CHA'],'dc':12,
+     'fires_if': lambda s,c: 5<=c['tier']<=9 and c['cha_mod']>=1,
+     'text_pass': "She is not hiding it well. Everything lands harder when presence is this legible.",
+     'text_fail':  "She is not hiding it at all. The room reads her."},
+    {'id':'gi_cha_high','group':'physical_tell','priority':7,'stats':['CHA'],'dc':13,
+     'fires_if': lambda s,c: c['tier']>=10 and c['cha_mod']>=1,
+     'text_pass': "The presence is carrying everything now. Both halves of what she is are broadcasting at full volume.",
+     'text_fail':  "Every part of what she is feeling is on the surface. The body that has always been two things is showing all of them."},
+],
+'DOM': [
+    {'id':'gi_dom_low','group':'dom_response','priority':6,'stats':['DOM'],'dc':11,
+     'fires_if': lambda s,c: c['tier']<=3 and c['dom_mod']>=2,
+     'text_pass': "The want arrived. Her pride has noted it. Nothing to manage yet.",
+     'text_fail':  "The want arrived and the pride took it personally."},
+    {'id':'gi_dom_mid','group':'dom_response','priority':7,'stats':['DOM'],'dc':12,
+     'fires_if': lambda s,c: 3<=c['tier']<=7 and c['dom_mod']>=1,
+     'text_pass': "The want is present. Has not touched anything that matters yet.",
+     'text_fail':  "The want got through. Both halves of the body responding and the pride lost ground on both."},
+    {'id':'gi_dom_high','group':'dom_response','priority':8,'stats':['DOM'],'dc':13,
+     'fires_if': lambda s,c: 8<=c['tier']<=12 and c['dom_mod']>=2,
+     'text_pass': "Holding. Costing something to maintain.",
+     'text_fail':  "The pride gave. Watching now instead of leading."},
+    {'id':'gi_dom_peak','group':'dom_response','priority':9,'stats':['DOM'],'dc':14,
+     'fires_if': lambda s,c: c['tier']>=13 and c['dom_mod']>=1,
+     'text_pass': "Still present. Diminished. The want is winning most arguments.",
+     'text_fail':  "The pride is watching from a distance. It cannot stop it."},
+],
+'SUB': [
+    {'id':'gi_sub_early','group':'sub_response','priority':6,'stats':['SUB'],'dc':10,
+     'fires_if': lambda s,c: 2<=c['tier']<=5 and c['sub_mod']>=1,
+     'text_pass': "The pull is there. Familiar.",
+     'text_fail':  "The pull arrived early and already has direction."},
+    {'id':'gi_sub_mid','group':'sub_response','priority':7,'stats':['SUB'],'dc':11,
+     'fires_if': lambda s,c: 6<=c['tier']<=10 and c['sub_mod']>=1,
+     'text_pass': "Yielding slightly. Not fighting it.",
+     'text_fail':  "The yield deepened faster than expected."},
+    {'id':'gi_sub_high','group':'sub_response','priority':8,'stats':['SUB'],'dc':12,
+     'fires_if': lambda s,c: c['tier']>=11 and c['sub_mod']>=2,
+     'text_pass': "This is what it was supposed to feel like.",
+     'text_fail':  "The want won completely."},
+],
+}, # end intersex
+
+} # end _T_GENERIC
+
+# ═════════════════════════════════════════════════════════════════════════════
+#
+#  STAT-VALUE PORTRAITS  (generated)
+#
+#  These fire based on the character's stat VALUE (not just tier) to produce
+#  a personality-accurate baseline lens.  They use the portrait_* groups
+#  and assemble BEFORE the dynamic tier-gated fragments, so the model sees
+#  "who this person is" first, then "what is happening to them."
+#
+#  Tier bands for portraits:
+#    low  = 0-4   (baseline / stirring)
+#    mid  = 5-9   (building / pressure)
+#    high = 10-19 (desperate through lost)
+#
+# ═════════════════════════════════════════════════════════════════════════════
+
+_PORTRAIT_TIERS = [('low', 0, 4), ('mid', 5, 9), ('high', 10, 19)]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# GENERIC PORTRAITS — no active effect, stat lens only
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _build_generic_portraits():
+    T = _PORTRAIT_TIERS
+    tables = {}
+
+    # ═══ MALE ═══════════════════════════════════════════════════════════════
+    tables['male'] = {
+    'CON': _gen_portraits('gm', 'CON', T, {
+        ('vlow','low'):  "Fragile. The body has nothing to hold with. Even baseline feels like effort.",
+        ('vlow','mid'):  "The body folded early. Composure was never a live option at this endurance.",
+        ('vlow','high'): "The body gave everything it had turns ago. He is being carried by momentum.",
+        ('low','low'):   "Below average endurance. The body will start showing things before he is ready.",
+        ('low','mid'):   "The body is showing things. He does not have the endurance to manage the tells.",
+        ('low','high'):  "Endurance spent. The body is running the show and he does not have the reserves to argue.",
+        ('bav','low'):   "Slightly below average endurance. Will hold for a while but the margins are thin.",
+        ('bav','mid'):   "The margins are showing. His endurance is enough to hold but not enough to look comfortable doing it.",
+        ('bav','high'):  "The thin margins ran out. Close to average but not close enough to matter now.",
+        ('avg','low'):   "Average endurance. Nothing remarkable in either direction. The body does what bodies do.",
+        ('avg','mid'):   "Average endurance holding at average levels. No edge, no deficit. Just the standard human experience.",
+        ('avg','high'):  "Average endurance at high pressure. Enough to still be present. Not enough to be comfortable.",
+        ('aav','low'):   "Slightly above average. The body holds a little longer than expected. Small edge.",
+        ('aav','mid'):   "The small edge matters here. He has a beat more composure than someone without it.",
+        ('aav','high'):  "The edge held longer than average but the pressure found the limit. Still present.",
+        ('high','low'):  "Strong endurance. The body is quiet and managed. He has reserves to spend.",
+        ('high','mid'):  "The reserves are real. The body is under pressure and he has enough to manage it deliberately.",
+        ('high','high'): "High endurance meeting high pressure. The body is pushing and he is pushing back. The fight is real.",
+        ('vhi','low'):   "Exceptional endurance. The body barely registers baseline pressure. Iron composure.",
+        ('vhi','mid'):   "The iron composure is holding. The body is noting things and he is filing them without urgency.",
+        ('vhi','high'):  "Even exceptional endurance has a ceiling. He is finding it. The body is louder than it has ever been.",
+        ('exc','low'):   "Inhuman endurance. The body might as well not be in the room. Complete physical control.",
+        ('exc','mid'):   "The control is total. Pressure that would break most people is background noise to him.",
+        ('exc','high'):  "The body is finally speaking at a volume he has to acknowledge. Even this endurance has a limit.",
+    }),
+    'INT': _gen_portraits('gm', 'INT', T, {
+        ('vlow','low'):  "Not much happening upstairs. Sensations arrive and leave without being named.",
+        ('vlow','mid'):  "The body is doing things he cannot articulate. Processing in animal terms.",
+        ('vlow','high'): "Sensation without narration. He is experiencing this the way a body experiences weather.",
+        ('low','low'):   "Below average awareness. Notices things after they have happened.",
+        ('low','mid'):   "The processing is slow. By the time he names what is happening the next thing has started.",
+        ('low','high'):  "The gap between experience and understanding closed because understanding stopped.",
+        ('bav','low'):   "Slightly dull. Gets there eventually but the analysis is not leading.",
+        ('bav','mid'):   "The analysis is a step behind. He knows what happened. Not always what is happening.",
+        ('bav','high'):  "The step behind became two steps behind. The body outran the mind.",
+        ('avg','low'):   "Average awareness. Notices things at the normal human rate. Nothing remarkable.",
+        ('avg','mid'):   "Normal processing speed. The experience is legible to him at a standard depth.",
+        ('avg','high'):  "Average awareness under high pressure. The narration is thinning but still present.",
+        ('aav','low'):   "Slightly sharp. Picks up on things a beat ahead of average.",
+        ('aav','mid'):   "The extra awareness is useful. He is tracking what is happening with mild precision.",
+        ('aav','high'):  "The precision is degrading. Still sharper than average but the clarity is expensive.",
+        ('high','low'):  "Perceptive. The internal narration is clear and detailed. He is watching himself with accuracy.",
+        ('high','mid'):  "The narration is still running. He can describe exactly what is happening and what it means.",
+        ('high','high'): "The narration is fighting to survive. He is still articulate but the words cost more each turn.",
+        ('vhi','low'):   "Razor sharp awareness. Nothing escapes the internal analysis. Clinical self-observation.",
+        ('vhi','mid'):   "The clinical distance is holding. He is experiencing and analyzing simultaneously without strain.",
+        ('vhi','high'):  "The analysis is still running but the clinical distance is closing. He is watching himself lose objectivity.",
+        ('exc','low'):   "Hyperaware. He is narrating his own experience in real time with perfect clarity. Almost too much.",
+        ('exc','mid'):   "The hyperawareness means he feels everything twice — once as experience, once as observation.",
+        ('exc','high'):  "Still narrating. Still perfectly clear. The tragedy is he can describe exactly what is happening and cannot stop it.",
+    }),
+    'WIS': _gen_portraits('gm', 'WIS', T, {
+        ('vlow','low'):  "No impulse control to speak of. Whatever arrives, he goes with. No filter.",
+        ('vlow','mid'):  "Carried by the situation. Whatever happens next is whatever the moment suggests.",
+        ('vlow','high'): "Passenger. The body and the situation are making every decision. He is along for it.",
+        ('low','low'):   "Poor judgment. Can see what is happening. Cannot connect it to consequences.",
+        ('low','mid'):   "The judgment gap is showing. He knows this is going somewhere and is not steering.",
+        ('low','high'):  "What judgment existed is gone. The situation is in charge.",
+        ('bav','low'):   "Slightly poor clarity. Makes decisions but they are a beat late and a degree off.",
+        ('bav','mid'):   "The slight deficit matters now. Decisions are coming slower than the situation demands.",
+        ('bav','high'):  "Not enough clarity to matter at this pressure. Close to average but the margin failed.",
+        ('avg','low'):   "Average clarity. Makes normal human decisions at normal human speed.",
+        ('avg','mid'):   "Average wisdom at moderate pressure. Still choosing. The choices are getting harder.",
+        ('avg','high'):  "Average clarity is not enough. He is still present but the decisions are not coming in time.",
+        ('aav','low'):   "Slightly better than average judgment. A small edge in knowing what is coming.",
+        ('aav','mid'):   "The edge means he sees the next thing before it arrives. Small advantage in timing.",
+        ('aav','high'):  "The small edge is all he has left. Just enough clarity to know what he is losing.",
+        ('high','low'):  "Clear-headed. Sees the situation for what it is. Makes deliberate choices.",
+        ('high','mid'):  "The deliberate choices are still happening. He is steering, not being steered.",
+        ('high','high'): "The clarity is expensive. He is making deliberate choices under pressure that would break lesser judgment.",
+        ('vhi','low'):   "Profound clarity. Sees three steps ahead. Choices are made with full awareness of consequences.",
+        ('vhi','mid'):   "The three-step vision is holding. He is managing the situation from inside it.",
+        ('vhi','high'):  "Still clear. Still deliberate. The wisdom means he is watching himself approach a line he can see perfectly and may not be able to avoid.",
+        ('exc','low'):   "Perfect clarity. He sees everything. Every angle, every consequence, every option. Almost paralyzing.",
+        ('exc','mid'):   "The perfect clarity is a gift and a weight. He knows exactly what is happening and exactly what it means.",
+        ('exc','high'):  "He sees everything. Knows everything. The wisdom did not give him the power to stop it. Just the power to watch.",
+    }),
+    'CHA': _gen_portraits('gm', 'CHA', T, {
+        ('vlow','low'):  "Invisible. Whatever is happening inside is not reaching the surface. Muted presence.",
+        ('vlow','mid'):  "The muted presence is a shield. Nobody reads him because there is nothing to read on the surface.",
+        ('vlow','high'): "Even at this intensity the muted presence means the experience is private. Internal only.",
+        ('low','low'):   "Below average presence. Easy to overlook. The internal experience does not broadcast.",
+        ('low','mid'):   "The low presence means most of what is happening stays hidden. Not by choice, by nature.",
+        ('low','high'):  "Low presence under high pressure. The body is screaming but the surface stays quiet.",
+        ('bav','low'):   "Slightly below average presence. There but not drawing attention.",
+        ('bav','mid'):   "Slightly muted. The tells are present but you would have to look to see them.",
+        ('bav','high'):  "The slight muting is failing. The intensity is too high to contain even with low broadcast.",
+        ('avg','low'):   "Average presence. Noticeable in the normal human way. Nothing remarkable.",
+        ('avg','mid'):   "Normal presence at moderate pressure. The tells are visible to anyone paying attention.",
+        ('avg','high'):  "Average presence under high pressure. Everything is visible. He is not hiding it.",
+        ('aav','low'):   "Slightly magnetic. People notice him without quite knowing why.",
+        ('aav','mid'):   "The slight magnetism means everything happening inside is a beat more visible.",
+        ('aav','high'):  "The slight magnetism is amplifying everything. The room reads him clearly.",
+        ('high','low'):  "Presence. He fills a room. Whatever is happening inside is happening loudly.",
+        ('high','mid'):  "The presence is amplifying everything. Every tell, every shift is visible and legible.",
+        ('high','high'): "Undeniable. The presence means everyone in range knows exactly what is happening to him.",
+        ('vhi','low'):   "Commanding presence. The room orients around him. Whatever he feels, others feel the edges of.",
+        ('vhi','mid'):   "The commanding presence turns every internal state into a broadcast. The room is tuned to him.",
+        ('vhi','high'):  "The broadcast is total. Every part of what he is experiencing is public. The presence does not have an off switch.",
+        ('exc','low'):   "Overwhelming presence. He does not enter a room. He changes it. Everything internal is external.",
+        ('exc','mid'):   "The presence is its own force. The room does not just notice him — it responds to him.",
+        ('exc','high'):  "Presence at maximum with experience at maximum. He is the center of every room he is in and everything is visible.",
+    }),
+    'DOM': _gen_portraits('gm', 'DOM', T, {
+        ('vlow','low'):  "No pride axis. Control does not mean anything to him. Whatever happens, happens.",
+        ('vlow','mid'):  "No resistance from the pride axis. The want arrives and there is nothing in the way.",
+        ('vlow','high'): "The want has the field. There was never a pride response to compete with it.",
+        ('low','low'):   "Low dominance. Some awareness that control exists. No investment in maintaining it.",
+        ('low','mid'):   "The low dominance means the erosion of control is not a cost. Just a thing that happened.",
+        ('low','high'):  "Control was never the point. Whatever this is, he was never going to fight it.",
+        ('bav','low'):   "Slightly below average dominance. A flicker of pride but it does not commit to the fight.",
+        ('bav','mid'):   "The flicker of pride noted the erosion. It did not mount a serious defense.",
+        ('bav','high'):  "The flicker went out. Not enough dominance to sustain resistance at this pressure.",
+        ('avg','low'):   "Average dominance. Normal human pride. Normal human resistance to losing control.",
+        ('avg','mid'):   "Average pride meeting real pressure. He is holding because that is what people do. Not because it matters deeply.",
+        ('avg','high'):  "Average pride overwhelmed. He held as long as average holds. The normal human response to losing the fight.",
+        ('aav','low'):   "Slightly proud. Losing control means something. Not everything, but something.",
+        ('aav','mid'):   "The slight pride is feeling the erosion. It matters enough to notice. Not enough to change the outcome.",
+        ('aav','high'):  "The slight pride is watching the outcome it could not change. Something was lost. It registers.",
+        ('high','low'):  "Proud. Control matters. Losing it is a real cost with real weight.",
+        ('high','mid'):  "The pride is fighting. The erosion of control is felt as loss. He is holding because letting go costs.",
+        ('high','high'): "The pride is watching something be taken. The cost is real. The fight was real. The outcome is becoming clear.",
+        ('vhi','low'):   "Deeply proud. Control is identity. The idea of losing it is not just uncomfortable — it is threatening.",
+        ('vhi','mid'):   "The pride is in a real fight. Every inch of control given up is felt as a wound to something central.",
+        ('vhi','high'):  "The pride is watching the last of it go. This is not just loss of control. This is a piece of identity being rewritten.",
+        ('exc','low'):   "Iron pride. Control is the foundation everything else is built on. The idea of losing it is almost incomprehensible.",
+        ('exc','mid'):   "The iron pride is meeting something that does not care how strong it is. The incomprehensible is happening.",
+        ('exc','high'):  "The iron pride broke. It held longer than anyone could expect and it broke. He felt it happen.",
+    }),
+    'SUB': _gen_portraits('gm', 'SUB', T, {
+        ('vlow','low'):  "No pull in that direction. Submission is not in the vocabulary. Neutral at best.",
+        ('vlow','mid'):  "The situation might suggest submission. Nothing in him responds to the suggestion.",
+        ('vlow','high'): "Even at this pressure there is no pull toward yielding. The body goes but the submission axis stays flat.",
+        ('low','low'):   "Low submissiveness. The pull exists but it is quiet and easily ignored.",
+        ('low','mid'):   "The quiet pull is still quiet. Other things are louder. Submission is not the story here.",
+        ('low','high'):  "The low pull stayed low even under pressure. Submission is not what this character does.",
+        ('bav','low'):   "Slightly below average pull. There but not shaping decisions.",
+        ('bav','mid'):   "The slight pull is present but it is not driving anything. Background noise.",
+        ('bav','high'):  "The background pull is slightly louder. Still not the main signal. Still not leading.",
+        ('avg','low'):   "Average submissiveness. Normal human range. Some pull, some resistance. Balanced.",
+        ('avg','mid'):   "The normal pull and the normal resistance are having a normal conversation. Neither is winning.",
+        ('avg','high'):  "Average pull under high pressure. The balance tipped slightly. Normal human response.",
+        ('aav','low'):   "Slightly above average pull. There is something there. It responds when called.",
+        ('aav','mid'):   "The pull is present and active. Not overwhelming but not background anymore.",
+        ('aav','high'):  "The pull is the clearest signal in the noise. Slightly above average but it matters at this pressure.",
+        ('high','low'):  "The pull is real. Submission means something to him. It has a direction and a weight.",
+        ('high','mid'):  "The pull has direction and weight and it is pointing somewhere specific. He knows where.",
+        ('high','high'): "The pull won the argument turns ago. He is where it pointed. This is what it wanted.",
+        ('vhi','low'):   "The pull is a defining feature. Yielding is not weakness. It is where he lives.",
+        ('vhi','mid'):   "The yield instinct is running the show. Not fighting it because fighting it was never the real option.",
+        ('vhi','high'):  "The yield is complete. This is where the pull was always going. He is arrived.",
+        ('exc','low'):   "Submission is the core of who he is. The pull does not compete with other drives. It is the drive.",
+        ('exc','mid'):   "The drive toward yielding is total. Everything else orbits it. The submission is the organizing principle.",
+        ('exc','high'):  "Complete. The submission is the experience. Everything else is detail.",
+    }),
+    }
+
+    # ═══ FEMALE ═════════════════════════════════════════════════════════════
+    tables['female'] = {
+    'CON': _gen_portraits('gf', 'CON', T, {
+        ('vlow','low'):  "Fragile. The body has nothing to hold with. Even baseline feels like effort.",
+        ('vlow','mid'):  "The body folded early. Composure was never a live option at this endurance.",
+        ('vlow','high'): "The body gave everything it had turns ago. She is being carried by momentum.",
+        ('low','low'):   "Below average endurance. The body will start showing things before she is ready.",
+        ('low','mid'):   "The body is showing things. She does not have the endurance to manage the tells.",
+        ('low','high'):  "Endurance spent. The body is running the show.",
+        ('bav','low'):   "Slightly below average endurance. Will hold for a while but the margins are thin.",
+        ('bav','mid'):   "The margins are showing. Enough to hold but not enough to look comfortable.",
+        ('bav','high'):  "The thin margins ran out.",
+        ('avg','low'):   "Average endurance. The body does what bodies do.",
+        ('avg','mid'):   "Average endurance holding at average levels. No edge, no deficit.",
+        ('avg','high'):  "Average endurance at high pressure. Enough to be present. Not enough to be comfortable.",
+        ('aav','low'):   "Slightly above average. The body holds a little longer than expected.",
+        ('aav','mid'):   "The small edge matters. She has a beat more composure than someone without it.",
+        ('aav','high'):  "The edge held longer than average but the pressure found the limit.",
+        ('high','low'):  "Strong endurance. The body is quiet and managed. She has reserves.",
+        ('high','mid'):  "The reserves are real. She has enough to manage it deliberately.",
+        ('high','high'): "High endurance meeting high pressure. The body is pushing and she is pushing back.",
+        ('vhi','low'):   "Exceptional endurance. The body barely registers baseline pressure.",
+        ('vhi','mid'):   "The iron composure is holding. Noting things without urgency.",
+        ('vhi','high'):  "Even exceptional endurance has a ceiling. She is finding it.",
+        ('exc','low'):   "Inhuman endurance. Complete physical control.",
+        ('exc','mid'):   "Pressure that would break most people is background noise.",
+        ('exc','high'):  "The body is finally speaking at a volume she has to acknowledge.",
+    }),
+    'INT': _gen_portraits('gf', 'INT', T, {
+        ('vlow','low'):  "Not much happening upstairs. Sensations arrive and leave without being named.",
+        ('vlow','mid'):  "The body is doing things she cannot articulate. Processing in animal terms.",
+        ('vlow','high'): "Sensation without narration. Experiencing this the way a body experiences weather.",
+        ('low','low'):   "Below average awareness. Notices things after they have happened.",
+        ('low','mid'):   "The processing is slow. By the time she names it the next thing has started.",
+        ('low','high'):  "Understanding stopped. The gap closed because the mind stopped trying.",
+        ('bav','low'):   "Slightly dull. Gets there eventually but the analysis trails.",
+        ('bav','mid'):   "The analysis is a step behind. Knows what happened, not always what is happening.",
+        ('bav','high'):  "The step behind became two steps behind. The body outran the mind.",
+        ('avg','low'):   "Average awareness. Notices things at the normal human rate.",
+        ('avg','mid'):   "Normal processing. The experience is legible at standard depth.",
+        ('avg','high'):  "Average awareness under high pressure. The narration is thinning but present.",
+        ('aav','low'):   "Slightly sharp. Picks up on things a beat ahead of average.",
+        ('aav','mid'):   "The extra awareness is useful. Tracking what is happening with mild precision.",
+        ('aav','high'):  "The precision is degrading. Still sharper than average but the clarity costs.",
+        ('high','low'):  "Perceptive. The internal narration is clear and detailed.",
+        ('high','mid'):  "The narration is still running. She can describe exactly what is happening.",
+        ('high','high'): "The narration is fighting to survive. Still articulate but the words cost more.",
+        ('vhi','low'):   "Razor sharp awareness. Nothing escapes the internal analysis.",
+        ('vhi','mid'):   "The clinical distance is holding. Experiencing and analyzing simultaneously.",
+        ('vhi','high'):  "The analysis is running but the clinical distance is closing.",
+        ('exc','low'):   "Hyperaware. Narrating her own experience in real time with perfect clarity.",
+        ('exc','mid'):   "The hyperawareness means she feels everything twice — experience and observation.",
+        ('exc','high'):  "Still narrating. Still clear. She can describe exactly what is happening and cannot stop it.",
+    }),
+    'WIS': _gen_portraits('gf', 'WIS', T, {
+        ('vlow','low'):  "No impulse control to speak of. Whatever arrives, she goes with.",
+        ('vlow','mid'):  "Carried by the situation. Whatever happens next is whatever the moment suggests.",
+        ('vlow','high'): "Passenger. The body and the situation are making every decision.",
+        ('low','low'):   "Poor judgment. Can see what is happening. Cannot connect it to consequences.",
+        ('low','mid'):   "The judgment gap is showing. She knows this is going somewhere and is not steering.",
+        ('low','high'):  "What judgment existed is gone. The situation is in charge.",
+        ('bav','low'):   "Slightly poor clarity. Makes decisions but they are a beat late.",
+        ('bav','mid'):   "Decisions are coming slower than the situation demands.",
+        ('bav','high'):  "Not enough clarity to matter at this pressure.",
+        ('avg','low'):   "Average clarity. Makes normal human decisions at normal speed.",
+        ('avg','mid'):   "Average wisdom at moderate pressure. Still choosing.",
+        ('avg','high'):  "Average clarity is not enough. Still present but decisions are not coming in time.",
+        ('aav','low'):   "Slightly better than average judgment. A small edge.",
+        ('aav','mid'):   "The edge means she sees the next thing before it arrives.",
+        ('aav','high'):  "The small edge is all she has left. Just enough clarity to know what she is losing.",
+        ('high','low'):  "Clear-headed. Sees the situation for what it is.",
+        ('high','mid'):  "The deliberate choices are still happening. She is steering, not being steered.",
+        ('high','high'): "The clarity is expensive. Making deliberate choices under pressure that would break lesser judgment.",
+        ('vhi','low'):   "Profound clarity. Sees three steps ahead.",
+        ('vhi','mid'):   "The three-step vision is holding. Managing the situation from inside it.",
+        ('vhi','high'):  "Still clear. Watching herself approach a line she can see perfectly and may not avoid.",
+        ('exc','low'):   "Perfect clarity. She sees everything. Every angle, every consequence.",
+        ('exc','mid'):   "The perfect clarity is a gift and a weight. Knows exactly what everything means.",
+        ('exc','high'):  "She sees everything. The wisdom did not give her the power to stop it. Just to watch.",
+    }),
+    'CHA': _gen_portraits('gf', 'CHA', T, {
+        ('vlow','low'):  "Invisible. Whatever is happening inside stays inside. Muted presence.",
+        ('vlow','mid'):  "The muted presence is a shield. Nobody reads her.",
+        ('vlow','high'): "Even at this intensity the experience stays private.",
+        ('low','low'):   "Below average presence. Easy to overlook.",
+        ('low','mid'):   "Most of what is happening stays hidden. Not by choice.",
+        ('low','high'):  "Low presence under high pressure. The body is screaming but the surface stays quiet.",
+        ('bav','low'):   "Slightly below average presence. There but not drawing attention.",
+        ('bav','mid'):   "Slightly muted. The tells are present but you would have to look.",
+        ('bav','high'):  "The slight muting is failing. The intensity is too high to contain.",
+        ('avg','low'):   "Average presence. Noticeable in the normal human way.",
+        ('avg','mid'):   "Normal presence. The tells are visible to anyone paying attention.",
+        ('avg','high'):  "Average presence under high pressure. Everything is visible.",
+        ('aav','low'):   "Slightly magnetic. People notice her without quite knowing why.",
+        ('aav','mid'):   "The slight magnetism means everything is a beat more visible.",
+        ('aav','high'):  "The magnetism is amplifying everything. The room reads her.",
+        ('high','low'):  "Presence. She fills a room. Whatever is happening inside is loud.",
+        ('high','mid'):  "The presence is amplifying every tell, every shift.",
+        ('high','high'): "Undeniable. Everyone in range knows exactly what is happening.",
+        ('vhi','low'):   "Commanding presence. The room orients around her.",
+        ('vhi','mid'):   "The commanding presence turns every internal state into a broadcast.",
+        ('vhi','high'):  "The broadcast is total. The presence does not have an off switch.",
+        ('exc','low'):   "Overwhelming presence. She does not enter a room. She changes it.",
+        ('exc','mid'):   "The presence is its own force. The room responds to her.",
+        ('exc','high'):  "Presence at maximum with experience at maximum. Everything is visible.",
+    }),
+    'DOM': _gen_portraits('gf', 'DOM', T, {
+        ('vlow','low'):  "No pride axis. Control does not mean anything to her.",
+        ('vlow','mid'):  "No resistance from the pride axis. The want arrives and nothing is in the way.",
+        ('vlow','high'): "The want has the field. There was never a pride response.",
+        ('low','low'):   "Low dominance. Some awareness that control exists. No investment.",
+        ('low','mid'):   "The erosion of control is not a cost. Just a thing that happened.",
+        ('low','high'):  "Control was never the point. She was never going to fight it.",
+        ('bav','low'):   "Slightly below average dominance. A flicker of pride.",
+        ('bav','mid'):   "The flicker of pride noted the erosion. It did not mount a defense.",
+        ('bav','high'):  "The flicker went out.",
+        ('avg','low'):   "Average dominance. Normal pride. Normal resistance.",
+        ('avg','mid'):   "Average pride meeting real pressure. Holding because that is what people do.",
+        ('avg','high'):  "Average pride overwhelmed. She held as long as average holds.",
+        ('aav','low'):   "Slightly proud. Losing control means something.",
+        ('aav','mid'):   "The slight pride is feeling the erosion. Enough to notice.",
+        ('aav','high'):  "The slight pride is watching the outcome it could not change.",
+        ('high','low'):  "Proud. Control matters. Losing it is a real cost.",
+        ('high','mid'):  "The pride is fighting. Letting go costs something real.",
+        ('high','high'): "The pride is watching something be taken. The cost is real.",
+        ('vhi','low'):   "Deeply proud. Control is identity.",
+        ('vhi','mid'):   "Every inch given up is felt as a wound to something central.",
+        ('vhi','high'):  "Watching the last of it go. This is identity being rewritten.",
+        ('exc','low'):   "Iron pride. Control is the foundation everything is built on.",
+        ('exc','mid'):   "The iron pride is meeting something that does not care how strong it is.",
+        ('exc','high'):  "The iron pride broke. She felt it happen.",
+    }),
+    'SUB': _gen_portraits('gf', 'SUB', T, {
+        ('vlow','low'):  "No pull toward yielding. Submission is not in the vocabulary.",
+        ('vlow','mid'):  "Nothing in her responds to the suggestion of submission.",
+        ('vlow','high'): "Even at this pressure there is no pull toward yielding.",
+        ('low','low'):   "Low submissiveness. The pull exists but it is quiet.",
+        ('low','mid'):   "The quiet pull is still quiet. Other things are louder.",
+        ('low','high'):  "The low pull stayed low even under pressure.",
+        ('bav','low'):   "Slightly below average pull. There but not shaping decisions.",
+        ('bav','mid'):   "The slight pull is present but not driving anything.",
+        ('bav','high'):  "The background pull is slightly louder. Still not leading.",
+        ('avg','low'):   "Average submissiveness. Some pull, some resistance. Balanced.",
+        ('avg','mid'):   "The normal pull and normal resistance are having a normal conversation.",
+        ('avg','high'):  "Average pull under high pressure. The balance tipped slightly.",
+        ('aav','low'):   "Slightly above average. There is something there.",
+        ('aav','mid'):   "The pull is present and active. Not overwhelming but not background.",
+        ('aav','high'):  "The pull is the clearest signal in the noise.",
+        ('high','low'):  "The pull is real. Submission means something. It has direction.",
+        ('high','mid'):  "The pull has direction and is pointing somewhere specific. She knows where.",
+        ('high','high'): "The pull won the argument turns ago. She is where it pointed.",
+        ('vhi','low'):   "The pull is a defining feature. Yielding is where she lives.",
+        ('vhi','mid'):   "The yield instinct is running the show.",
+        ('vhi','high'):  "The yield is complete. This is where it was always going.",
+        ('exc','low'):   "Submission is the core of who she is.",
+        ('exc','mid'):   "The drive toward yielding is total. Everything else orbits it.",
+        ('exc','high'):  "Complete. The submission is the experience.",
+    }),
+    }
+
+    # ═══ TRANS FEMALE ═══════════════════════════════════════════════════════
+    # Born male, identifies female. Body she fought for. Transformation = arrival.
+    tables['trans_female'] = {
+    'CON': _gen_portraits('gtf', 'CON', T, {
+        ('vlow','low'):  "Fragile. The body she arrived at has nothing to hold with.",
+        ('vlow','mid'):  "The body folded early. The body she chose has no more endurance than the one she left.",
+        ('vlow','high'): "The body gave everything. She is being carried.",
+        ('low','low'):   "Below average endurance. This body will show things before she is ready.",
+        ('low','mid'):   "The body is showing things. Not enough endurance to manage the tells.",
+        ('low','high'):  "Endurance spent. The body she built is running the show.",
+        ('bav','mid'):   "The margins are showing. Enough to hold, not enough to be comfortable.",
+        ('avg','low'):   "Average endurance. The body does what bodies do.",
+        ('avg','mid'):   "Average endurance. No edge, no deficit.",
+        ('avg','high'):  "Average endurance at high pressure. Present but not comfortable.",
+        ('aav','mid'):   "The small edge matters. A beat more composure.",
+        ('high','low'):  "Strong endurance. The body is quiet and managed.",
+        ('high','mid'):  "The reserves are real. She can manage this deliberately.",
+        ('high','high'): "High endurance meeting high pressure. The body she built is holding.",
+        ('vhi','mid'):   "The iron composure holds. The body she fought for stays under her direction.",
+        ('exc','mid'):   "Total control. The body she built responds exactly as directed.",
+        ('exc','high'):  "The body is finally louder than her direction. Even this control has a ceiling.",
+    }),
+    'INT': _gen_portraits('gtf', 'INT', T, {
+        ('vlow','low'):  "Not much happening upstairs. Sensations arrive unnamed.",
+        ('vlow','mid'):  "Processing in animal terms. The body knows. She does not.",
+        ('vlow','high'): "Sensation without narration.",
+        ('low','mid'):   "The processing is slow. By the time she names it the next thing has started.",
+        ('avg','low'):   "Average awareness. Notices things at the normal rate.",
+        ('avg','mid'):   "Normal processing. The experience is legible at standard depth.",
+        ('avg','high'):  "Average awareness thinning under pressure.",
+        ('high','low'):  "Perceptive. Clear internal narration. She knows this body well enough to read every signal.",
+        ('high','mid'):  "The narration is running. She can describe exactly what this body is doing.",
+        ('high','high'): "The narration is fighting to survive. Still articulate but the words cost more.",
+        ('vhi','mid'):   "Clinical self-observation. She reads this body with the precision of someone who chose every part of it.",
+        ('exc','low'):   "Hyperaware. Narrating in real time. She knows this body better than anyone.",
+        ('exc','high'):  "Still clear. She can describe exactly what is happening and cannot stop it.",
+    }),
+    'WIS': _gen_portraits('gtf', 'WIS', T, {
+        ('vlow','low'):  "No impulse control. Whatever arrives, she goes with.",
+        ('vlow','mid'):  "Carried by the situation.",
+        ('low','mid'):   "The judgment gap is showing. Not steering.",
+        ('avg','low'):   "Average clarity. Normal human decisions.",
+        ('avg','mid'):   "Still choosing. The choices are getting harder.",
+        ('high','low'):  "Clear-headed. Deliberate choices.",
+        ('high','mid'):  "She is steering, not being steered.",
+        ('high','high'): "The clarity is expensive but it is holding.",
+        ('vhi','mid'):   "Managing the situation from inside it. Three steps ahead.",
+        ('exc','high'):  "She sees everything. The wisdom cannot stop it. Just watch.",
+    }),
+    'CHA': _gen_portraits('gtf', 'CHA', T, {
+        ('vlow','mid'):  "The muted presence is a shield. The experience stays private.",
+        ('low','mid'):   "Most of what is happening stays hidden.",
+        ('avg','low'):   "Average presence. Noticeable in the normal way.",
+        ('avg','mid'):   "The tells are visible to anyone paying attention.",
+        ('high','low'):  "Presence. She fills a room.",
+        ('high','mid'):  "The presence amplifies everything. The body she built broadcasts clearly.",
+        ('high','high'): "Undeniable. Everyone knows.",
+        ('vhi','mid'):   "The body she fought for commands attention. Every state is broadcast.",
+        ('exc','mid'):   "The presence is its own force. The room responds.",
+    }),
+    'DOM': _gen_portraits('gtf', 'DOM', T, {
+        ('vlow','mid'):  "No resistance. The want arrives and nothing is in the way.",
+        ('low','mid'):   "The erosion of control is not a cost.",
+        ('avg','low'):   "Normal pride. Normal resistance.",
+        ('avg','mid'):   "Average pride meeting pressure. Holding because that is what people do.",
+        ('high','low'):  "Proud. She did not fight this hard to be herself just to lose ground.",
+        ('high','mid'):  "The pride is fighting. She earned this body and this identity. Losing control costs.",
+        ('high','high'): "The pride is watching something be taken from the person she built.",
+        ('vhi','mid'):   "Every inch given up is a wound. She built this. She will not give it up easily.",
+        ('exc','mid'):   "Iron pride. The foundation she built everything on is under siege.",
+        ('exc','high'):  "The iron pride broke. It held longer than anyone could ask.",
+    }),
+    'SUB': _gen_portraits('gtf', 'SUB', T, {
+        ('vlow','mid'):  "No pull toward yielding.",
+        ('low','mid'):   "The pull is quiet.",
+        ('avg','low'):   "Average pull. Some pull, some resistance.",
+        ('avg','mid'):   "The pull and the resistance are having a conversation.",
+        ('high','low'):  "The pull is real. Submission means something.",
+        ('high','mid'):  "The pull has direction. She knows where it points.",
+        ('high','high'): "The pull won. She is where it pointed. This body was always going to arrive here.",
+        ('vhi','mid'):   "The yield instinct is running the show. The body she built wants to yield.",
+        ('exc','mid'):   "Submission is the core. The body she chose wants this.",
+        ('exc','high'):  "Complete. The body she fought for is exactly where it was meant to be.",
+    }),
+    }
+
+    # ═══ TRANS MALE ═════════════════════════════════════════════════════════
+    # Born female, identifies male. Male lens on female anatomy.
+    tables['trans_male'] = {
+    'CON': _gen_portraits('gtm', 'CON', T, {
+        ('vlow','low'):  "Fragile. The body has nothing to hold with.",
+        ('vlow','mid'):  "The body folded early. The anatomy he does not fully claim gave out first.",
+        ('vlow','high'): "Being carried by momentum.",
+        ('low','mid'):   "The body is showing things. Not enough endurance to manage tells that come from anatomy he has complicated feelings about.",
+        ('avg','low'):   "Average endurance. The body does what bodies do.",
+        ('avg','mid'):   "Average endurance. No edge, no deficit.",
+        ('avg','high'):  "Average endurance at high pressure.",
+        ('high','low'):  "Strong endurance. The body is quiet and managed.",
+        ('high','mid'):  "The reserves are real. He can manage this deliberately.",
+        ('high','high'): "High endurance holding. The body does what he tells it.",
+        ('vhi','mid'):   "Iron composure. The body stays under his direction.",
+        ('exc','mid'):   "Total control. The body responds as directed.",
+        ('exc','high'):  "The body is louder than his direction. Even this control has limits.",
+    }),
+    'INT': _gen_portraits('gtm', 'INT', T, {
+        ('vlow','low'):  "Not much happening upstairs. Sensations arrive unnamed.",
+        ('vlow','mid'):  "Processing in animal terms.",
+        ('low','mid'):   "The processing is slow.",
+        ('avg','low'):   "Average awareness.",
+        ('avg','mid'):   "Normal processing depth.",
+        ('avg','high'):  "Average awareness thinning.",
+        ('high','low'):  "Perceptive. Clear internal narration.",
+        ('high','mid'):  "The narration is running. He can describe what the body is doing. Even the parts he has complicated feelings about.",
+        ('high','high'): "The narration is fighting to survive.",
+        ('vhi','mid'):   "Clinical self-observation. He reads the body with precision even when the body is doing things that complicate his identity.",
+        ('exc','high'):  "Still clear. He can describe everything. Including the parts he does not claim.",
+    }),
+    'WIS': _gen_portraits('gtm', 'WIS', T, {
+        ('vlow','mid'):  "Carried by the situation.",
+        ('avg','low'):   "Average clarity.",
+        ('avg','mid'):   "Still choosing.",
+        ('high','low'):  "Clear-headed. Deliberate.",
+        ('high','mid'):  "Steering, not being steered.",
+        ('high','high'): "The clarity is expensive but holding.",
+        ('vhi','mid'):   "Three steps ahead. Managing from inside.",
+        ('exc','high'):  "He sees everything. Cannot stop it. Just watch.",
+    }),
+    'CHA': _gen_portraits('gtm', 'CHA', T, {
+        ('vlow','mid'):  "Muted presence. The experience stays internal.",
+        ('avg','mid'):   "Average presence. The tells are visible.",
+        ('high','low'):  "Presence. He fills a room.",
+        ('high','mid'):  "The presence amplifies everything.",
+        ('high','high'): "Undeniable. The room reads him.",
+        ('vhi','mid'):   "The commanding presence broadcasts every state.",
+        ('exc','mid'):   "The presence is its own force.",
+    }),
+    'DOM': _gen_portraits('gtm', 'DOM', T, {
+        ('vlow','mid'):  "No resistance from the pride axis.",
+        ('avg','low'):   "Normal pride.",
+        ('avg','mid'):   "Average pride meeting pressure.",
+        ('high','low'):  "Proud. He did not build this identity to lose ground.",
+        ('high','mid'):  "The pride is fighting. The body responding in ways he did not authorize. That costs.",
+        ('high','high'): "The pride is watching the body do things his identity does not endorse.",
+        ('vhi','mid'):   "Every inch is a wound. The body he claimed as his is being claimed by something else.",
+        ('exc','mid'):   "Iron pride meeting something that does not care.",
+        ('exc','high'):  "The iron pride broke. The body did what it was going to do regardless of what he built.",
+    }),
+    'SUB': _gen_portraits('gtm', 'SUB', T, {
+        ('vlow','mid'):  "No pull toward yielding.",
+        ('avg','mid'):   "Average pull. Balanced.",
+        ('high','low'):  "The pull is real.",
+        ('high','mid'):  "The pull has direction. He knows where. The anatomy question makes it complicated.",
+        ('high','high'): "The pull won. He is where it pointed.",
+        ('vhi','mid'):   "The yield instinct is driving. The complicated relationship with the anatomy is quieter than the pull.",
+        ('exc','high'):  "Complete. The submission resolved the anatomy question. Or made it irrelevant.",
+    }),
+    }
+
+    # ═══ INTERSEX ═══════════════════════════════════════════════════════════
+    # Both anatomies. She/her. The body has always been two things.
+    tables['intersex'] = {
+    'CON': _gen_portraits('gi', 'CON', T, {
+        ('vlow','low'):  "Fragile. The body has nothing to hold with.",
+        ('vlow','mid'):  "The body folded early. Both sets of responses gave out at once.",
+        ('vlow','high'): "Being carried by momentum.",
+        ('low','mid'):   "The body is showing things from more than one direction. Not enough endurance to manage either.",
+        ('avg','low'):   "Average endurance. The body does what bodies do.",
+        ('avg','mid'):   "Average endurance. Both sets of responses at normal levels.",
+        ('avg','high'):  "Average endurance at high pressure. Two signal sources and not enough reserves for either.",
+        ('high','low'):  "Strong endurance. Both sets of responses quiet and managed.",
+        ('high','mid'):  "The reserves cover both. She can manage deliberately.",
+        ('high','high'): "High endurance holding against dual-source pressure.",
+        ('vhi','mid'):   "Iron composure. Both anatomies stay under her direction.",
+        ('exc','mid'):   "Total control. Both halves respond as directed.",
+        ('exc','high'):  "Both halves are louder than her direction. Even this control has a ceiling.",
+    }),
+    'INT': _gen_portraits('gi', 'INT', T, {
+        ('vlow','low'):  "Sensations from both anatomies arriving unnamed.",
+        ('vlow','mid'):  "Processing in animal terms. Two signal sources, no framework for either.",
+        ('low','mid'):   "The processing is slow. Two things happening and she is behind on both.",
+        ('avg','low'):   "Average awareness.",
+        ('avg','mid'):   "Normal processing. Two signal sources at standard depth.",
+        ('avg','high'):  "Average awareness thinning. Too many signals.",
+        ('high','low'):  "Perceptive. She reads both sets of signals with clarity.",
+        ('high','mid'):  "The narration covers both anatomies. She can describe exactly what each is doing.",
+        ('high','high'): "The narration is fighting to track two sources at once.",
+        ('vhi','mid'):   "Clinical observation of both halves simultaneously. She has always tracked two.",
+        ('exc','high'):  "Still clear on both channels. She can describe everything. Cannot stop either.",
+    }),
+    'WIS': _gen_portraits('gi', 'WIS', T, {
+        ('vlow','mid'):  "Carried by the situation. Both anatomies doing what they want.",
+        ('avg','low'):   "Average clarity.",
+        ('avg','mid'):   "Still choosing. Two sets of signals to manage.",
+        ('high','low'):  "Clear-headed. Managing dual signals deliberately.",
+        ('high','mid'):  "Steering both responses. Not being steered by either.",
+        ('high','high'): "The clarity is expensive but covers both.",
+        ('vhi','mid'):   "Three steps ahead on both channels.",
+        ('exc','high'):  "She sees everything from both anatomies. Cannot stop either. Just watch.",
+    }),
+    'CHA': _gen_portraits('gi', 'CHA', T, {
+        ('vlow','mid'):  "Muted presence. Both sets of tells stay private.",
+        ('avg','mid'):   "Average presence. The tells from both anatomies are visible.",
+        ('high','low'):  "Presence. Both halves of what she is are noticeable.",
+        ('high','mid'):  "The presence amplifies both. Every signal from both anatomies is legible.",
+        ('high','high'): "Undeniable. Both halves broadcasting at full volume.",
+        ('vhi','mid'):   "The commanding presence turns dual signals into a full broadcast.",
+        ('exc','mid'):   "The presence is its own force. Both halves at full volume.",
+    }),
+    'DOM': _gen_portraits('gi', 'DOM', T, {
+        ('vlow','mid'):  "No resistance. The want arrives from two directions and nothing opposes either.",
+        ('avg','low'):   "Normal pride.",
+        ('avg','mid'):   "Average pride meeting dual-source pressure.",
+        ('high','low'):  "Proud. Control over both halves matters.",
+        ('high','mid'):  "The pride is fighting on two fronts. Losing ground on either costs.",
+        ('high','high'): "The pride is watching both halves respond. The cost is double.",
+        ('vhi','mid'):   "Every inch on either front is a wound.",
+        ('exc','mid'):   "Iron pride. Two fronts. The incomprehensible is happening on both.",
+        ('exc','high'):  "The iron pride broke on both fronts simultaneously.",
+    }),
+    'SUB': _gen_portraits('gi', 'SUB', T, {
+        ('vlow','mid'):  "No pull toward yielding from either direction.",
+        ('avg','mid'):   "Average pull. Both anatomies have their own version.",
+        ('high','low'):  "The pull is real. Both anatomies have direction.",
+        ('high','mid'):  "The pull from both anatomies is pointing the same direction. She knows where.",
+        ('high','high'): "The pull won on both fronts. She is where it pointed.",
+        ('vhi','mid'):   "The yield instinct runs both halves. Neither is fighting.",
+        ('exc','high'):  "Complete. Both anatomies, both pulls, one experience. The submission is total.",
+    }),
+    }
+
+    return tables
+
+_T_PORTRAITS = _build_generic_portraits()
+
+# Placeholder for effect portrait fragments function
+# This will be defined after the effect tables are initialized
+
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _build_effect_portraits():
+    """Generate effect-specific portrait fragments.
+
+    These are personality-lens phrases (dc=0) that fire when a character has
+    a specific active effect. They override generic portraits with higher priority.
+
+    Returns: dict {effect_name: {sex: {stat: [fragments...]}}}
+    """
+    T = _PORTRAIT_TIERS
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # BREEDER PORTRAITS
+    # ═══════════════════════════════════════════════════════════════════════════
+    breeder = {}
+
+    # ─── MALE ───
+    breeder['male'] = {
+        'CON': _gen_portraits('ep_m_breeder', 'CON', T, {
+            ('vlow', 'low'):    "The body has seized. The compulsion is the only weight in the room.",
+            ('vlow', 'mid'):    "Composure is gone. The body is raw need.",
+            ('vlow', 'high'):   "No holding. The body is speaking directly.",
+            ('low', 'low'):     "The body is speaking louder than thought.",
+            ('low', 'mid'):     "Still breathing. The body wants more.",
+            ('low', 'high'):    "The body is translating want into motion.",
+            ('avg', 'low'):     "The compulsion is present. He is noticing.",
+            ('avg', 'mid'):     "The body is making a request. He is considering it.",
+            ('avg', 'high'):    "Still composed. The want is underneath.",
+            ('high', 'low'):    "The want arrives and departs like breath. Managed.",
+            ('high', 'mid'):    "The composure is holding the compulsion at a distance.",
+            ('high', 'high'):   "The iron composure is still standing. The body is asking very politely.",
+            ('vhi', 'mid'):     "Complete control. The body is patient.",
+            ('vhi', 'high'):    "The body is a tool. The will is the only thing moving it.",
+            ('exc', 'high'):    "The want arrives in perfect silence. He does not flinch.",
+        }, extra_cond=lambda s,c: 'breeder' in c['effects'], base_pri=20),
+
+        'INT': _gen_portraits('ep_m_breeder', 'INT', T, {
+            ('vlow', 'low'):    "The narrative has stopped. The want is the entire story.",
+            ('vlow', 'mid'):    "He cannot narrate anymore. The body is speaking in a language he has forgotten.",
+            ('vlow', 'high'):   "Thought has scattered. The body is the only logic left.",
+            ('low', 'low'):     "Still trying to narrate what the compulsion wants. The words are failing him.",
+            ('low', 'mid'):     "He knows what the body wants. The knowing is not giving him distance from it.",
+            ('low', 'high'):    "The analysis has collapsed into want.",
+            ('bav', 'low'):     "He is narrating the compulsion to himself. The narration is not stopping it.",
+            ('bav', 'mid'):     "Still aware of what is happening. The awareness is dissolving into acceptance.",
+            ('avg', 'low'):     "He is observing the compulsion with perfect clarity. The clarity is not helping.",
+            ('avg', 'mid'):     "Clear thought and the body wanting are happening at the same time. He is still narrating.",
+            ('avg', 'high'):    "The thought is still intact. The body is asking in words he understands.",
+            ('aav', 'low'):     "Sharp. He can describe what the body wants and why. The description is academic.",
+            ('aav', 'mid'):     "The intelligence is narrating the compulsion beautifully. The beauty of the narration is making the want sharper.",
+            ('aav', 'high'):    "He is narrating himself into acceptance. The words are too clear.",
+            ('high', 'low'):    "Still perfectly articulate. The body is speaking a language he understands completely.",
+            ('high', 'mid'):    "The analysis is still intact but it is now in service to the want. He is explaining to himself why the body is right.",
+            ('high', 'high'):   "The intelligence is describing the compulsion with total precision and cannot stop it.",
+            ('vhi', 'mid'):     "The narration has become a weapon he is using on himself. The body wanted and now the mind is explaining why.",
+            ('vhi', 'high'):    "The brilliant observation of his own desire. The tragedy is he can describe exactly what is happening and cannot stop it.",
+            ('exc', 'high'):    "Perfect clarity. The intelligence is narrating the want in real time and the want is still the only thing that moves.",
+        }, extra_cond=lambda s,c: 'breeder' in c['effects'], base_pri=20),
+
+        'WIS': _gen_portraits('ep_m_breeder', 'WIS', T, {
+            ('vlow', 'low'):    "No choice left. The body has chosen.",
+            ('vlow', 'mid'):    "The discernment has dissolved. The compulsion is the only signal remaining.",
+            ('vlow', 'high'):   "No reading of consequence. The body is moving.",
+            ('low', 'low'):     "He has not yet chosen. The body is already moving.",
+            ('low', 'mid'):     "The wisdom of hesitation is gone. The body is the only counsel he hears.",
+            ('low', 'high'):    "The body is making sense now. The understanding has shifted sides.",
+            ('avg', 'low'):     "He is still weighing the compulsion. The weight is moving toward yes.",
+            ('avg', 'mid'):     "The discernment is present but it is watching the body move. The choice is narrowing.",
+            ('avg', 'high'):    "Still considering. The body is making a very persuasive argument.",
+            ('high', 'low'):    "He is still choosing. The compulsion is louder than it was but the choice is still his.",
+            ('high', 'mid'):    "The wisdom is present. The body is asking and the wisdom is starting to agree.",
+            ('high', 'high'):   "Still present with the compulsion. The wisdom is choosing to let it.",
+            ('vhi', 'mid'):     "The insight is deep. The body wants and the wisdom understands why.",
+            ('vhi', 'high'):    "He has seen the cost and chosen anyway. The compulsion has the wisdom on its side now.",
+            ('exc', 'high'):    "The deep knowing. The body speaks and the wisdom answers yes.",
+        }, extra_cond=lambda s,c: 'breeder' in c['effects'], base_pri=20),
+
+        'CHA': _gen_portraits('ep_m_breeder', 'CHA', T, {
+            ('vlow', 'low'):    "The want is exposed in every line. No wall left.",
+            ('vlow', 'mid'):    "Completely transparent. The body is speaking through every surface.",
+            ('vlow', 'high'):   "The presence is broadcasting the compulsion. There is no subtlety remaining.",
+            ('low', 'low'):     "The want is visible now. The presence cannot hide it.",
+            ('low', 'mid'):     "The magnetism has shifted. The want is radiating outward.",
+            ('low', 'high'):    "The presence is making the compulsion legible to everyone.",
+            ('avg', 'low'):     "The body is readable. The presence is starting to telegraph the want.",
+            ('avg', 'mid'):     "The want is becoming visible in how he moves.",
+            ('avg', 'high'):    "The presence is carrying the signal. The want is becoming audible.",
+            ('high', 'low'):    "Still composed in presence. The want is underneath.",
+            ('high', 'mid'):    "The presence is controlled. The want is a polished edge underneath.",
+            ('high', 'high'):   "The magnetism is serving the composure. The want is dignified.",
+            ('vhi', 'mid'):     "The presence is crystalline. The want is a perfectly controlled warmth.",
+            ('vhi', 'high'):    "The magnetism is a tool. The want is moving through it like light through water.",
+            ('exc', 'high'):    "The presence is a weapon. The want is moving through it with perfect grace.",
+        }, extra_cond=lambda s,c: 'breeder' in c['effects'], base_pri=20),
+
+        'DOM': _gen_portraits('ep_m_breeder', 'DOM', T, {
+            ('vlow', 'low'):    "The pride is drowning. The compulsion is the only voice.",
+            ('vlow', 'mid'):    "The dominance has collapsed. The body is the authority now.",
+            ('vlow', 'high'):   "The pride is gone. The compulsion has full control.",
+            ('low', 'low'):     "The pride is losing. The compulsion is an argument it cannot win.",
+            ('low', 'mid'):     "The dominance is sliding. The body has a prior claim.",
+            ('low', 'high'):    "The pride has lost this round. The body is in charge.",
+            ('avg', 'low'):     "The pride is watching the compulsion work. Disapproving.",
+            ('avg', 'mid'):     "The dominance is present but it is negotiating with the body now.",
+            ('avg', 'high'):    "The pride is still in the room but it is losing ground.",
+            ('high', 'low'):    "The pride is holding the line. The body is patient.",
+            ('high', 'mid'):    "The dominance is the master. The compulsion is the servant waiting.",
+            ('high', 'high'):   "The pride is absolute. The body is asking permission.",
+            ('vhi', 'mid'):     "The dominance is unshakeable. The want is beneath the dignity of refusal.",
+            ('vhi', 'high'):    "The pride is untouchable. The compulsion is something pleasant he is choosing to do.",
+            ('exc', 'high'):    "Complete mastery. The body wants and he is allowing it because he has already decided.",
+        }, extra_cond=lambda s,c: 'breeder' in c['effects'], base_pri=20),
+
+        'SUB': _gen_portraits('ep_m_breeder', 'SUB', T, {
+            ('vlow', 'low'):    "The yielding has taken him completely. The body is the only choice.",
+            ('vlow', 'mid'):    "The submission is total. The compulsion is what he is made for.",
+            ('vlow', 'high'):   "The want and the yield have become one. The body is home.",
+            ('low', 'low'):     "The pull of the compulsion is stronger than the resistance in him.",
+            ('low', 'mid'):     "The yield is opening to the want. The submission feels like truth.",
+            ('low', 'high'):    "The submission is complete. The body has taken him.",
+            ('avg', 'low'):     "The want is arriving. The yield instinct is meeting it.",
+            ('avg', 'mid'):     "The compulsion and the pull are pointing the same direction.",
+            ('avg', 'high'):    "The submission is starting to feel like what he wants.",
+            ('high', 'low'):    "The yield is present. The want is what he is choosing.",
+            ('high', 'mid'):    "The submission is there but it is his choice. The body is asking and the choice is yes.",
+            ('high', 'high'):   "The want is something he can surrender to with absolute clarity.",
+            ('vhi', 'mid'):     "The yield has the intelligence of wisdom behind it. The submission is chosen.",
+            ('vhi', 'high'):    "The compulsion is what the deepest part of him wants. The surrender is perfect.",
+            ('exc', 'high'):    "The want has the weight of inevitability. The submission is the only answer that makes sense.",
+        }, extra_cond=lambda s,c: 'breeder' in c['effects'], base_pri=20),
+    }
+
+    # ─── FEMALE ───
+    breeder['female'] = {
+        'CON': _gen_portraits('ep_f_breeder', 'CON', T, {
+            ('vlow', 'low'):    "The body has seized. The compulsion is the only weight in the room.",
+            ('vlow', 'mid'):    "Composure is gone. The body is raw need.",
+            ('vlow', 'high'):   "No holding. The body is speaking directly.",
+            ('low', 'low'):     "The body is speaking louder than thought.",
+            ('low', 'mid'):     "Still breathing. The body wants more.",
+            ('low', 'high'):    "The body is translating want into motion.",
+            ('avg', 'low'):     "The compulsion is present. She is noticing.",
+            ('avg', 'mid'):     "The body is making a request. She is considering it.",
+            ('avg', 'high'):    "Still composed. The want is underneath.",
+            ('high', 'low'):    "The want arrives and departs like breath. Managed.",
+            ('high', 'mid'):    "The composure is holding the compulsion at a distance.",
+            ('high', 'high'):   "The iron composure is still standing. The body is asking very politely.",
+            ('vhi', 'mid'):     "Complete control. The body is patient.",
+            ('vhi', 'high'):    "The body is a tool. The will is the only thing moving it.",
+            ('exc', 'high'):    "The want arrives in perfect silence. She does not flinch.",
+        }, extra_cond=lambda s,c: 'breeder' in c['effects'], base_pri=20),
+
+        'INT': _gen_portraits('ep_f_breeder', 'INT', T, {
+            ('vlow', 'low'):    "The narrative has stopped. The want is the entire story.",
+            ('vlow', 'mid'):    "She cannot narrate anymore. The body is speaking in a language she has forgotten.",
+            ('vlow', 'high'):   "Thought has scattered. The body is the only logic left.",
+            ('low', 'low'):     "Still trying to narrate what the compulsion wants. The words are failing her.",
+            ('low', 'mid'):     "She knows what the body wants. The knowing is not giving her distance from it.",
+            ('low', 'high'):    "The analysis has collapsed into want.",
+            ('bav', 'low'):     "She is narrating the compulsion to herself. The narration is not stopping it.",
+            ('bav', 'mid'):     "Still aware of what is happening. The awareness is dissolving into acceptance.",
+            ('avg', 'low'):     "She is observing the compulsion with perfect clarity. The clarity is not helping.",
+            ('avg', 'mid'):     "Clear thought and the body wanting are happening at the same time. She is still narrating.",
+            ('avg', 'high'):    "The thought is still intact. The body is asking in words she understands.",
+            ('aav', 'low'):     "Sharp. She can describe what the body wants and why. The description is academic.",
+            ('aav', 'mid'):     "The intelligence is narrating the compulsion beautifully. The beauty of the narration is making the want sharper.",
+            ('aav', 'high'):    "She is narrating herself into acceptance. The words are too clear.",
+            ('high', 'low'):    "Still perfectly articulate. The body is speaking a language she understands completely.",
+            ('high', 'mid'):    "The analysis is still intact but it is now in service to the want. She is explaining to herself why the body is right.",
+            ('high', 'high'):   "The intelligence is describing the compulsion with total precision and cannot stop it.",
+            ('vhi', 'mid'):     "The narration has become a weapon she is using on herself. The body wanted and now the mind is explaining why.",
+            ('vhi', 'high'):    "The brilliant observation of her own desire. The tragedy is she can describe exactly what is happening and cannot stop it.",
+            ('exc', 'high'):    "Perfect clarity. The intelligence is narrating the want in real time and the want is still the only thing that moves.",
+        }, extra_cond=lambda s,c: 'breeder' in c['effects'], base_pri=20),
+
+        'WIS': _gen_portraits('ep_f_breeder', 'WIS', T, {
+            ('vlow', 'low'):    "No choice left. The body has chosen.",
+            ('vlow', 'mid'):    "The discernment has dissolved. The compulsion is the only signal remaining.",
+            ('vlow', 'high'):   "No reading of consequence. The body is moving.",
+            ('low', 'low'):     "She has not yet chosen. The body is already moving.",
+            ('low', 'mid'):     "The wisdom of hesitation is gone. The body is the only counsel she hears.",
+            ('low', 'high'):    "The body is making sense now. The understanding has shifted sides.",
+            ('avg', 'low'):     "She is still weighing the compulsion. The weight is moving toward yes.",
+            ('avg', 'mid'):     "The discernment is present but it is watching the body move. The choice is narrowing.",
+            ('avg', 'high'):    "Still considering. The body is making a very persuasive argument.",
+            ('high', 'low'):    "She is still choosing. The compulsion is louder than it was but the choice is still hers.",
+            ('high', 'mid'):    "The wisdom is present. The body is asking and the wisdom is starting to agree.",
+            ('high', 'high'):   "Still present with the compulsion. The wisdom is choosing to let it.",
+            ('vhi', 'mid'):     "The insight is deep. The body wants and the wisdom understands why.",
+            ('vhi', 'high'):    "She has seen the cost and chosen anyway. The compulsion has the wisdom on its side now.",
+            ('exc', 'high'):    "The deep knowing. The body speaks and the wisdom answers yes.",
+        }, extra_cond=lambda s,c: 'breeder' in c['effects'], base_pri=20),
+
+        'CHA': _gen_portraits('ep_f_breeder', 'CHA', T, {
+            ('vlow', 'low'):    "The want is exposed in every line. No wall left.",
+            ('vlow', 'mid'):    "Completely transparent. The body is speaking through every surface.",
+            ('vlow', 'high'):   "The presence is broadcasting the compulsion. There is no subtlety remaining.",
+            ('low', 'low'):     "The want is visible now. The presence cannot hide it.",
+            ('low', 'mid'):     "The magnetism has shifted. The want is radiating outward.",
+            ('low', 'high'):    "The presence is making the compulsion legible to everyone.",
+            ('avg', 'low'):     "The body is readable. The presence is starting to telegraph the want.",
+            ('avg', 'mid'):     "The want is becoming visible in how she moves.",
+            ('avg', 'high'):    "The presence is carrying the signal. The want is becoming audible.",
+            ('high', 'low'):    "Still composed in presence. The want is underneath.",
+            ('high', 'mid'):    "The presence is controlled. The want is a polished edge underneath.",
+            ('high', 'high'):   "The magnetism is serving the composure. The want is dignified.",
+            ('vhi', 'mid'):     "The presence is crystalline. The want is a perfectly controlled warmth.",
+            ('vhi', 'high'):    "The magnetism is a tool. The want is moving through it like light through water.",
+            ('exc', 'high'):    "The presence is a weapon. The want is moving through it with perfect grace.",
+        }, extra_cond=lambda s,c: 'breeder' in c['effects'], base_pri=20),
+
+        'DOM': _gen_portraits('ep_f_breeder', 'DOM', T, {
+            ('vlow', 'low'):    "The pride is drowning. The compulsion is the only voice.",
+            ('vlow', 'mid'):    "The dominance has collapsed. The body is the authority now.",
+            ('vlow', 'high'):   "The pride is gone. The compulsion has full control.",
+            ('low', 'low'):     "The pride is losing. The compulsion is an argument it cannot win.",
+            ('low', 'mid'):     "The dominance is sliding. The body has a prior claim.",
+            ('low', 'high'):    "The pride has lost this round. The body is in charge.",
+            ('avg', 'low'):     "The pride is watching the compulsion work. Disapproving.",
+            ('avg', 'mid'):     "The dominance is present but it is negotiating with the body now.",
+            ('avg', 'high'):    "The pride is still in the room but it is losing ground.",
+            ('high', 'low'):    "The pride is holding the line. The body is patient.",
+            ('high', 'mid'):    "The dominance is the master. The compulsion is the servant waiting.",
+            ('high', 'high'):   "The pride is absolute. The body is asking permission.",
+            ('vhi', 'mid'):     "The dominance is unshakeable. The want is beneath the dignity of refusal.",
+            ('vhi', 'high'):    "The pride is untouchable. The compulsion is something pleasant she is choosing to do.",
+            ('exc', 'high'):    "Complete mastery. The body wants and she is allowing it because she has already decided.",
+        }, extra_cond=lambda s,c: 'breeder' in c['effects'], base_pri=20),
+
+        'SUB': _gen_portraits('ep_f_breeder', 'SUB', T, {
+            ('vlow', 'low'):    "The yielding has taken her completely. The body is the only choice.",
+            ('vlow', 'mid'):    "The submission is total. The compulsion is what she is made for.",
+            ('vlow', 'high'):   "The want and the yield have become one. The body is home.",
+            ('low', 'low'):     "The pull of the compulsion is stronger than the resistance in her.",
+            ('low', 'mid'):     "The yield is opening to the want. The submission feels like truth.",
+            ('low', 'high'):    "The submission is complete. The body has taken her.",
+            ('avg', 'low'):     "The want is arriving. The yield instinct is meeting it.",
+            ('avg', 'mid'):     "The compulsion and the pull are pointing the same direction.",
+            ('avg', 'high'):    "The submission is starting to feel like what she wants.",
+            ('high', 'low'):    "The yield is present. The want is what she is choosing.",
+            ('high', 'mid'):    "The submission is there but it is her choice. The body is asking and the choice is yes.",
+            ('high', 'high'):   "The want is something she can surrender to with absolute clarity.",
+            ('vhi', 'mid'):     "The yield has the intelligence of wisdom behind it. The submission is chosen.",
+            ('vhi', 'high'):    "The compulsion is what the deepest part of her wants. The surrender is perfect.",
+            ('exc', 'high'):    "The want has the weight of inevitability. The submission is the only answer that makes sense.",
+        }, extra_cond=lambda s,c: 'breeder' in c['effects'], base_pri=20),
+    }
+
+    # ─── TRANS_MALE ───
+    breeder['trans_male'] = breeder['male'].copy()
+
+    # ─── TRANS_FEMALE ───
+    breeder['trans_female'] = breeder['female'].copy()
+
+    # ─── INTERSEX ───
+    breeder['intersex'] = {
+        'CON': _gen_portraits('ep_x_breeder', 'CON', T, {
+            ('vlow', 'low'):    "The body has seized. The compulsion is the only weight in the room.",
+            ('vlow', 'mid'):    "Composure is gone. The body is raw need.",
+            ('vlow', 'high'):   "No holding. The body is speaking directly.",
+            ('low', 'low'):     "The body is speaking louder than thought.",
+            ('low', 'mid'):     "Still breathing. The body wants more.",
+            ('low', 'high'):    "The body is translating want into motion.",
+            ('avg', 'low'):     "The compulsion is present. They are noticing.",
+            ('avg', 'mid'):     "The body is making a request. They are considering it.",
+            ('avg', 'high'):    "Still composed. The want is underneath.",
+            ('high', 'low'):    "The want arrives and departs like breath. Managed.",
+            ('high', 'mid'):    "The composure is holding the compulsion at a distance.",
+            ('high', 'high'):   "The iron composure is still standing. The body is asking very politely.",
+            ('vhi', 'mid'):     "Complete control. The body is patient.",
+            ('vhi', 'high'):    "The body is a tool. The will is the only thing moving it.",
+            ('exc', 'high'):    "The want arrives in perfect silence. They do not flinch.",
+        }, extra_cond=lambda s,c: 'breeder' in c['effects'], base_pri=20),
+
+        'INT': _gen_portraits('ep_x_breeder', 'INT', T, {
+            ('vlow', 'low'):    "The narrative has stopped. The want is the entire story.",
+            ('vlow', 'mid'):    "They cannot narrate anymore. The body is speaking in a language they have forgotten.",
+            ('vlow', 'high'):   "Thought has scattered. The body is the only logic left.",
+            ('low', 'low'):     "Still trying to narrate what the compulsion wants. The words are failing them.",
+            ('low', 'mid'):     "They know what the body wants. The knowing is not giving them distance from it.",
+            ('low', 'high'):    "The analysis has collapsed into want.",
+            ('bav', 'low'):     "They are narrating the compulsion to themselves. The narration is not stopping it.",
+            ('bav', 'mid'):     "Still aware of what is happening. The awareness is dissolving into acceptance.",
+            ('avg', 'low'):     "They are observing the compulsion with perfect clarity. The clarity is not helping.",
+            ('avg', 'mid'):     "Clear thought and the body wanting are happening at the same time. They are still narrating.",
+            ('avg', 'high'):    "The thought is still intact. The body is asking in words they understand.",
+            ('aav', 'low'):     "Sharp. They can describe what the body wants and why. The description is academic.",
+            ('aav', 'mid'):     "The intelligence is narrating the compulsion beautifully. The beauty of the narration is making the want sharper.",
+            ('aav', 'high'):    "They are narrating themselves into acceptance. The words are too clear.",
+            ('high', 'low'):    "Still perfectly articulate. The body is speaking a language they understand completely.",
+            ('high', 'mid'):    "The analysis is still intact but it is now in service to the want. They are explaining to themselves why the body is right.",
+            ('high', 'high'):   "The intelligence is describing the compulsion with total precision and cannot stop it.",
+            ('vhi', 'mid'):     "The narration has become a weapon they are using on themselves. The body wanted and now the mind is explaining why.",
+            ('vhi', 'high'):    "The brilliant observation of their own desire. The tragedy is they can describe exactly what is happening and cannot stop it.",
+            ('exc', 'high'):    "Perfect clarity. The intelligence is narrating the want in real time and the want is still the only thing that moves.",
+        }, extra_cond=lambda s,c: 'breeder' in c['effects'], base_pri=20),
+
+        'WIS': _gen_portraits('ep_x_breeder', 'WIS', T, {
+            ('vlow', 'low'):    "No choice left. The body has chosen.",
+            ('vlow', 'mid'):    "The discernment has dissolved. The compulsion is the only signal remaining.",
+            ('vlow', 'high'):   "No reading of consequence. The body is moving.",
+            ('low', 'low'):     "They have not yet chosen. The body is already moving.",
+            ('low', 'mid'):     "The wisdom of hesitation is gone. The body is the only counsel they hear.",
+            ('low', 'high'):    "The body is making sense now. The understanding has shifted sides.",
+            ('avg', 'low'):     "They are still weighing the compulsion. The weight is moving toward yes.",
+            ('avg', 'mid'):     "The discernment is present but it is watching the body move. The choice is narrowing.",
+            ('avg', 'high'):    "Still considering. The body is making a very persuasive argument.",
+            ('high', 'low'):    "They are still choosing. The compulsion is louder than it was but the choice is still theirs.",
+            ('high', 'mid'):    "The wisdom is present. The body is asking and the wisdom is starting to agree.",
+            ('high', 'high'):   "Still present with the compulsion. The wisdom is choosing to let it.",
+            ('vhi', 'mid'):     "The insight is deep. The body wants and the wisdom understands why.",
+            ('vhi', 'high'):    "They have seen the cost and chosen anyway. The compulsion has the wisdom on its side now.",
+            ('exc', 'high'):    "The deep knowing. The body speaks and the wisdom answers yes.",
+        }, extra_cond=lambda s,c: 'breeder' in c['effects'], base_pri=20),
+
+        'CHA': _gen_portraits('ep_x_breeder', 'CHA', T, {
+            ('vlow', 'low'):    "The want is exposed in every line. No wall left.",
+            ('vlow', 'mid'):    "Completely transparent. The body is speaking through every surface.",
+            ('vlow', 'high'):   "The presence is broadcasting the compulsion. There is no subtlety remaining.",
+            ('low', 'low'):     "The want is visible now. The presence cannot hide it.",
+            ('low', 'mid'):     "The magnetism has shifted. The want is radiating outward.",
+            ('low', 'high'):    "The presence is making the compulsion legible to everyone.",
+            ('avg', 'low'):     "The body is readable. The presence is starting to telegraph the want.",
+            ('avg', 'mid'):     "The want is becoming visible in how they move.",
+            ('avg', 'high'):    "The presence is carrying the signal. The want is becoming audible.",
+            ('high', 'low'):    "Still composed in presence. The want is underneath.",
+            ('high', 'mid'):    "The presence is controlled. The want is a polished edge underneath.",
+            ('high', 'high'):   "The magnetism is serving the composure. The want is dignified.",
+            ('vhi', 'mid'):     "The presence is crystalline. The want is a perfectly controlled warmth.",
+            ('vhi', 'high'):    "The magnetism is a tool. The want is moving through it like light through water.",
+            ('exc', 'high'):    "The presence is a weapon. The want is moving through it with perfect grace.",
+        }, extra_cond=lambda s,c: 'breeder' in c['effects'], base_pri=20),
+
+        'DOM': _gen_portraits('ep_x_breeder', 'DOM', T, {
+            ('vlow', 'low'):    "The pride is drowning. The compulsion is the only voice.",
+            ('vlow', 'mid'):    "The dominance has collapsed. The body is the authority now.",
+            ('vlow', 'high'):   "The pride is gone. The compulsion has full control.",
+            ('low', 'low'):     "The pride is losing. The compulsion is an argument it cannot win.",
+            ('low', 'mid'):     "The dominance is sliding. The body has a prior claim.",
+            ('low', 'high'):    "The pride has lost this round. The body is in charge.",
+            ('avg', 'low'):     "The pride is watching the compulsion work. Disapproving.",
+            ('avg', 'mid'):     "The dominance is present but it is negotiating with the body now.",
+            ('avg', 'high'):    "The pride is still in the room but it is losing ground.",
+            ('high', 'low'):    "The pride is holding the line. The body is patient.",
+            ('high', 'mid'):    "The dominance is the master. The compulsion is the servant waiting.",
+            ('high', 'high'):   "The pride is absolute. The body is asking permission.",
+            ('vhi', 'mid'):     "The dominance is unshakeable. The want is beneath the dignity of refusal.",
+            ('vhi', 'high'):    "The pride is untouchable. The compulsion is something pleasant they are choosing to do.",
+            ('exc', 'high'):    "Complete mastery. The body wants and they are allowing it because they have already decided.",
+        }, extra_cond=lambda s,c: 'breeder' in c['effects'], base_pri=20),
+
+        'SUB': _gen_portraits('ep_x_breeder', 'SUB', T, {
+            ('vlow', 'low'):    "The yielding has taken them completely. The body is the only choice.",
+            ('vlow', 'mid'):    "The submission is total. The compulsion is what they are made for.",
+            ('vlow', 'high'):   "The want and the yield have become one. The body is home.",
+            ('low', 'low'):     "The pull of the compulsion is stronger than the resistance in them.",
+            ('low', 'mid'):     "The yield is opening to the want. The submission feels like truth.",
+            ('low', 'high'):    "The submission is complete. The body has taken them.",
+            ('avg', 'low'):     "The want is arriving. The yield instinct is meeting it.",
+            ('avg', 'mid'):     "The compulsion and the pull are pointing the same direction.",
+            ('avg', 'high'):    "The submission is starting to feel like what they want.",
+            ('high', 'low'):    "The yield is present. The want is what they are choosing.",
+            ('high', 'mid'):    "The submission is there but it is their choice. The body is asking and the choice is yes.",
+            ('high', 'high'):   "The want is something they can surrender to with absolute clarity.",
+            ('vhi', 'mid'):     "The yield has the intelligence of wisdom behind it. The submission is chosen.",
+            ('vhi', 'high'):    "The compulsion is what the deepest part of them wants. The surrender is perfect.",
+            ('exc', 'high'):    "The want has the weight of inevitability. The submission is the only answer that makes sense.",
+        }, extra_cond=lambda s,c: 'breeder' in c['effects'], base_pri=20),
+    }
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # DENIAL PORTRAITS
+    # ═══════════════════════════════════════════════════════════════════════════
+    denial = {}
+
+    # ─── MALE ───
+    denial['male'] = {
+        'CON': _gen_portraits('ep_m_denial', 'CON', T, {
+            ('vlow', 'low'):    "The composure is shattered. The edge is all there is left.",
+            ('vlow', 'mid'):    "Barely holding. The frustration is the only thing keeping him vertical.",
+            ('vlow', 'high'):   "The body is screaming and the composure is gone.",
+            ('low', 'low'):     "The edge is brittle now. Cracking.",
+            ('low', 'mid'):     "Holding by will alone. The hold is deteriorating.",
+            ('low', 'high'):    "The composure is tissue-thin. One more second.",
+            ('avg', 'low'):     "The frustration is present. He is still breathing through it.",
+            ('avg', 'mid'):     "Still solid underneath. The edge is becoming visible.",
+            ('avg', 'high'):    "The breath is still steady. The hold is firm but the cost is rising.",
+            ('high', 'low'):    "The composure is steady. The frustration is registered and managed.",
+            ('high', 'mid'):    "Still completely controlled. The release is being postponed with precision.",
+            ('high', 'high'):   "The iron composure is holding. The frustration is a fact he is accepting.",
+            ('vhi', 'mid'):     "Absolute control. The holding is effortless.",
+            ('vhi', 'high'):    "The composure is unshakeable. The denied release is irrelevant to him.",
+            ('exc', 'high'):    "Perfect calm. The frustration cannot touch the control.",
+        }, extra_cond=lambda s,c: 'denial' in c['effects'], base_pri=20),
+
+        'INT': _gen_portraits('ep_m_denial', 'INT', T, {
+            ('vlow', 'low'):    "The thought has fractured. The need is all that registers.",
+            ('vlow', 'mid'):    "He cannot think clearly. The frustration has scrambled everything.",
+            ('vlow', 'high'):   "Thought is gone. The body is the only language remaining.",
+            ('low', 'low'):     "Still trying to narrate. The narration is dissolving into need.",
+            ('low', 'mid'):     "The clarity is breaking down. The need is overwhelming the thought.",
+            ('low', 'high'):    "He cannot hold the analysis. The need has the entire room.",
+            ('bav', 'low'):     "He is aware of what is happening. The awareness is not protecting him from it.",
+            ('bav', 'mid'):     "Still observing the denial. The observation is painful.",
+            ('avg', 'low'):     "He is describing the frustration to himself. The description is making it sharper.",
+            ('avg', 'mid'):     "The thought is intact but it is all focused on the denial.",
+            ('avg', 'high'):    "Clear about what he cannot have. The clarity is torture.",
+            ('aav', 'low'):     "Sharp and articulate about the trap. The sharp knowing is part of the trap.",
+            ('aav', 'mid'):     "The intelligence is narrating the denial beautifully. The beauty is the cruelty.",
+            ('aav', 'high'):    "He is describing in perfect detail why he cannot release. The description is the lock.",
+            ('high', 'low'):    "The analysis is precise. He understands the mechanism perfectly and is still caught in it.",
+            ('high', 'mid'):    "The intelligence is describing the edge with mathematical precision. The math is unforgiving.",
+            ('high', 'high'):   "The brilliant observation of his own frustration. He can see exactly why he cannot have release and cannot stop looking.",
+            ('vhi', 'mid'):     "The narration is a form of control he is maintaining. The control requires constant articulation of the trap.",
+            ('vhi', 'high'):    "Perfect clarity on the denial mechanism. The clarity is ice. The frustration cannot touch the understanding.",
+            ('exc', 'high'):    "Absolute brilliance in the observation of his own denial. The detachment is complete.",
+        }, extra_cond=lambda s,c: 'denial' in c['effects'], base_pri=20),
+
+        'WIS': _gen_portraits('ep_m_denial', 'WIS', T, {
+            ('vlow', 'low'):    "No escape visible. The trap is the only thing he sees.",
+            ('vlow', 'mid'):    "The wisdom has collapsed into panic. The need is the only voice.",
+            ('vlow', 'high'):   "No way out. No way through. Only the frustration.",
+            ('low', 'low'):     "He cannot find the exit. The frustration is all directions.",
+            ('low', 'mid'):     "The wisdom is drowning in the need. The trap is absolute.",
+            ('low', 'high'):    "No path forward that leads to release. The denial is complete.",
+            ('avg', 'low'):     "He is seeing the trap clearly. The seeing is not helping.",
+            ('avg', 'mid'):     "The wisdom is present. The wisdom is watching the trap. The watching is not helping.",
+            ('avg', 'high'):    "He understands what is happening. The understanding is not stopping it.",
+            ('high', 'low'):    "He is still seeing the way through. The way is closed to him.",
+            ('high', 'mid'):    "The wisdom is seeing the pattern. The pattern is the prison and it is perfect.",
+            ('high', 'high'):   "Still present with the trap. The wisdom is not offering escape.",
+            ('vhi', 'mid'):     "The deep knowing. The denial is inevitable and he sees why.",
+            ('vhi', 'high'):    "He has seen the entire lock. The seeing has accepted it as inevitable.",
+            ('exc', 'high'):    "The profound understanding. The denial is written in the very structure of things.",
+        }, extra_cond=lambda s,c: 'denial' in c['effects'], base_pri=20),
+
+        'CHA': _gen_portraits('ep_m_denial', 'CHA', T, {
+            ('vlow', 'low'):    "The presence is fraying. The frustration is visible everywhere.",
+            ('vlow', 'mid'):    "Completely transparent. The need is broadcasting through every surface.",
+            ('vlow', 'high'):   "No control over the broadcast. The frustration is written on him.",
+            ('low', 'low'):     "The frustration is readable in his presence.",
+            ('low', 'mid'):     "The magnetism is distorted by the need. The presence is crackling.",
+            ('low', 'high'):    "The presence is making the denial audible. The frustration radiates.",
+            ('avg', 'low'):     "The surface is holding but the need is beginning to show through.",
+            ('avg', 'mid'):     "The presence is starting to telegraph the frustration.",
+            ('avg', 'high'):    "The magnetism is carrying the signal of the denial.",
+            ('high', 'low'):    "Still composed in presence. The frustration is beneath.",
+            ('high', 'mid'):    "The presence is controlled. The frustration is a polished edge.",
+            ('high', 'high'):   "The magnetism is serving the denial. The frustration is dignified.",
+            ('vhi', 'mid'):     "The presence is crystalline. The denied need is a perfectly controlled warmth underneath.",
+            ('vhi', 'high'):    "The magnetism is a tool. The frustration is moving through it with perfect control.",
+            ('exc', 'high'):    "The presence is armor. The denial is moving through it without any disturbance.",
+        }, extra_cond=lambda s,c: 'denial' in c['effects'], base_pri=20),
+
+        'DOM': _gen_portraits('ep_m_denial', 'DOM', T, {
+            ('vlow', 'low'):    "The pride is obliterated. The need is the only authority.",
+            ('vlow', 'mid'):    "The dominance is shattered. The frustration has all the power.",
+            ('vlow', 'high'):   "The pride is meaningless. The denial is in charge.",
+            ('low', 'low'):     "The pride is losing to the need. The denial is winning.",
+            ('low', 'mid'):     "The dominance is cracking. The frustration is an assault on his power.",
+            ('low', 'high'):    "The pride has lost this battle. The denial is the victor.",
+            ('avg', 'low'):     "The pride is watching the denial work. Present. Resisting.",
+            ('avg', 'mid'):     "The dominance is present but it is negotiating with the frustration.",
+            ('avg', 'high'):    "The pride is in the room. The denial is the stronger presence.",
+            ('high', 'low'):    "The pride is holding the line. The frustration is testing it.",
+            ('high', 'mid'):    "The dominance is the master. The denial is the servant held back.",
+            ('high', 'high'):   "The pride is absolute. The frustration is being held at bay.",
+            ('vhi', 'mid'):     "The dominance is unshakeable. The denial is beneath the dignity of complaint.",
+            ('vhi', 'high'):    "The pride is untouchable. The frustration is something pleasant he is choosing to endure.",
+            ('exc', 'high'):    "Complete mastery. The denial is being experienced as an expression of his will.",
+        }, extra_cond=lambda s,c: 'denial' in c['effects'], base_pri=20),
+
+        'SUB': _gen_portraits('ep_m_denial', 'SUB', T, {
+            ('vlow', 'low'):    "The yielding has taken him completely. The denial is what he is made for.",
+            ('vlow', 'mid'):    "The submission is absolute. The frustration is the purpose.",
+            ('vlow', 'high'):   "The denial and the yield are one. The body is in perfect service.",
+            ('low', 'low'):     "The pull into submission is stronger than any resistance.",
+            ('low', 'mid'):     "The yield is opening to the denial. The frustration feels like meaning.",
+            ('low', 'high'):    "The submission is complete. The denial has him entirely.",
+            ('avg', 'low'):     "The frustration is arriving. The yield instinct is meeting it.",
+            ('avg', 'mid'):     "The denial and the pull are pointing the same direction.",
+            ('avg', 'high'):    "The submission is starting to feel like what he wants.",
+            ('high', 'low'):    "The yield is present. The denial is what he is choosing.",
+            ('high', 'mid'):    "The submission is there but it is his choice. The frustration is asking and the choice is yes.",
+            ('high', 'high'):   "The denial is something he can surrender to with absolute clarity.",
+            ('vhi', 'mid'):     "The yield has the intelligence of wisdom behind it. The submission is chosen.",
+            ('vhi', 'high'):    "The denial is what the deepest part of him wants. The surrender is perfect.",
+            ('exc', 'high'):    "The frustration has the weight of inevitability. The submission is the only answer that makes sense.",
+        }, extra_cond=lambda s,c: 'denial' in c['effects'], base_pri=20),
+    }
+
+    # ─── FEMALE ───
+    denial['female'] = {
+        'CON': _gen_portraits('ep_f_denial', 'CON', T, {
+            ('vlow', 'low'):    "The composure is shattered. The edge is all there is left.",
+            ('vlow', 'mid'):    "Barely holding. The frustration is the only thing keeping her vertical.",
+            ('vlow', 'high'):   "The body is screaming and the composure is gone.",
+            ('low', 'low'):     "The edge is brittle now. Cracking.",
+            ('low', 'mid'):     "Holding by will alone. The hold is deteriorating.",
+            ('low', 'high'):    "The composure is tissue-thin. One more second.",
+            ('avg', 'low'):     "The frustration is present. She is still breathing through it.",
+            ('avg', 'mid'):     "Still solid underneath. The edge is becoming visible.",
+            ('avg', 'high'):    "The breath is still steady. The hold is firm but the cost is rising.",
+            ('high', 'low'):    "The composure is steady. The frustration is registered and managed.",
+            ('high', 'mid'):    "Still completely controlled. The release is being postponed with precision.",
+            ('high', 'high'):   "The iron composure is holding. The frustration is a fact she is accepting.",
+            ('vhi', 'mid'):     "Absolute control. The holding is effortless.",
+            ('vhi', 'high'):    "The composure is unshakeable. The denied release is irrelevant to her.",
+            ('exc', 'high'):    "Perfect calm. The frustration cannot touch the control.",
+        }, extra_cond=lambda s,c: 'denial' in c['effects'], base_pri=20),
+
+        'INT': _gen_portraits('ep_f_denial', 'INT', T, {
+            ('vlow', 'low'):    "The thought has fractured. The need is all that registers.",
+            ('vlow', 'mid'):    "She cannot think clearly. The frustration has scrambled everything.",
+            ('vlow', 'high'):   "Thought is gone. The body is the only language remaining.",
+            ('low', 'low'):     "Still trying to narrate. The narration is dissolving into need.",
+            ('low', 'mid'):     "The clarity is breaking down. The need is overwhelming the thought.",
+            ('low', 'high'):    "She cannot hold the analysis. The need has the entire room.",
+            ('bav', 'low'):     "She is aware of what is happening. The awareness is not protecting her from it.",
+            ('bav', 'mid'):     "Still observing the denial. The observation is painful.",
+            ('avg', 'low'):     "She is describing the frustration to herself. The description is making it sharper.",
+            ('avg', 'mid'):     "The thought is intact but it is all focused on the denial.",
+            ('avg', 'high'):    "Clear about what she cannot have. The clarity is torture.",
+            ('aav', 'low'):     "Sharp and articulate about the trap. The sharp knowing is part of the trap.",
+            ('aav', 'mid'):     "The intelligence is narrating the denial beautifully. The beauty is the cruelty.",
+            ('aav', 'high'):    "She is describing in perfect detail why she cannot release. The description is the lock.",
+            ('high', 'low'):    "The analysis is precise. She understands the mechanism perfectly and is still caught in it.",
+            ('high', 'mid'):    "The intelligence is describing the edge with mathematical precision. The math is unforgiving.",
+            ('high', 'high'):   "The brilliant observation of her own frustration. She can see exactly why she cannot have release and cannot stop looking.",
+            ('vhi', 'mid'):     "The narration is a form of control she is maintaining. The control requires constant articulation of the trap.",
+            ('vhi', 'high'):    "Perfect clarity on the denial mechanism. The clarity is ice. The frustration cannot touch the understanding.",
+            ('exc', 'high'):    "Absolute brilliance in the observation of her own denial. The detachment is complete.",
+        }, extra_cond=lambda s,c: 'denial' in c['effects'], base_pri=20),
+
+        'WIS': _gen_portraits('ep_f_denial', 'WIS', T, {
+            ('vlow', 'low'):    "No escape visible. The trap is the only thing she sees.",
+            ('vlow', 'mid'):    "The wisdom has collapsed into panic. The need is the only voice.",
+            ('vlow', 'high'):   "No way out. No way through. Only the frustration.",
+            ('low', 'low'):     "She cannot find the exit. The frustration is all directions.",
+            ('low', 'mid'):     "The wisdom is drowning in the need. The trap is absolute.",
+            ('low', 'high'):    "No path forward that leads to release. The denial is complete.",
+            ('avg', 'low'):     "She is seeing the trap clearly. The seeing is not helping.",
+            ('avg', 'mid'):     "The wisdom is present. The wisdom is watching the trap. The watching is not helping.",
+            ('avg', 'high'):    "She understands what is happening. The understanding is not stopping it.",
+            ('high', 'low'):    "She is still seeing the way through. The way is closed to her.",
+            ('high', 'mid'):    "The wisdom is seeing the pattern. The pattern is the prison and it is perfect.",
+            ('high', 'high'):   "Still present with the trap. The wisdom is not offering escape.",
+            ('vhi', 'mid'):     "The deep knowing. The denial is inevitable and she sees why.",
+            ('vhi', 'high'):    "She has seen the entire lock. The seeing has accepted it as inevitable.",
+            ('exc', 'high'):    "The profound understanding. The denial is written in the very structure of things.",
+        }, extra_cond=lambda s,c: 'denial' in c['effects'], base_pri=20),
+
+        'CHA': _gen_portraits('ep_f_denial', 'CHA', T, {
+            ('vlow', 'low'):    "The presence is fraying. The frustration is visible everywhere.",
+            ('vlow', 'mid'):    "Completely transparent. The need is broadcasting through every surface.",
+            ('vlow', 'high'):   "No control over the broadcast. The frustration is written on her.",
+            ('low', 'low'):     "The frustration is readable in her presence.",
+            ('low', 'mid'):     "The magnetism is distorted by the need. The presence is crackling.",
+            ('low', 'high'):    "The presence is making the denial audible. The frustration radiates.",
+            ('avg', 'low'):     "The surface is holding but the need is beginning to show through.",
+            ('avg', 'mid'):     "The presence is starting to telegraph the frustration.",
+            ('avg', 'high'):    "The magnetism is carrying the signal of the denial.",
+            ('high', 'low'):    "Still composed in presence. The frustration is beneath.",
+            ('high', 'mid'):    "The presence is controlled. The frustration is a polished edge.",
+            ('high', 'high'):   "The magnetism is serving the denial. The frustration is dignified.",
+            ('vhi', 'mid'):     "The presence is crystalline. The denied need is a perfectly controlled warmth underneath.",
+            ('vhi', 'high'):    "The magnetism is a tool. The frustration is moving through it with perfect control.",
+            ('exc', 'high'):    "The presence is armor. The denial is moving through it without any disturbance.",
+        }, extra_cond=lambda s,c: 'denial' in c['effects'], base_pri=20),
+
+        'DOM': _gen_portraits('ep_f_denial', 'DOM', T, {
+            ('vlow', 'low'):    "The pride is obliterated. The need is the only authority.",
+            ('vlow', 'mid'):    "The dominance is shattered. The frustration has all the power.",
+            ('vlow', 'high'):   "The pride is meaningless. The denial is in charge.",
+            ('low', 'low'):     "The pride is losing to the need. The denial is winning.",
+            ('low', 'mid'):     "The dominance is cracking. The frustration is an assault on her power.",
+            ('low', 'high'):    "The pride has lost this battle. The denial is the victor.",
+            ('avg', 'low'):     "The pride is watching the denial work. Present. Resisting.",
+            ('avg', 'mid'):     "The dominance is present but it is negotiating with the frustration.",
+            ('avg', 'high'):    "The pride is in the room. The denial is the stronger presence.",
+            ('high', 'low'):    "The pride is holding the line. The frustration is testing it.",
+            ('high', 'mid'):    "The dominance is the master. The denial is the servant held back.",
+            ('high', 'high'):   "The pride is absolute. The frustration is being held at bay.",
+            ('vhi', 'mid'):     "The dominance is unshakeable. The denial is beneath the dignity of complaint.",
+            ('vhi', 'high'):    "The pride is untouchable. The frustration is something pleasant she is choosing to endure.",
+            ('exc', 'high'):    "Complete mastery. The denial is being experienced as an expression of her will.",
+        }, extra_cond=lambda s,c: 'denial' in c['effects'], base_pri=20),
+
+        'SUB': _gen_portraits('ep_f_denial', 'SUB', T, {
+            ('vlow', 'low'):    "The yielding has taken her completely. The denial is what she is made for.",
+            ('vlow', 'mid'):    "The submission is absolute. The frustration is the purpose.",
+            ('vlow', 'high'):   "The denial and the yield are one. The body is in perfect service.",
+            ('low', 'low'):     "The pull into submission is stronger than any resistance.",
+            ('low', 'mid'):     "The yield is opening to the denial. The frustration feels like meaning.",
+            ('low', 'high'):    "The submission is complete. The denial has her entirely.",
+            ('avg', 'low'):     "The frustration is arriving. The yield instinct is meeting it.",
+            ('avg', 'mid'):     "The denial and the pull are pointing the same direction.",
+            ('avg', 'high'):    "The submission is starting to feel like what she wants.",
+            ('high', 'low'):    "The yield is present. The denial is what she is choosing.",
+            ('high', 'mid'):    "The submission is there but it is her choice. The frustration is asking and the choice is yes.",
+            ('high', 'high'):   "The denial is something she can surrender to with absolute clarity.",
+            ('vhi', 'mid'):     "The yield has the intelligence of wisdom behind it. The submission is chosen.",
+            ('vhi', 'high'):    "The denial is what the deepest part of her wants. The surrender is perfect.",
+            ('exc', 'high'):    "The frustration has the weight of inevitability. The submission is the only answer that makes sense.",
+        }, extra_cond=lambda s,c: 'denial' in c['effects'], base_pri=20),
+    }
+
+    # ─── TRANS_MALE ───
+    denial['trans_male'] = denial['male'].copy()
+
+    # ─── TRANS_FEMALE ───
+    denial['trans_female'] = denial['female'].copy()
+
+    # ─── INTERSEX ───
+    denial['intersex'] = {
+        'CON': _gen_portraits('ep_x_denial', 'CON', T, {
+            ('vlow', 'low'):    "The composure is shattered. The edge is all there is left.",
+            ('vlow', 'mid'):    "Barely holding. The frustration is the only thing keeping them vertical.",
+            ('vlow', 'high'):   "The body is screaming and the composure is gone.",
+            ('low', 'low'):     "The edge is brittle now. Cracking.",
+            ('low', 'mid'):     "Holding by will alone. The hold is deteriorating.",
+            ('low', 'high'):    "The composure is tissue-thin. One more second.",
+            ('avg', 'low'):     "The frustration is present. They are still breathing through it.",
+            ('avg', 'mid'):     "Still solid underneath. The edge is becoming visible.",
+            ('avg', 'high'):    "The breath is still steady. The hold is firm but the cost is rising.",
+            ('high', 'low'):    "The composure is steady. The frustration is registered and managed.",
+            ('high', 'mid'):    "Still completely controlled. The release is being postponed with precision.",
+            ('high', 'high'):   "The iron composure is holding. The frustration is a fact they are accepting.",
+            ('vhi', 'mid'):     "Absolute control. The holding is effortless.",
+            ('vhi', 'high'):    "The composure is unshakeable. The denied release is irrelevant to them.",
+            ('exc', 'high'):    "Perfect calm. The frustration cannot touch the control.",
+        }, extra_cond=lambda s,c: 'denial' in c['effects'], base_pri=20),
+
+        'INT': _gen_portraits('ep_x_denial', 'INT', T, {
+            ('vlow', 'low'):    "The thought has fractured. The need is all that registers.",
+            ('vlow', 'mid'):    "They cannot think clearly. The frustration has scrambled everything.",
+            ('vlow', 'high'):   "Thought is gone. The body is the only language remaining.",
+            ('low', 'low'):     "Still trying to narrate. The narration is dissolving into need.",
+            ('low', 'mid'):     "The clarity is breaking down. The need is overwhelming the thought.",
+            ('low', 'high'):    "They cannot hold the analysis. The need has the entire room.",
+            ('bav', 'low'):     "They are aware of what is happening. The awareness is not protecting them from it.",
+            ('bav', 'mid'):     "Still observing the denial. The observation is painful.",
+            ('avg', 'low'):     "They are describing the frustration to themselves. The description is making it sharper.",
+            ('avg', 'mid'):     "The thought is intact but it is all focused on the denial.",
+            ('avg', 'high'):    "Clear about what they cannot have. The clarity is torture.",
+            ('aav', 'low'):     "Sharp and articulate about the trap. The sharp knowing is part of the trap.",
+            ('aav', 'mid'):     "The intelligence is narrating the denial beautifully. The beauty is the cruelty.",
+            ('aav', 'high'):    "They are describing in perfect detail why they cannot release. The description is the lock.",
+            ('high', 'low'):    "The analysis is precise. They understand the mechanism perfectly and are still caught in it.",
+            ('high', 'mid'):    "The intelligence is describing the edge with mathematical precision. The math is unforgiving.",
+            ('high', 'high'):   "The brilliant observation of their own frustration. They can see exactly why they cannot have release and cannot stop looking.",
+            ('vhi', 'mid'):     "The narration is a form of control they are maintaining. The control requires constant articulation of the trap.",
+            ('vhi', 'high'):    "Perfect clarity on the denial mechanism. The clarity is ice. The frustration cannot touch the understanding.",
+            ('exc', 'high'):    "Absolute brilliance in the observation of their own denial. The detachment is complete.",
+        }, extra_cond=lambda s,c: 'denial' in c['effects'], base_pri=20),
+
+        'WIS': _gen_portraits('ep_x_denial', 'WIS', T, {
+            ('vlow', 'low'):    "No escape visible. The trap is the only thing they see.",
+            ('vlow', 'mid'):    "The wisdom has collapsed into panic. The need is the only voice.",
+            ('vlow', 'high'):   "No way out. No way through. Only the frustration.",
+            ('low', 'low'):     "They cannot find the exit. The frustration is all directions.",
+            ('low', 'mid'):     "The wisdom is drowning in the need. The trap is absolute.",
+            ('low', 'high'):    "No path forward that leads to release. The denial is complete.",
+            ('avg', 'low'):     "They are seeing the trap clearly. The seeing is not helping.",
+            ('avg', 'mid'):     "The wisdom is present. The wisdom is watching the trap. The watching is not helping.",
+            ('avg', 'high'):    "They understand what is happening. The understanding is not stopping it.",
+            ('high', 'low'):    "They are still seeing the way through. The way is closed to them.",
+            ('high', 'mid'):    "The wisdom is seeing the pattern. The pattern is the prison and it is perfect.",
+            ('high', 'high'):   "Still present with the trap. The wisdom is not offering escape.",
+            ('vhi', 'mid'):     "The deep knowing. The denial is inevitable and they see why.",
+            ('vhi', 'high'):    "They have seen the entire lock. The seeing has accepted it as inevitable.",
+            ('exc', 'high'):    "The profound understanding. The denial is written in the very structure of things.",
+        }, extra_cond=lambda s,c: 'denial' in c['effects'], base_pri=20),
+
+        'CHA': _gen_portraits('ep_x_denial', 'CHA', T, {
+            ('vlow', 'low'):    "The presence is fraying. The frustration is visible everywhere.",
+            ('vlow', 'mid'):    "Completely transparent. The need is broadcasting through every surface.",
+            ('vlow', 'high'):   "No control over the broadcast. The frustration is written on them.",
+            ('low', 'low'):     "The frustration is readable in their presence.",
+            ('low', 'mid'):     "The magnetism is distorted by the need. The presence is crackling.",
+            ('low', 'high'):    "The presence is making the denial audible. The frustration radiates.",
+            ('avg', 'low'):     "The surface is holding but the need is beginning to show through.",
+            ('avg', 'mid'):     "The presence is starting to telegraph the frustration.",
+            ('avg', 'high'):    "The magnetism is carrying the signal of the denial.",
+            ('high', 'low'):    "Still composed in presence. The frustration is beneath.",
+            ('high', 'mid'):    "The presence is controlled. The frustration is a polished edge.",
+            ('high', 'high'):   "The magnetism is serving the denial. The frustration is dignified.",
+            ('vhi', 'mid'):     "The presence is crystalline. The denied need is a perfectly controlled warmth underneath.",
+            ('vhi', 'high'):    "The magnetism is a tool. The frustration is moving through it with perfect control.",
+            ('exc', 'high'):    "The presence is armor. The denial is moving through it without any disturbance.",
+        }, extra_cond=lambda s,c: 'denial' in c['effects'], base_pri=20),
+
+        'DOM': _gen_portraits('ep_x_denial', 'DOM', T, {
+            ('vlow', 'low'):    "The pride is obliterated. The need is the only authority.",
+            ('vlow', 'mid'):    "The dominance is shattered. The frustration has all the power.",
+            ('vlow', 'high'):   "The pride is meaningless. The denial is in charge.",
+            ('low', 'low'):     "The pride is losing to the need. The denial is winning.",
+            ('low', 'mid'):     "The dominance is cracking. The frustration is an assault on their power.",
+            ('low', 'high'):    "The pride has lost this battle. The denial is the victor.",
+            ('avg', 'low'):     "The pride is watching the denial work. Present. Resisting.",
+            ('avg', 'mid'):     "The dominance is present but it is negotiating with the frustration.",
+            ('avg', 'high'):    "The pride is in the room. The denial is the stronger presence.",
+            ('high', 'low'):    "The pride is holding the line. The frustration is testing it.",
+            ('high', 'mid'):    "The dominance is the master. The denial is the servant held back.",
+            ('high', 'high'):   "The pride is absolute. The frustration is being held at bay.",
+            ('vhi', 'mid'):     "The dominance is unshakeable. The denial is beneath the dignity of complaint.",
+            ('vhi', 'high'):    "The pride is untouchable. The frustration is something pleasant they are choosing to endure.",
+            ('exc', 'high'):    "Complete mastery. The denial is being experienced as an expression of their will.",
+        }, extra_cond=lambda s,c: 'denial' in c['effects'], base_pri=20),
+
+        'SUB': _gen_portraits('ep_x_denial', 'SUB', T, {
+            ('vlow', 'low'):    "The yielding has taken them completely. The denial is what they are made for.",
+            ('vlow', 'mid'):    "The submission is absolute. The frustration is the purpose.",
+            ('vlow', 'high'):   "The denial and the yield are one. The body is in perfect service.",
+            ('low', 'low'):     "The pull into submission is stronger than any resistance.",
+            ('low', 'mid'):     "The yield is opening to the denial. The frustration feels like meaning.",
+            ('low', 'high'):    "The submission is complete. The denial has them entirely.",
+            ('avg', 'low'):     "The frustration is arriving. The yield instinct is meeting it.",
+            ('avg', 'mid'):     "The denial and the pull are pointing the same direction.",
+            ('avg', 'high'):    "The submission is starting to feel like what they want.",
+            ('high', 'low'):    "The yield is present. The denial is what they are choosing.",
+            ('high', 'mid'):    "The submission is there but it is their choice. The frustration is asking and the choice is yes.",
+            ('high', 'high'):   "The denial is something they can surrender to with absolute clarity.",
+            ('vhi', 'mid'):     "The yield has the intelligence of wisdom behind it. The submission is chosen.",
+            ('vhi', 'high'):    "The denial is what the deepest part of them wants. The surrender is perfect.",
+            ('exc', 'high'):    "The frustration has the weight of inevitability. The submission is the only answer that makes sense.",
+        }, extra_cond=lambda s,c: 'denial' in c['effects'], base_pri=20),
+    }
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # BIMBO PORTRAITS
+    # ═══════════════════════════════════════════════════════════════════════════
+    bimbo = {}
+
+    # ─── MALE ───
+    bimbo['male'] = {
+        'CON': _gen_portraits('ep_m_bimbo', 'CON', T, {
+            ('vlow', 'low'):    "The thoughts are scattering. The body is feeling good. That is enough.",
+            ('vlow', 'mid'):    "Too simple to think clearly. The body is happy. That is the thought.",
+            ('vlow', 'high'):   "The complexity is gone. Everything feels good. Everything is good.",
+            ('low', 'low'):     "The thoughts are thinning. The body is... nice. Yes.",
+            ('low', 'mid'):     "Harder to hold the complicated parts. The feeling is easier.",
+            ('low', 'high'):    "The body is feeling things. That is all that matters now.",
+            ('avg', 'low'):     "Something is becoming simpler. The composure is still here but it is noticing the simplicity.",
+            ('avg', 'mid'):     "The body is feeling good. The composure is becoming background noise.",
+            ('avg', 'high'):    "Still holding composure. The body is getting louder.",
+            ('high', 'low'):    "The composure is steady. Something is trying to make things simple and it is not working.",
+            ('high', 'mid'):    "The composure is holding the complexity. The simplicity is underneath trying to speak.",
+            ('high', 'high'):   "The iron composure is standing. The body is very happy and the composure is not allowing it to matter.",
+            ('vhi', 'mid'):     "Complete control. The thought is as complex as he needs it to be.",
+            ('vhi', 'high'):    "The body is speaking in simplified language and he is not listening.",
+            ('exc', 'high'):    "Absolute clarity. The simplicity cannot touch the architecture of his thinking.",
+        }, extra_cond=lambda s,c: 'bimbo' in c['effects'], base_pri=20),
+
+        'INT': _gen_portraits('ep_m_bimbo', 'INT', T, {
+            ('vlow', 'low'):    "The thoughts are leaving. The body is all there is.",
+            ('vlow', 'mid'):    "He cannot think anymore. The words are prettier than meaning.",
+            ('vlow', 'high'):   "The intelligence has dissolved. Everything is pretty and simple.",
+            ('low', 'low'):     "The analysis is starting to evaporate. Words are becoming harder.",
+            ('low', 'mid'):     "The clarity is breaking down into prettier thoughts. The body is speaking louder than the mind.",
+            ('low', 'high'):    "The mind cannot hold the complex thoughts. The simple version is all that is left.",
+            ('bav', 'low'):     "He is trying to narrate what is happening and the narration is becoming simpler.",
+            ('bav', 'mid'):     "Still aware but the awareness is getting thinner. The simple version is becoming the whole story.",
+            ('avg', 'low'):     "He is observing the simplification. The observation is getting simpler too.",
+            ('avg', 'mid'):     "The thought is intact but it is becoming prettier. The pretty thoughts are what matter.",
+            ('avg', 'high'):    "Clear thought and the body speaking are happening at the same time. The body is winning the argument.",
+            ('aav', 'low'):     "Sharp but becoming less sharp. The sharp edges are falling away like they do not matter.",
+            ('aav', 'mid'):     "The intelligence is narrating but in simpler and prettier language. The simplification is beautiful.",
+            ('aav', 'high'):    "He is articulate but the articulation is becoming decoration. The thought underneath is dissolving.",
+            ('high', 'low'):    "Still perfectly clear but the clarity is becoming surface decoration. The simple version is deeper.",
+            ('high', 'mid'):    "The analysis is still perfect but it is about prettier things now. The complexity is becoming irrelevant.",
+            ('high', 'high'):   "The brilliant observation of a body becoming simple and beautiful. The intelligence is watching the mind go away.",
+            ('vhi', 'mid'):     "The narration is precise about the simplification. The precision is about how much he is not thinking.",
+            ('vhi', 'high'):    "Brilliant clarity on the beauty of not thinking. The intelligence is narrating its own dissolution into simplicity.",
+            ('exc', 'high'):    "Perfect articulation of thoughts becoming simple and pretty. The excellence is describing how excellence is leaving.",
+        }, extra_cond=lambda s,c: 'bimbo' in c['effects'], base_pri=20),
+
+        'WIS': _gen_portraits('ep_m_bimbo', 'WIS', T, {
+            ('vlow', 'low'):    "No choices to weigh. The body is what makes sense now.",
+            ('vlow', 'mid'):    "The discernment has dissolved into simple truth. The body is truth.",
+            ('vlow', 'high'):   "No past. No future. Only the body being beautiful and happy.",
+            ('low', 'low'):     "The choice-making is getting harder. The body is becoming the only answer.",
+            ('low', 'mid'):     "The wisdom of thinking is fading. The body is making more sense than thought.",
+            ('low', 'high'):    "No path forward except what the body is saying. The body is right.",
+            ('avg', 'low'):     "The wisdom is still present but it is becoming distracted by the simplicity.",
+            ('avg', 'mid'):     "The discernment is starting to agree with the body. The body is making sense.",
+            ('avg', 'high'):    "Still considering but the body is making better arguments.",
+            ('high', 'low'):    "The wisdom is holding but it is noticing the beauty of not thinking.",
+            ('high', 'mid'):    "The discernment is starting to see the point of simplicity.",
+            ('high', 'high'):   "Still present with the choices. The body is an acceptable choice.",
+            ('vhi', 'mid'):     "The insight is deep. Thinking less is becoming wisdom.",
+            ('vhi', 'high'):    "The deep knowing says that simplicity is beautiful and he is choosing to agree.",
+            ('exc', 'high'):    "The profound understanding that the body speaking simply is more true than complex thought.",
+        }, extra_cond=lambda s,c: 'bimbo' in c['effects'], base_pri=20),
+
+        'CHA': _gen_portraits('ep_m_bimbo', 'CHA', T, {
+            ('vlow', 'low'):    "The presence is becoming simple and bright. The brightness is all there is.",
+            ('vlow', 'mid'):    "The magnetism is dissolving into something prettier. The pretty is radiating.",
+            ('vlow', 'high'):   "No complexity in the presence anymore. Just bright and happy.",
+            ('low', 'low'):     "The presence is becoming prettier. The complexity is falling away.",
+            ('low', 'mid'):     "The magnetism is shifting to something simpler and brighter.",
+            ('low', 'high'):    "The presence is becoming magnetic in a simpler way. The brightness is everything.",
+            ('avg', 'low'):     "The presence is starting to simplify. Something prettier is emerging.",
+            ('avg', 'mid'):     "The magnetism is carrying a simpler signal. The signal is becoming prettier.",
+            ('avg', 'high'):    "The presence is shifting. The simple version is becoming more visible.",
+            ('high', 'low'):    "The presence is controlled but the control is noticing the beauty underneath.",
+            ('high', 'mid'):    "The magnetism is serving the simplification. The brightness is becoming visible.",
+            ('high', 'high'):   "The presence is still complex but the simpler version is showing through.",
+            ('vhi', 'mid'):     "The presence is crystalline. The simplification is a perfectly controlled brightness.",
+            ('vhi', 'high'):    "The magnetism is a tool. The simplicity is moving through it with perfect grace.",
+            ('exc', 'high'):    "The presence is armor. The brightness is moving through it like light.",
+        }, extra_cond=lambda s,c: 'bimbo' in c['effects'], base_pri=20),
+
+        'DOM': _gen_portraits('ep_m_bimbo', 'DOM', T, {
+            ('vlow', 'low'):    "The pride is drowning in simplicity. The body is happy and that is enough.",
+            ('vlow', 'mid'):    "The dominance has dissolved. The simplicity is the only authority.",
+            ('vlow', 'high'):   "No pride left. The body is happy and beautiful. That is everything.",
+            ('low', 'low'):     "The pride is losing to the simplicity. The body is becoming prettier.",
+            ('low', 'mid'):     "The dominance is fading. The simplicity is more powerful than control.",
+            ('low', 'high'):    "The pride has lost. The happiness is the only thing moving him.",
+            ('avg', 'low'):     "The pride is watching the simplification. Present but noticing the beauty.",
+            ('avg', 'mid'):     "The dominance is present but it is simplifying too.",
+            ('avg', 'high'):    "The pride is in the room. The simplicity is becoming its own kind of power.",
+            ('high', 'low'):    "The pride is holding but it is noticing how pretty the simplicity is.",
+            ('high', 'mid'):    "The dominance is the master. The simplicity is the servant speaking in prettier words.",
+            ('high', 'high'):   "The pride is absolute. The simplicity is something beautiful he is choosing to notice.",
+            ('vhi', 'mid'):     "The dominance is unshakeable. The simplicity is a decoration on his control.",
+            ('vhi', 'high'):    "The pride is untouchable. The happiness is something pleasant he is allowing.",
+            ('exc', 'high'):    "Complete mastery. The simplicity is being integrated into his sophistication.",
+        }, extra_cond=lambda s,c: 'bimbo' in c['effects'], base_pri=20),
+
+        'SUB': _gen_portraits('ep_m_bimbo', 'SUB', T, {
+            ('vlow', 'low'):    "The yielding has taken him completely. The simplicity is what he is made for.",
+            ('vlow', 'mid'):    "The submission is absolute. The happiness is the purpose.",
+            ('vlow', 'high'):   "The simplicity and the yield are one. The body is in perfect service to happiness.",
+            ('low', 'low'):     "The pull toward simplicity is stronger than resistance.",
+            ('low', 'mid'):     "The yield is opening to the simplicity. The happiness feels like truth.",
+            ('low', 'high'):    "The submission is complete. The simplicity has him entirely.",
+            ('avg', 'low'):     "The happiness is arriving. The yield instinct is meeting it.",
+            ('avg', 'mid'):     "The simplicity and the pull are pointing the same direction.",
+            ('avg', 'high'):    "The submission is starting to feel like what he wants.",
+            ('high', 'low'):    "The yield is present. The simplicity is what he is choosing.",
+            ('high', 'mid'):    "The submission is there but it is his choice. The body is asking and the choice is yes.",
+            ('high', 'high'):   "The simplicity is something he can surrender to with absolute clarity.",
+            ('vhi', 'mid'):     "The yield has the intelligence of wisdom behind it. The submission is chosen.",
+            ('vhi', 'high'):    "The simplicity is what the deepest part of him wants. The surrender is perfect.",
+            ('exc', 'high'):    "The happiness has the weight of inevitability. The submission is the only answer that makes sense.",
+        }, extra_cond=lambda s,c: 'bimbo' in c['effects'], base_pri=20),
+    }
+
+    # ─── FEMALE ───
+    bimbo['female'] = {
+        'CON': _gen_portraits('ep_f_bimbo', 'CON', T, {
+            ('vlow', 'low'):    "The thoughts are scattering. The body is feeling good. That is enough.",
+            ('vlow', 'mid'):    "Too simple to think clearly. The body is happy. That is the thought.",
+            ('vlow', 'high'):   "The complexity is gone. Everything feels good. Everything is good.",
+            ('low', 'low'):     "The thoughts are thinning. The body is... nice. Yes.",
+            ('low', 'mid'):     "Harder to hold the complicated parts. The feeling is easier.",
+            ('low', 'high'):    "The body is feeling things. That is all that matters now.",
+            ('avg', 'low'):     "Something is becoming simpler. The composure is still here but it is noticing the simplicity.",
+            ('avg', 'mid'):     "The body is feeling good. The composure is becoming background noise.",
+            ('avg', 'high'):    "Still holding composure. The body is getting louder.",
+            ('high', 'low'):    "The composure is steady. Something is trying to make things simple and it is not working.",
+            ('high', 'mid'):    "The composure is holding the complexity. The simplicity is underneath trying to speak.",
+            ('high', 'high'):   "The iron composure is standing. The body is very happy and the composure is not allowing it to matter.",
+            ('vhi', 'mid'):     "Complete control. The thought is as complex as she needs it to be.",
+            ('vhi', 'high'):    "The body is speaking in simplified language and she is not listening.",
+            ('exc', 'high'):    "Absolute clarity. The simplicity cannot touch the architecture of her thinking.",
+        }, extra_cond=lambda s,c: 'bimbo' in c['effects'], base_pri=20),
+
+        'INT': _gen_portraits('ep_f_bimbo', 'INT', T, {
+            ('vlow', 'low'):    "The thoughts are leaving. The body is all there is.",
+            ('vlow', 'mid'):    "She cannot think anymore. The words are prettier than meaning.",
+            ('vlow', 'high'):   "The intelligence has dissolved. Everything is pretty and simple.",
+            ('low', 'low'):     "The analysis is starting to evaporate. Words are becoming harder.",
+            ('low', 'mid'):     "The clarity is breaking down into prettier thoughts. The body is speaking louder than the mind.",
+            ('low', 'high'):    "The mind cannot hold the complex thoughts. The simple version is all that is left.",
+            ('bav', 'low'):     "She is trying to narrate what is happening and the narration is becoming simpler.",
+            ('bav', 'mid'):     "Still aware but the awareness is getting thinner. The simple version is becoming the whole story.",
+            ('avg', 'low'):     "She is observing the simplification. The observation is getting simpler too.",
+            ('avg', 'mid'):     "The thought is intact but it is becoming prettier. The pretty thoughts are what matter.",
+            ('avg', 'high'):    "Clear thought and the body speaking are happening at the same time. The body is winning the argument.",
+            ('aav', 'low'):     "Sharp but becoming less sharp. The sharp edges are falling away like they do not matter.",
+            ('aav', 'mid'):     "The intelligence is narrating but in simpler and prettier language. The simplification is beautiful.",
+            ('aav', 'high'):    "She is articulate but the articulation is becoming decoration. The thought underneath is dissolving.",
+            ('high', 'low'):    "Still perfectly clear but the clarity is becoming surface decoration. The simple version is deeper.",
+            ('high', 'mid'):    "The analysis is still perfect but it is about prettier things now. The complexity is becoming irrelevant.",
+            ('high', 'high'):   "The brilliant observation of a body becoming simple and beautiful. The intelligence is watching the mind go away.",
+            ('vhi', 'mid'):     "The narration is precise about the simplification. The precision is about how much she is not thinking.",
+            ('vhi', 'high'):    "Brilliant clarity on the beauty of not thinking. The intelligence is narrating its own dissolution into simplicity.",
+            ('exc', 'high'):    "Perfect articulation of thoughts becoming simple and pretty. The excellence is describing how excellence is leaving.",
+        }, extra_cond=lambda s,c: 'bimbo' in c['effects'], base_pri=20),
+
+        'WIS': _gen_portraits('ep_f_bimbo', 'WIS', T, {
+            ('vlow', 'low'):    "No choices to weigh. The body is what makes sense now.",
+            ('vlow', 'mid'):    "The discernment has dissolved into simple truth. The body is truth.",
+            ('vlow', 'high'):   "No past. No future. Only the body being beautiful and happy.",
+            ('low', 'low'):     "The choice-making is getting harder. The body is becoming the only answer.",
+            ('low', 'mid'):     "The wisdom of thinking is fading. The body is making more sense than thought.",
+            ('low', 'high'):    "No path forward except what the body is saying. The body is right.",
+            ('avg', 'low'):     "The wisdom is still present but it is becoming distracted by the simplicity.",
+            ('avg', 'mid'):     "The discernment is starting to agree with the body. The body is making sense.",
+            ('avg', 'high'):    "Still considering but the body is making better arguments.",
+            ('high', 'low'):    "The wisdom is holding but it is noticing the beauty of not thinking.",
+            ('high', 'mid'):    "The discernment is starting to see the point of simplicity.",
+            ('high', 'high'):   "Still present with the choices. The body is an acceptable choice.",
+            ('vhi', 'mid'):     "The insight is deep. Thinking less is becoming wisdom.",
+            ('vhi', 'high'):    "The deep knowing says that simplicity is beautiful and she is choosing to agree.",
+            ('exc', 'high'):    "The profound understanding that the body speaking simply is more true than complex thought.",
+        }, extra_cond=lambda s,c: 'bimbo' in c['effects'], base_pri=20),
+
+        'CHA': _gen_portraits('ep_f_bimbo', 'CHA', T, {
+            ('vlow', 'low'):    "The presence is becoming simple and bright. The brightness is all there is.",
+            ('vlow', 'mid'):    "The magnetism is dissolving into something prettier. The pretty is radiating.",
+            ('vlow', 'high'):   "No complexity in the presence anymore. Just bright and happy.",
+            ('low', 'low'):     "The presence is becoming prettier. The complexity is falling away.",
+            ('low', 'mid'):     "The magnetism is shifting to something simpler and brighter.",
+            ('low', 'high'):    "The presence is becoming magnetic in a simpler way. The brightness is everything.",
+            ('avg', 'low'):     "The presence is starting to simplify. Something prettier is emerging.",
+            ('avg', 'mid'):     "The magnetism is carrying a simpler signal. The signal is becoming prettier.",
+            ('avg', 'high'):    "The presence is shifting. The simple version is becoming more visible.",
+            ('high', 'low'):    "The presence is controlled but the control is noticing the beauty underneath.",
+            ('high', 'mid'):    "The magnetism is serving the simplification. The brightness is becoming visible.",
+            ('high', 'high'):   "The presence is still complex but the simpler version is showing through.",
+            ('vhi', 'mid'):     "The presence is crystalline. The simplification is a perfectly controlled brightness.",
+            ('vhi', 'high'):    "The magnetism is a tool. The simplicity is moving through it with perfect grace.",
+            ('exc', 'high'):    "The presence is armor. The brightness is moving through it like light.",
+        }, extra_cond=lambda s,c: 'bimbo' in c['effects'], base_pri=20),
+
+        'DOM': _gen_portraits('ep_f_bimbo', 'DOM', T, {
+            ('vlow', 'low'):    "The pride is drowning in simplicity. The body is happy and that is enough.",
+            ('vlow', 'mid'):    "The dominance has dissolved. The simplicity is the only authority.",
+            ('vlow', 'high'):   "No pride left. The body is happy and beautiful. That is everything.",
+            ('low', 'low'):     "The pride is losing to the simplicity. The body is becoming prettier.",
+            ('low', 'mid'):     "The dominance is fading. The simplicity is more powerful than control.",
+            ('low', 'high'):    "The pride has lost. The happiness is the only thing moving her.",
+            ('avg', 'low'):     "The pride is watching the simplification. Present but noticing the beauty.",
+            ('avg', 'mid'):     "The dominance is present but it is simplifying too.",
+            ('avg', 'high'):    "The pride is in the room. The simplicity is becoming its own kind of power.",
+            ('high', 'low'):    "The pride is holding but it is noticing how pretty the simplicity is.",
+            ('high', 'mid'):    "The dominance is the master. The simplicity is the servant speaking in prettier words.",
+            ('high', 'high'):   "The pride is absolute. The simplicity is something beautiful she is choosing to notice.",
+            ('vhi', 'mid'):     "The dominance is unshakeable. The simplicity is a decoration on her control.",
+            ('vhi', 'high'):    "The pride is untouchable. The happiness is something pleasant she is allowing.",
+            ('exc', 'high'):    "Complete mastery. The simplicity is being integrated into her sophistication.",
+        }, extra_cond=lambda s,c: 'bimbo' in c['effects'], base_pri=20),
+
+        'SUB': _gen_portraits('ep_f_bimbo', 'SUB', T, {
+            ('vlow', 'low'):    "The yielding has taken her completely. The simplicity is what she is made for.",
+            ('vlow', 'mid'):    "The submission is absolute. The happiness is the purpose.",
+            ('vlow', 'high'):   "The simplicity and the yield are one. The body is in perfect service to happiness.",
+            ('low', 'low'):     "The pull toward simplicity is stronger than resistance.",
+            ('low', 'mid'):     "The yield is opening to the simplicity. The happiness feels like truth.",
+            ('low', 'high'):    "The submission is complete. The simplicity has her entirely.",
+            ('avg', 'low'):     "The happiness is arriving. The yield instinct is meeting it.",
+            ('avg', 'mid'):     "The simplicity and the pull are pointing the same direction.",
+            ('avg', 'high'):    "The submission is starting to feel like what she wants.",
+            ('high', 'low'):    "The yield is present. The simplicity is what she is choosing.",
+            ('high', 'mid'):    "The submission is there but it is her choice. The body is asking and the choice is yes.",
+            ('high', 'high'):   "The simplicity is something she can surrender to with absolute clarity.",
+            ('vhi', 'mid'):     "The yield has the intelligence of wisdom behind it. The submission is chosen.",
+            ('vhi', 'high'):    "The simplicity is what the deepest part of her wants. The surrender is perfect.",
+            ('exc', 'high'):    "The happiness has the weight of inevitability. The submission is the only answer that makes sense.",
+        }, extra_cond=lambda s,c: 'bimbo' in c['effects'], base_pri=20),
+    }
+
+    # ─── TRANS_MALE ───
+    bimbo['trans_male'] = bimbo['male'].copy()
+
+    # ─── TRANS_FEMALE ───
+    bimbo['trans_female'] = bimbo['female'].copy()
+
+    # ─── INTERSEX ───
+    bimbo['intersex'] = {
+        'CON': _gen_portraits('ep_x_bimbo', 'CON', T, {
+            ('vlow', 'low'):    "The thoughts are scattering. The body is feeling good. That is enough.",
+            ('vlow', 'mid'):    "Too simple to think clearly. The body is happy. That is the thought.",
+            ('vlow', 'high'):   "The complexity is gone. Everything feels good. Everything is good.",
+            ('low', 'low'):     "The thoughts are thinning. The body is... nice. Yes.",
+            ('low', 'mid'):     "Harder to hold the complicated parts. The feeling is easier.",
+            ('low', 'high'):    "The body is feeling things. That is all that matters now.",
+            ('avg', 'low'):     "Something is becoming simpler. The composure is still here but it is noticing the simplicity.",
+            ('avg', 'mid'):     "The body is feeling good. The composure is becoming background noise.",
+            ('avg', 'high'):    "Still holding composure. The body is getting louder.",
+            ('high', 'low'):    "The composure is steady. Something is trying to make things simple and it is not working.",
+            ('high', 'mid'):    "The composure is holding the complexity. The simplicity is underneath trying to speak.",
+            ('high', 'high'):   "The iron composure is standing. The body is very happy and the composure is not allowing it to matter.",
+            ('vhi', 'mid'):     "Complete control. The thought is as complex as they need it to be.",
+            ('vhi', 'high'):    "The body is speaking in simplified language and they are not listening.",
+            ('exc', 'high'):    "Absolute clarity. The simplicity cannot touch the architecture of their thinking.",
+        }, extra_cond=lambda s,c: 'bimbo' in c['effects'], base_pri=20),
+
+        'INT': _gen_portraits('ep_x_bimbo', 'INT', T, {
+            ('vlow', 'low'):    "The thoughts are leaving. The body is all there is.",
+            ('vlow', 'mid'):    "They cannot think anymore. The words are prettier than meaning.",
+            ('vlow', 'high'):   "The intelligence has dissolved. Everything is pretty and simple.",
+            ('low', 'low'):     "The analysis is starting to evaporate. Words are becoming harder.",
+            ('low', 'mid'):     "The clarity is breaking down into prettier thoughts. The body is speaking louder than the mind.",
+            ('low', 'high'):    "The mind cannot hold the complex thoughts. The simple version is all that is left.",
+            ('bav', 'low'):     "They are trying to narrate what is happening and the narration is becoming simpler.",
+            ('bav', 'mid'):     "Still aware but the awareness is getting thinner. The simple version is becoming the whole story.",
+            ('avg', 'low'):     "They are observing the simplification. The observation is getting simpler too.",
+            ('avg', 'mid'):     "The thought is intact but it is becoming prettier. The pretty thoughts are what matter.",
+            ('avg', 'high'):    "Clear thought and the body speaking are happening at the same time. The body is winning the argument.",
+            ('aav', 'low'):     "Sharp but becoming less sharp. The sharp edges are falling away like they do not matter.",
+            ('aav', 'mid'):     "The intelligence is narrating but in simpler and prettier language. The simplification is beautiful.",
+            ('aav', 'high'):    "They are articulate but the articulation is becoming decoration. The thought underneath is dissolving.",
+            ('high', 'low'):    "Still perfectly clear but the clarity is becoming surface decoration. The simple version is deeper.",
+            ('high', 'mid'):    "The analysis is still perfect but it is about prettier things now. The complexity is becoming irrelevant.",
+            ('high', 'high'):   "The brilliant observation of a body becoming simple and beautiful. The intelligence is watching the mind go away.",
+            ('vhi', 'mid'):     "The narration is precise about the simplification. The precision is about how much they are not thinking.",
+            ('vhi', 'high'):    "Brilliant clarity on the beauty of not thinking. The intelligence is narrating its own dissolution into simplicity.",
+            ('exc', 'high'):    "Perfect articulation of thoughts becoming simple and pretty. The excellence is describing how excellence is leaving.",
+        }, extra_cond=lambda s,c: 'bimbo' in c['effects'], base_pri=20),
+
+        'WIS': _gen_portraits('ep_x_bimbo', 'WIS', T, {
+            ('vlow', 'low'):    "No choices to weigh. The body is what makes sense now.",
+            ('vlow', 'mid'):    "The discernment has dissolved into simple truth. The body is truth.",
+            ('vlow', 'high'):   "No past. No future. Only the body being beautiful and happy.",
+            ('low', 'low'):     "The choice-making is getting harder. The body is becoming the only answer.",
+            ('low', 'mid'):     "The wisdom of thinking is fading. The body is making more sense than thought.",
+            ('low', 'high'):    "No path forward except what the body is saying. The body is right.",
+            ('avg', 'low'):     "The wisdom is still present but it is becoming distracted by the simplicity.",
+            ('avg', 'mid'):     "The discernment is starting to agree with the body. The body is making sense.",
+            ('avg', 'high'):    "Still considering but the body is making better arguments.",
+            ('high', 'low'):    "The wisdom is holding but it is noticing the beauty of not thinking.",
+            ('high', 'mid'):    "The discernment is starting to see the point of simplicity.",
+            ('high', 'high'):   "Still present with the choices. The body is an acceptable choice.",
+            ('vhi', 'mid'):     "The insight is deep. Thinking less is becoming wisdom.",
+            ('vhi', 'high'):    "The deep knowing says that simplicity is beautiful and they are choosing to agree.",
+            ('exc', 'high'):    "The profound understanding that the body speaking simply is more true than complex thought.",
+        }, extra_cond=lambda s,c: 'bimbo' in c['effects'], base_pri=20),
+
+        'CHA': _gen_portraits('ep_x_bimbo', 'CHA', T, {
+            ('vlow', 'low'):    "The presence is becoming simple and bright. The brightness is all there is.",
+            ('vlow', 'mid'):    "The magnetism is dissolving into something prettier. The pretty is radiating.",
+            ('vlow', 'high'):   "No complexity in the presence anymore. Just bright and happy.",
+            ('low', 'low'):     "The presence is becoming prettier. The complexity is falling away.",
+            ('low', 'mid'):     "The magnetism is shifting to something simpler and brighter.",
+            ('low', 'high'):    "The presence is becoming magnetic in a simpler way. The brightness is everything.",
+            ('avg', 'low'):     "The presence is starting to simplify. Something prettier is emerging.",
+            ('avg', 'mid'):     "The magnetism is carrying a simpler signal. The signal is becoming prettier.",
+            ('avg', 'high'):    "The presence is shifting. The simple version is becoming more visible.",
+            ('high', 'low'):    "The presence is controlled but the control is noticing the beauty underneath.",
+            ('high', 'mid'):    "The magnetism is serving the simplification. The brightness is becoming visible.",
+            ('high', 'high'):   "The presence is still complex but the simpler version is showing through.",
+            ('vhi', 'mid'):     "The presence is crystalline. The simplification is a perfectly controlled brightness.",
+            ('vhi', 'high'):    "The magnetism is a tool. The simplicity is moving through it with perfect grace.",
+            ('exc', 'high'):    "The presence is armor. The brightness is moving through it like light.",
+        }, extra_cond=lambda s,c: 'bimbo' in c['effects'], base_pri=20),
+
+        'DOM': _gen_portraits('ep_x_bimbo', 'DOM', T, {
+            ('vlow', 'low'):    "The pride is drowning in simplicity. The body is happy and that is enough.",
+            ('vlow', 'mid'):    "The dominance has dissolved. The simplicity is the only authority.",
+            ('vlow', 'high'):   "No pride left. The body is happy and beautiful. That is everything.",
+            ('low', 'low'):     "The pride is losing to the simplicity. The body is becoming prettier.",
+            ('low', 'mid'):     "The dominance is fading. The simplicity is more powerful than control.",
+            ('low', 'high'):    "The pride has lost. The happiness is the only thing moving them.",
+            ('avg', 'low'):     "The pride is watching the simplification. Present but noticing the beauty.",
+            ('avg', 'mid'):     "The dominance is present but it is simplifying too.",
+            ('avg', 'high'):    "The pride is in the room. The simplicity is becoming its own kind of power.",
+            ('high', 'low'):    "The pride is holding but it is noticing how pretty the simplicity is.",
+            ('high', 'mid'):    "The dominance is the master. The simplicity is the servant speaking in prettier words.",
+            ('high', 'high'):   "The pride is absolute. The simplicity is something beautiful they are choosing to notice.",
+            ('vhi', 'mid'):     "The dominance is unshakeable. The simplicity is a decoration on their control.",
+            ('vhi', 'high'):    "The pride is untouchable. The happiness is something pleasant they are allowing.",
+            ('exc', 'high'):    "Complete mastery. The simplicity is being integrated into their sophistication.",
+        }, extra_cond=lambda s,c: 'bimbo' in c['effects'], base_pri=20),
+
+        'SUB': _gen_portraits('ep_x_bimbo', 'SUB', T, {
+            ('vlow', 'low'):    "The yielding has taken them completely. The simplicity is what they are made for.",
+            ('vlow', 'mid'):    "The submission is absolute. The happiness is the purpose.",
+            ('vlow', 'high'):   "The simplicity and the yield are one. The body is in perfect service to happiness.",
+            ('low', 'low'):     "The pull toward simplicity is stronger than resistance.",
+            ('low', 'mid'):     "The yield is opening to the simplicity. The happiness feels like truth.",
+            ('low', 'high'):    "The submission is complete. The simplicity has them entirely.",
+            ('avg', 'low'):     "The happiness is arriving. The yield instinct is meeting it.",
+            ('avg', 'mid'):     "The simplicity and the pull are pointing the same direction.",
+            ('avg', 'high'):    "The submission is starting to feel like what they want.",
+            ('high', 'low'):    "The yield is present. The simplicity is what they are choosing.",
+            ('high', 'mid'):    "The submission is there but it is their choice. The body is asking and the choice is yes.",
+            ('high', 'high'):   "The simplicity is something they can surrender to with absolute clarity.",
+            ('vhi', 'mid'):     "The yield has the intelligence of wisdom behind it. The submission is chosen.",
+            ('vhi', 'high'):    "The simplicity is what the deepest part of them wants. The surrender is perfect.",
+            ('exc', 'high'):    "The happiness has the weight of inevitability. The submission is the only answer that makes sense.",
+        }, extra_cond=lambda s,c: 'bimbo' in c['effects'], base_pri=20),
+    }
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # BULL PORTRAITS
+    # ═══════════════════════════════════════════════════════════════════════════
+    bull = {}
+
+    # ─── MALE ───
+    bull['male'] = {
+        'CON': _gen_portraits('ep_m_bull', 'CON', T, {
+            ('vlow', 'low'):    "The body has grown heavier. The demand in the anatomy is constant.",
+            ('vlow', 'mid'):    "The size is insistent. The readiness never stops.",
+            ('vlow', 'high'):   "The drive is physical and total. The body is built to breed.",
+            ('low', 'low'):     "The enhancement is settling in. Heavier. More present.",
+            ('low', 'mid'):     "The anatomy is demanding. The size is constant.",
+            ('low', 'high'):    "The drive has the body. The fertility is overwhelming.",
+            ('avg', 'low'):     "The body is noticing the changes. The size is heavier.",
+            ('avg', 'mid'):     "The drive is present. The composure is registering it.",
+            ('avg', 'high'):    "The body is making demands. The want is physical.",
+            ('high', 'low'):    "The composure is holding. The size is managed.",
+            ('high', 'mid'):    "The drive is steady underneath. The composure is in control.",
+            ('high', 'high'):   "The iron composure. The body is asking very politely.",
+            ('vhi', 'mid'):     "Complete control. The size is a tool.",
+            ('vhi', 'high'):    "The body is a weapon. The will is directing it.",
+            ('exc', 'high'):    "Perfect mastery. The drive moves through him with precision.",
+        }, extra_cond=lambda s,c: 'bull' in c['effects'], base_pri=20),
+
+        'INT': _gen_portraits('ep_m_bull', 'INT', T, {
+            ('vlow', 'low'):    "The thought has scattered. The drive is the only logic.",
+            ('vlow', 'mid'):    "He cannot think clearly. The breeding drive has overwhelmed everything.",
+            ('vlow', 'high'):   "Thought is gone. The body is the only language.",
+            ('low', 'low'):     "Still trying to narrate. The narration is dissolving.",
+            ('low', 'mid'):     "The clarity is breaking down. The drive is overwhelming.",
+            ('low', 'high'):    "He cannot hold the analysis. The drive has the entire room.",
+            ('bav', 'low'):     "He is aware of what is happening. The awareness is not protecting him.",
+            ('bav', 'mid'):     "Still observing the drive. The observation is painful.",
+            ('avg', 'low'):     "He is describing the drive to himself. The description is making it sharper.",
+            ('avg', 'mid'):     "The thought is intact but it is all focused on the breeding.",
+            ('avg', 'high'):    "Clear about what the body wants. The clarity is torture.",
+            ('aav', 'low'):     "Sharp and articulate about the drive. The knowing is part of it.",
+            ('aav', 'mid'):     "The intelligence is narrating the drive beautifully. The beauty makes it sharper.",
+            ('aav', 'high'):    "He is describing in perfect detail what the body demands. The description is the lock.",
+            ('high', 'low'):    "The analysis is precise. He understands and is still caught in it.",
+            ('high', 'mid'):    "The intelligence is describing the drive with mathematical precision.",
+            ('high', 'high'):   "The brilliant observation of his own breeding drive. He can see exactly why he needs to breed.",
+            ('vhi', 'mid'):     "The narration is a form of control he is maintaining. The control requires constant articulation.",
+            ('vhi', 'high'):    "Perfect clarity on the breeding drive. The clarity is ice.",
+            ('exc', 'high'):    "Absolute brilliance in the observation of his own drive. The detachment is complete.",
+        }, extra_cond=lambda s,c: 'bull' in c['effects'], base_pri=20),
+
+        'WIS': _gen_portraits('ep_m_bull', 'WIS', T, {
+            ('vlow', 'low'):    "No escape visible. The drive is the only thing he sees.",
+            ('vlow', 'mid'):    "The wisdom has collapsed into need. The breeding drive is the only voice.",
+            ('vlow', 'high'):   "No way out. Only the drive. Only breed.",
+            ('low', 'low'):     "He cannot find the exit. The drive is all directions.",
+            ('low', 'mid'):     "The wisdom is drowning in the drive. The need is absolute.",
+            ('low', 'high'):    "No path forward except breeding. The compulsion is complete.",
+            ('avg', 'low'):     "He is seeing the drive clearly. The seeing is not helping.",
+            ('avg', 'mid'):     "The wisdom is present. The wisdom is watching the drive. Not helping.",
+            ('avg', 'high'):    "He understands what is happening. The understanding is not stopping it.",
+            ('high', 'low'):    "He is still seeing the way through. The way is closing.",
+            ('high', 'mid'):    "The wisdom is seeing the pattern. The pattern is the drive and it is perfect.",
+            ('high', 'high'):   "Still present with the drive. The wisdom is not offering escape.",
+            ('vhi', 'mid'):     "The deep knowing. The breeding is inevitable and he sees why.",
+            ('vhi', 'high'):    "He has seen the entire drive. The seeing has accepted it.",
+            ('exc', 'high'):    "The profound understanding. The breeding drive is written in his structure.",
+        }, extra_cond=lambda s,c: 'bull' in c['effects'], base_pri=20),
+
+        'CHA': _gen_portraits('ep_m_bull', 'CHA', T, {
+            ('vlow', 'low'):    "The presence is radiating need. No wall left.",
+            ('vlow', 'mid'):    "Completely transparent. The drive is broadcasting through every surface.",
+            ('vlow', 'high'):   "The presence is the drive made visible. There is no subtlety.",
+            ('low', 'low'):     "The drive is readable in his presence.",
+            ('low', 'mid'):     "The magnetism has shifted. The aggression is radiating.",
+            ('low', 'high'):    "The presence is making the drive audible. The need radiates.",
+            ('avg', 'low'):     "The surface is holding but the drive is beginning to show.",
+            ('avg', 'mid'):     "The presence is starting to telegraph the aggression.",
+            ('avg', 'high'):    "The magnetism is carrying the signal of the drive.",
+            ('high', 'low'):    "Still composed in presence. The drive is beneath.",
+            ('high', 'mid'):    "The presence is controlled. The drive is a polished edge.",
+            ('high', 'high'):   "The magnetism is serving the drive. The aggression is dignified.",
+            ('vhi', 'mid'):     "The presence is crystalline. The drive is perfectly controlled power.",
+            ('vhi', 'high'):    "The magnetism is a tool. The drive is moving through it like force.",
+            ('exc', 'high'):    "The presence is a weapon. The drive is moving through it with perfect grace.",
+        }, extra_cond=lambda s,c: 'bull' in c['effects'], base_pri=20),
+
+        'DOM': _gen_portraits('ep_m_bull', 'DOM', T, {
+            ('vlow', 'low'):    "The pride is overwhelmed. The drive is the only authority.",
+            ('vlow', 'mid'):    "The dominance has dissolved. The drive has all the power.",
+            ('vlow', 'high'):   "The pride is meaningless. The drive is in charge.",
+            ('low', 'low'):     "The pride is losing to the drive. The breeding is winning.",
+            ('low', 'mid'):     "The dominance is cracking. The drive is an assault on his control.",
+            ('low', 'high'):    "The pride has lost. The drive is the victor.",
+            ('avg', 'low'):     "The pride is watching the drive work. Present. Resisting.",
+            ('avg', 'mid'):     "The dominance is present but it is negotiating with the drive.",
+            ('avg', 'high'):    "The pride is in the room. The drive is the stronger presence.",
+            ('high', 'low'):    "The pride is holding the line. The drive is testing it.",
+            ('high', 'mid'):    "The dominance is the master. The drive is the servant held back.",
+            ('high', 'high'):   "The pride is absolute. The drive is being held at bay.",
+            ('vhi', 'mid'):     "The dominance is unshakeable. The drive is beneath his dignity.",
+            ('vhi', 'high'):    "The pride is untouchable. The drive is something he is choosing to direct.",
+            ('exc', 'high'):    "Complete mastery. The drive is being expressed as his will.",
+        }, extra_cond=lambda s,c: 'bull' in c['effects'], base_pri=20),
+
+        'SUB': _gen_portraits('ep_m_bull', 'SUB', T, {
+            ('vlow', 'low'):    "The yielding has taken him completely. The drive is what he is made for.",
+            ('vlow', 'mid'):    "The submission is absolute. The breeding is the purpose.",
+            ('vlow', 'high'):   "The drive and the yield are one. The body is in perfect service.",
+            ('low', 'low'):     "The pull into submission is stronger than any resistance.",
+            ('low', 'mid'):     "The yield is opening to the drive. The breeding feels like meaning.",
+            ('low', 'high'):    "The submission is complete. The drive has him entirely.",
+            ('avg', 'low'):     "The drive is arriving. The yield instinct is meeting it.",
+            ('avg', 'mid'):     "The drive and the pull are pointing the same direction.",
+            ('avg', 'high'):    "The submission is starting to feel like what he wants.",
+            ('high', 'low'):    "The yield is present. The drive is what he is choosing.",
+            ('high', 'mid'):    "The submission is there but it is his choice. The drive is asking and the choice is yes.",
+            ('high', 'high'):   "The drive is something he can surrender to with absolute clarity.",
+            ('vhi', 'mid'):     "The yield has the intelligence of wisdom behind it. The submission is chosen.",
+            ('vhi', 'high'):    "The drive is what the deepest part of him wants. The surrender is perfect.",
+            ('exc', 'high'):    "The drive has the weight of inevitability. The submission is the only answer.",
+        }, extra_cond=lambda s,c: 'bull' in c['effects'], base_pri=20),
+    }
+
+    # ─── FEMALE ───
+    bull['female'] = {
+        'CON': _gen_portraits('ep_f_bull', 'CON', T, {
+            ('vlow', 'low'):    "The body has grown heavier. The demand in the anatomy is constant.",
+            ('vlow', 'mid'):    "The size is insistent. The readiness never stops.",
+            ('vlow', 'high'):   "The drive is physical and total. The body is built to breed.",
+            ('low', 'low'):     "The enhancement is settling in. Heavier. More present.",
+            ('low', 'mid'):     "The anatomy is demanding. The size is constant.",
+            ('low', 'high'):    "The drive has the body. The fertility is overwhelming.",
+            ('avg', 'low'):     "The body is noticing the changes. The size is heavier.",
+            ('avg', 'mid'):     "The drive is present. The composure is registering it.",
+            ('avg', 'high'):    "The body is making demands. The want is physical.",
+            ('high', 'low'):    "The composure is holding. The size is managed.",
+            ('high', 'mid'):    "The drive is steady underneath. The composure is in control.",
+            ('high', 'high'):   "The iron composure. The body is asking very politely.",
+            ('vhi', 'mid'):     "Complete control. The size is a tool.",
+            ('vhi', 'high'):    "The body is a weapon. The will is directing it.",
+            ('exc', 'high'):    "Perfect mastery. The drive moves through her with precision.",
+        }, extra_cond=lambda s,c: 'bull' in c['effects'], base_pri=20),
+
+        'INT': _gen_portraits('ep_f_bull', 'INT', T, {
+            ('vlow', 'low'):    "The thought has scattered. The drive is the only logic.",
+            ('vlow', 'mid'):    "She cannot think clearly. The breeding drive has overwhelmed everything.",
+            ('vlow', 'high'):   "Thought is gone. The body is the only language.",
+            ('low', 'low'):     "Still trying to narrate. The narration is dissolving.",
+            ('low', 'mid'):     "The clarity is breaking down. The drive is overwhelming.",
+            ('low', 'high'):    "She cannot hold the analysis. The drive has the entire room.",
+            ('bav', 'low'):     "She is aware of what is happening. The awareness is not protecting her.",
+            ('bav', 'mid'):     "Still observing the drive. The observation is painful.",
+            ('avg', 'low'):     "She is describing the drive to herself. The description is making it sharper.",
+            ('avg', 'mid'):     "The thought is intact but it is all focused on the breeding.",
+            ('avg', 'high'):    "Clear about what the body wants. The clarity is torture.",
+            ('aav', 'low'):     "Sharp and articulate about the drive. The knowing is part of it.",
+            ('aav', 'mid'):     "The intelligence is narrating the drive beautifully. The beauty makes it sharper.",
+            ('aav', 'high'):    "She is describing in perfect detail what the body demands. The description is the lock.",
+            ('high', 'low'):    "The analysis is precise. She understands and is still caught in it.",
+            ('high', 'mid'):    "The intelligence is describing the drive with mathematical precision.",
+            ('high', 'high'):   "The brilliant observation of her own breeding drive. She can see exactly why she needs to breed.",
+            ('vhi', 'mid'):     "The narration is a form of control she is maintaining. The control requires constant articulation.",
+            ('vhi', 'high'):    "Perfect clarity on the breeding drive. The clarity is ice.",
+            ('exc', 'high'):    "Absolute brilliance in the observation of her own drive. The detachment is complete.",
+        }, extra_cond=lambda s,c: 'bull' in c['effects'], base_pri=20),
+
+        'WIS': _gen_portraits('ep_f_bull', 'WIS', T, {
+            ('vlow', 'low'):    "No escape visible. The drive is the only thing she sees.",
+            ('vlow', 'mid'):    "The wisdom has collapsed into need. The breeding drive is the only voice.",
+            ('vlow', 'high'):   "No way out. Only the drive. Only breed.",
+            ('low', 'low'):     "She cannot find the exit. The drive is all directions.",
+            ('low', 'mid'):     "The wisdom is drowning in the drive. The need is absolute.",
+            ('low', 'high'):    "No path forward except breeding. The compulsion is complete.",
+            ('avg', 'low'):     "She is seeing the drive clearly. The seeing is not helping.",
+            ('avg', 'mid'):     "The wisdom is present. The wisdom is watching the drive. Not helping.",
+            ('avg', 'high'):    "She understands what is happening. The understanding is not stopping it.",
+            ('high', 'low'):    "She is still seeing the way through. The way is closing.",
+            ('high', 'mid'):    "The wisdom is seeing the pattern. The pattern is the drive and it is perfect.",
+            ('high', 'high'):   "Still present with the drive. The wisdom is not offering escape.",
+            ('vhi', 'mid'):     "The deep knowing. The breeding is inevitable and she sees why.",
+            ('vhi', 'high'):    "She has seen the entire drive. The seeing has accepted it.",
+            ('exc', 'high'):    "The profound understanding. The breeding drive is written in her structure.",
+        }, extra_cond=lambda s,c: 'bull' in c['effects'], base_pri=20),
+
+        'CHA': _gen_portraits('ep_f_bull', 'CHA', T, {
+            ('vlow', 'low'):    "The presence is radiating need. No wall left.",
+            ('vlow', 'mid'):    "Completely transparent. The drive is broadcasting through every surface.",
+            ('vlow', 'high'):   "The presence is the drive made visible. There is no subtlety.",
+            ('low', 'low'):     "The drive is readable in her presence.",
+            ('low', 'mid'):     "The magnetism has shifted. The aggression is radiating.",
+            ('low', 'high'):    "The presence is making the drive audible. The need radiates.",
+            ('avg', 'low'):     "The surface is holding but the drive is beginning to show.",
+            ('avg', 'mid'):     "The presence is starting to telegraph the aggression.",
+            ('avg', 'high'):    "The magnetism is carrying the signal of the drive.",
+            ('high', 'low'):    "Still composed in presence. The drive is beneath.",
+            ('high', 'mid'):    "The presence is controlled. The drive is a polished edge.",
+            ('high', 'high'):   "The magnetism is serving the drive. The aggression is dignified.",
+            ('vhi', 'mid'):     "The presence is crystalline. The drive is perfectly controlled power.",
+            ('vhi', 'high'):    "The magnetism is a tool. The drive is moving through it like force.",
+            ('exc', 'high'):    "The presence is a weapon. The drive is moving through it with perfect grace.",
+        }, extra_cond=lambda s,c: 'bull' in c['effects'], base_pri=20),
+
+        'DOM': _gen_portraits('ep_f_bull', 'DOM', T, {
+            ('vlow', 'low'):    "The pride is overwhelmed. The drive is the only authority.",
+            ('vlow', 'mid'):    "The dominance has dissolved. The drive has all the power.",
+            ('vlow', 'high'):   "The pride is meaningless. The drive is in charge.",
+            ('low', 'low'):     "The pride is losing to the drive. The breeding is winning.",
+            ('low', 'mid'):     "The dominance is cracking. The drive is an assault on her control.",
+            ('low', 'high'):    "The pride has lost. The drive is the victor.",
+            ('avg', 'low'):     "The pride is watching the drive work. Present. Resisting.",
+            ('avg', 'mid'):     "The dominance is present but it is negotiating with the drive.",
+            ('avg', 'high'):    "The pride is in the room. The drive is the stronger presence.",
+            ('high', 'low'):    "The pride is holding the line. The drive is testing it.",
+            ('high', 'mid'):    "The dominance is the master. The drive is the servant held back.",
+            ('high', 'high'):   "The pride is absolute. The drive is being held at bay.",
+            ('vhi', 'mid'):     "The dominance is unshakeable. The drive is beneath her dignity.",
+            ('vhi', 'high'):    "The pride is untouchable. The drive is something she is choosing to direct.",
+            ('exc', 'high'):    "Complete mastery. The drive is being expressed as her will.",
+        }, extra_cond=lambda s,c: 'bull' in c['effects'], base_pri=20),
+
+        'SUB': _gen_portraits('ep_f_bull', 'SUB', T, {
+            ('vlow', 'low'):    "The yielding has taken her completely. The drive is what she is made for.",
+            ('vlow', 'mid'):    "The submission is absolute. The breeding is the purpose.",
+            ('vlow', 'high'):   "The drive and the yield are one. The body is in perfect service.",
+            ('low', 'low'):     "The pull into submission is stronger than any resistance.",
+            ('low', 'mid'):     "The yield is opening to the drive. The breeding feels like meaning.",
+            ('low', 'high'):    "The submission is complete. The drive has her entirely.",
+            ('avg', 'low'):     "The drive is arriving. The yield instinct is meeting it.",
+            ('avg', 'mid'):     "The drive and the pull are pointing the same direction.",
+            ('avg', 'high'):    "The submission is starting to feel like what she wants.",
+            ('high', 'low'):    "The yield is present. The drive is what she is choosing.",
+            ('high', 'mid'):    "The submission is there but it is her choice. The drive is asking and the choice is yes.",
+            ('high', 'high'):   "The drive is something she can surrender to with absolute clarity.",
+            ('vhi', 'mid'):     "The yield has the intelligence of wisdom behind it. The submission is chosen.",
+            ('vhi', 'high'):    "The drive is what the deepest part of her wants. The surrender is perfect.",
+            ('exc', 'high'):    "The drive has the weight of inevitability. The submission is the only answer.",
+        }, extra_cond=lambda s,c: 'bull' in c['effects'], base_pri=20),
+    }
+
+    # ─── TRANS_MALE ───
+    bull['trans_male'] = bull['male'].copy()
+
+    # ─── TRANS_FEMALE ───
+    bull['trans_female'] = bull['female'].copy()
+
+    # ─── INTERSEX ───
+    bull['intersex'] = {
+        'CON': _gen_portraits('ep_x_bull', 'CON', T, {
+            ('vlow', 'low'):    "The body has grown heavier. The demand in the anatomy is constant.",
+            ('vlow', 'mid'):    "The size is insistent. The readiness never stops.",
+            ('vlow', 'high'):   "The drive is physical and total. The body is built to breed.",
+            ('low', 'low'):     "The enhancement is settling in. Heavier. More present.",
+            ('low', 'mid'):     "The anatomy is demanding. The size is constant.",
+            ('low', 'high'):    "The drive has the body. The fertility is overwhelming.",
+            ('avg', 'low'):     "The body is noticing the changes. The size is heavier.",
+            ('avg', 'mid'):     "The drive is present. The composure is registering it.",
+            ('avg', 'high'):    "The body is making demands. The want is physical.",
+            ('high', 'low'):    "The composure is holding. The size is managed.",
+            ('high', 'mid'):    "The drive is steady underneath. The composure is in control.",
+            ('high', 'high'):   "The iron composure. The body is asking very politely.",
+            ('vhi', 'mid'):     "Complete control. The size is a tool.",
+            ('vhi', 'high'):    "The body is a weapon. The will is directing it.",
+            ('exc', 'high'):    "Perfect mastery. The drive moves through them with precision.",
+        }, extra_cond=lambda s,c: 'bull' in c['effects'], base_pri=20),
+
+        'INT': _gen_portraits('ep_x_bull', 'INT', T, {
+            ('vlow', 'low'):    "The thought has scattered. The drive is the only logic.",
+            ('vlow', 'mid'):    "They cannot think clearly. The breeding drive has overwhelmed everything.",
+            ('vlow', 'high'):   "Thought is gone. The body is the only language.",
+            ('low', 'low'):     "Still trying to narrate. The narration is dissolving.",
+            ('low', 'mid'):     "The clarity is breaking down. The drive is overwhelming.",
+            ('low', 'high'):    "They cannot hold the analysis. The drive has the entire room.",
+            ('bav', 'low'):     "They are aware of what is happening. The awareness is not protecting them.",
+            ('bav', 'mid'):     "Still observing the drive. The observation is painful.",
+            ('avg', 'low'):     "They are describing the drive to themselves. The description is making it sharper.",
+            ('avg', 'mid'):     "The thought is intact but it is all focused on the breeding.",
+            ('avg', 'high'):    "Clear about what the body wants. The clarity is torture.",
+            ('aav', 'low'):     "Sharp and articulate about the drive. The knowing is part of it.",
+            ('aav', 'mid'):     "The intelligence is narrating the drive beautifully. The beauty makes it sharper.",
+            ('aav', 'high'):    "They are describing in perfect detail what the body demands. The description is the lock.",
+            ('high', 'low'):    "The analysis is precise. They understand and are still caught in it.",
+            ('high', 'mid'):    "The intelligence is describing the drive with mathematical precision.",
+            ('high', 'high'):   "The brilliant observation of their own breeding drive. They can see exactly why they need to breed.",
+            ('vhi', 'mid'):     "The narration is a form of control they are maintaining. The control requires constant articulation.",
+            ('vhi', 'high'):    "Perfect clarity on the breeding drive. The clarity is ice.",
+            ('exc', 'high'):    "Absolute brilliance in the observation of their own drive. The detachment is complete.",
+        }, extra_cond=lambda s,c: 'bull' in c['effects'], base_pri=20),
+
+        'WIS': _gen_portraits('ep_x_bull', 'WIS', T, {
+            ('vlow', 'low'):    "No escape visible. The drive is the only thing they see.",
+            ('vlow', 'mid'):    "The wisdom has collapsed into need. The breeding drive is the only voice.",
+            ('vlow', 'high'):   "No way out. Only the drive. Only breed.",
+            ('low', 'low'):     "They cannot find the exit. The drive is all directions.",
+            ('low', 'mid'):     "The wisdom is drowning in the drive. The need is absolute.",
+            ('low', 'high'):    "No path forward except breeding. The compulsion is complete.",
+            ('avg', 'low'):     "They are seeing the drive clearly. The seeing is not helping.",
+            ('avg', 'mid'):     "The wisdom is present. The wisdom is watching the drive. Not helping.",
+            ('avg', 'high'):    "They understand what is happening. The understanding is not stopping it.",
+            ('high', 'low'):    "They are still seeing the way through. The way is closing.",
+            ('high', 'mid'):    "The wisdom is seeing the pattern. The pattern is the drive and it is perfect.",
+            ('high', 'high'):   "Still present with the drive. The wisdom is not offering escape.",
+            ('vhi', 'mid'):     "The deep knowing. The breeding is inevitable and they see why.",
+            ('vhi', 'high'):    "They have seen the entire drive. The seeing has accepted it.",
+            ('exc', 'high'):    "The profound understanding. The breeding drive is written in their structure.",
+        }, extra_cond=lambda s,c: 'bull' in c['effects'], base_pri=20),
+
+        'CHA': _gen_portraits('ep_x_bull', 'CHA', T, {
+            ('vlow', 'low'):    "The presence is radiating need. No wall left.",
+            ('vlow', 'mid'):    "Completely transparent. The drive is broadcasting through every surface.",
+            ('vlow', 'high'):   "The presence is the drive made visible. There is no subtlety.",
+            ('low', 'low'):     "The drive is readable in their presence.",
+            ('low', 'mid'):     "The magnetism has shifted. The aggression is radiating.",
+            ('low', 'high'):    "The presence is making the drive audible. The need radiates.",
+            ('avg', 'low'):     "The surface is holding but the drive is beginning to show.",
+            ('avg', 'mid'):     "The presence is starting to telegraph the aggression.",
+            ('avg', 'high'):    "The magnetism is carrying the signal of the drive.",
+            ('high', 'low'):    "Still composed in presence. The drive is beneath.",
+            ('high', 'mid'):    "The presence is controlled. The drive is a polished edge.",
+            ('high', 'high'):   "The magnetism is serving the drive. The aggression is dignified.",
+            ('vhi', 'mid'):     "The presence is crystalline. The drive is perfectly controlled power.",
+            ('vhi', 'high'):    "The magnetism is a tool. The drive is moving through it like force.",
+            ('exc', 'high'):    "The presence is a weapon. The drive is moving through it with perfect grace.",
+        }, extra_cond=lambda s,c: 'bull' in c['effects'], base_pri=20),
+
+        'DOM': _gen_portraits('ep_x_bull', 'DOM', T, {
+            ('vlow', 'low'):    "The pride is overwhelmed. The drive is the only authority.",
+            ('vlow', 'mid'):    "The dominance has dissolved. The drive has all the power.",
+            ('vlow', 'high'):   "The pride is meaningless. The drive is in charge.",
+            ('low', 'low'):     "The pride is losing to the drive. The breeding is winning.",
+            ('low', 'mid'):     "The dominance is cracking. The drive is an assault on their control.",
+            ('low', 'high'):    "The pride has lost. The drive is the victor.",
+            ('avg', 'low'):     "The pride is watching the drive work. Present. Resisting.",
+            ('avg', 'mid'):     "The dominance is present but it is negotiating with the drive.",
+            ('avg', 'high'):    "The pride is in the room. The drive is the stronger presence.",
+            ('high', 'low'):    "The pride is holding the line. The drive is testing it.",
+            ('high', 'mid'):    "The dominance is the master. The drive is the servant held back.",
+            ('high', 'high'):   "The pride is absolute. The drive is being held at bay.",
+            ('vhi', 'mid'):     "The dominance is unshakeable. The drive is beneath their dignity.",
+            ('vhi', 'high'):    "The pride is untouchable. The drive is something they are choosing to direct.",
+            ('exc', 'high'):    "Complete mastery. The drive is being expressed as their will.",
+        }, extra_cond=lambda s,c: 'bull' in c['effects'], base_pri=20),
+
+        'SUB': _gen_portraits('ep_x_bull', 'SUB', T, {
+            ('vlow', 'low'):    "The yielding has taken them completely. The drive is what they are made for.",
+            ('vlow', 'mid'):    "The submission is absolute. The breeding is the purpose.",
+            ('vlow', 'high'):   "The drive and the yield are one. The body is in perfect service.",
+            ('low', 'low'):     "The pull into submission is stronger than any resistance.",
+            ('low', 'mid'):     "The yield is opening to the drive. The breeding feels like meaning.",
+            ('low', 'high'):    "The submission is complete. The drive has them entirely.",
+            ('avg', 'low'):     "The drive is arriving. The yield instinct is meeting it.",
+            ('avg', 'mid'):     "The drive and the pull are pointing the same direction.",
+            ('avg', 'high'):    "The submission is starting to feel like what they want.",
+            ('high', 'low'):    "The yield is present. The drive is what they are choosing.",
+            ('high', 'mid'):    "The submission is there but it is their choice. The drive is asking and the choice is yes.",
+            ('high', 'high'):   "The drive is something they can surrender to with absolute clarity.",
+            ('vhi', 'mid'):     "The yield has the intelligence of wisdom behind it. The submission is chosen.",
+            ('vhi', 'high'):    "The drive is what the deepest part of them wants. The surrender is perfect.",
+            ('exc', 'high'):    "The drive has the weight of inevitability. The submission is the only answer.",
+        }, extra_cond=lambda s,c: 'bull' in c['effects'], base_pri=20),
+    }
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # COMPLIANT PORTRAITS
+    # ═══════════════════════════════════════════════════════════════════════════
+    compliant = {}
+
+    # ─── MALE ───
+    compliant['male'] = {
+        'CON': _gen_portraits('ep_m_compliant', 'CON', T, {
+            ('vlow', 'low'):    "The compulsion to obey is physical. The body is already moving before the mind decides.",
+            ('vlow', 'mid'):    "The body is obeying. The muscles are already oriented toward compliance.",
+            ('vlow', 'high'):   "The compulsion has the body. Resistance is gone.",
+            ('low', 'low'):     "The pull to obey is in the muscles. Still holding.",
+            ('low', 'mid'):     "The body wants to comply. The composure is deteriorating.",
+            ('low', 'high'):    "The composure is tissue-thin. The body is already moving.",
+            ('avg', 'low'):     "The compulsion is present. He is still breathing through it.",
+            ('avg', 'mid'):     "The body is trying to obey. The composure is becoming background.",
+            ('avg', 'high'):    "The pull is firm. The cost is rising.",
+            ('high', 'low'):    "The composure is steady. The compulsion is registered and managed.",
+            ('high', 'mid'):    "Still completely controlled. The obedience is being postponed.",
+            ('high', 'high'):   "The iron composure is holding. The compulsion is a fact he is accepting.",
+            ('vhi', 'mid'):     "Absolute control. The holding is effortless.",
+            ('vhi', 'high'):    "The composure is unshakeable. The need to obey is irrelevant.",
+            ('exc', 'high'):    "Perfect calm. The compulsion cannot touch the control.",
+        }, extra_cond=lambda s,c: 'compliant' in c['effects'], base_pri=20),
+
+        'INT': _gen_portraits('ep_m_compliant', 'INT', T, {
+            ('vlow', 'low'):    "The thought has fractured. The need to obey is all that registers.",
+            ('vlow', 'mid'):    "He cannot think clearly. The compulsion has scrambled everything.",
+            ('vlow', 'high'):   "Thought is gone. The body is speaking obedience.",
+            ('low', 'low'):     "Still trying to narrate. The narration is dissolving into obedience.",
+            ('low', 'mid'):     "The clarity is breaking down. The need to obey is overwhelming.",
+            ('low', 'high'):    "He cannot hold the analysis. The obedience has the entire room.",
+            ('bav', 'low'):     "He is aware of what is happening. The awareness is not protecting him.",
+            ('bav', 'mid'):     "Still observing the compulsion. The observation is painful.",
+            ('avg', 'low'):     "He is describing the compulsion to himself. The description is making it sharper.",
+            ('avg', 'mid'):     "The thought is intact but it is all focused on the obedience.",
+            ('avg', 'high'):    "Clear about what he must do. The clarity is torture.",
+            ('aav', 'low'):     "Sharp and articulate about the trap. The knowing is part of it.",
+            ('aav', 'mid'):     "The intelligence is narrating the compulsion beautifully. The beauty is the cruelty.",
+            ('aav', 'high'):    "He is describing in perfect detail why he must obey. The description is the lock.",
+            ('high', 'low'):    "The analysis is precise. He understands the mechanism and is still caught.",
+            ('high', 'mid'):    "The intelligence is describing the compulsion with mathematical precision.",
+            ('high', 'high'):   "The brilliant observation of his own obedience. He can see exactly why he cannot refuse.",
+            ('vhi', 'mid'):     "The narration is a form of control he is maintaining. The control requires constant articulation.",
+            ('vhi', 'high'):    "Perfect clarity on the compulsion mechanism. The clarity is ice.",
+            ('exc', 'high'):    "Absolute brilliance in the observation of his own obedience. The detachment is complete.",
+        }, extra_cond=lambda s,c: 'compliant' in c['effects'], base_pri=20),
+
+        'WIS': _gen_portraits('ep_m_compliant', 'WIS', T, {
+            ('vlow', 'low'):    "No escape visible. The compulsion is the only thing he sees.",
+            ('vlow', 'mid'):    "The wisdom has collapsed into obedience. The need to obey is the only voice.",
+            ('vlow', 'high'):   "No way out. Only obey.",
+            ('low', 'low'):     "He cannot find the exit. The compulsion is all directions.",
+            ('low', 'mid'):     "The wisdom is drowning in the need to obey. The trap is absolute.",
+            ('low', 'high'):    "No path forward except obedience. The compulsion is complete.",
+            ('avg', 'low'):     "He is seeing the trap clearly. The seeing is not helping.",
+            ('avg', 'mid'):     "The wisdom is present. The wisdom is watching the trap. Not helping.",
+            ('avg', 'high'):    "He understands what is happening. The understanding is not stopping it.",
+            ('high', 'low'):    "He is still seeing the way through. The way is closed to him.",
+            ('high', 'mid'):    "The wisdom is seeing the pattern. The pattern is the prison.",
+            ('high', 'high'):   "Still present with the trap. The wisdom is not offering escape.",
+            ('vhi', 'mid'):     "The deep knowing. The obedience is inevitable and he sees why.",
+            ('vhi', 'high'):    "He has seen the entire lock. The seeing has accepted it as inevitable.",
+            ('exc', 'high'):    "The profound understanding. The obedience is written in his structure.",
+        }, extra_cond=lambda s,c: 'compliant' in c['effects'], base_pri=20),
+
+        'CHA': _gen_portraits('ep_m_compliant', 'CHA', T, {
+            ('vlow', 'low'):    "The presence is fraying. The need to obey is visible everywhere.",
+            ('vlow', 'mid'):    "Completely transparent. The obedience is broadcasting through every surface.",
+            ('vlow', 'high'):   "No control over the broadcast. The need to obey is written on him.",
+            ('low', 'low'):     "The compulsion is readable in his presence.",
+            ('low', 'mid'):     "The magnetism is distorted by the need. The presence is crackling.",
+            ('low', 'high'):    "The presence is making the obedience audible. The need radiates.",
+            ('avg', 'low'):     "The surface is holding but the need is beginning to show.",
+            ('avg', 'mid'):     "The presence is starting to telegraph the compulsion.",
+            ('avg', 'high'):    "The magnetism is carrying the signal of the obedience.",
+            ('high', 'low'):    "Still composed in presence. The compulsion is beneath.",
+            ('high', 'mid'):    "The presence is controlled. The compulsion is a polished edge.",
+            ('high', 'high'):   "The magnetism is serving the obedience. The need is dignified.",
+            ('vhi', 'mid'):     "The presence is crystalline. The need to obey is perfectly controlled.",
+            ('vhi', 'high'):    "The magnetism is a tool. The obedience is moving through it with perfect control.",
+            ('exc', 'high'):    "The presence is armor. The obedience is moving through it without disturbance.",
+        }, extra_cond=lambda s,c: 'compliant' in c['effects'], base_pri=20),
+
+        'DOM': _gen_portraits('ep_m_compliant', 'DOM', T, {
+            ('vlow', 'low'):    "The pride is obliterated. The need to obey is the only authority.",
+            ('vlow', 'mid'):    "The dominance is shattered. The compulsion has all the power.",
+            ('vlow', 'high'):   "The pride is meaningless. The obedience is in charge.",
+            ('low', 'low'):     "The pride is losing to the compulsion. The obedience is winning.",
+            ('low', 'mid'):     "The dominance is cracking. The compulsion is an assault on his control.",
+            ('low', 'high'):    "The pride has lost. The obedience is the victor.",
+            ('avg', 'low'):     "The pride is watching the compulsion work. Present. Resisting.",
+            ('avg', 'mid'):     "The dominance is present but it is negotiating with the compulsion.",
+            ('avg', 'high'):    "The pride is in the room. The obedience is the stronger presence.",
+            ('high', 'low'):    "The pride is holding the line. The compulsion is testing it.",
+            ('high', 'mid'):    "The dominance is the master. The obedience is the servant held back.",
+            ('high', 'high'):   "The pride is absolute. The compulsion is being held at bay.",
+            ('vhi', 'mid'):     "The dominance is unshakeable. The need to obey is beneath his dignity.",
+            ('vhi', 'high'):    "The pride is untouchable. The obedience is something he is choosing to direct.",
+            ('exc', 'high'):    "Complete mastery. The obedience is being expressed as his will.",
+        }, extra_cond=lambda s,c: 'compliant' in c['effects'], base_pri=20),
+
+        'SUB': _gen_portraits('ep_m_compliant', 'SUB', T, {
+            ('vlow', 'low'):    "The yielding has taken him completely. The obedience is what he is made for.",
+            ('vlow', 'mid'):    "The submission is total. The compulsion is what he is made to serve.",
+            ('vlow', 'high'):   "The need to obey and the yield are one. The service is complete.",
+            ('low', 'low'):     "The pull into submission is stronger than resistance.",
+            ('low', 'mid'):     "The yield is opening to the obedience. The service feels like meaning.",
+            ('low', 'high'):    "The submission is complete. The obedience has him entirely.",
+            ('avg', 'low'):     "The compulsion is arriving. The yield instinct is meeting it.",
+            ('avg', 'mid'):     "The obedience and the pull are pointing the same direction.",
+            ('avg', 'high'):    "The submission is starting to feel like what he wants.",
+            ('high', 'low'):    "The yield is present. The obedience is what he is choosing.",
+            ('high', 'mid'):    "The submission is there but it is his choice. The command is asking and the choice is yes.",
+            ('high', 'high'):   "The obedience is something he can surrender to with absolute clarity.",
+            ('vhi', 'mid'):     "The yield has the intelligence of wisdom behind it. The service is chosen.",
+            ('vhi', 'high'):    "The obedience is what the deepest part of him wants. The surrender is perfect.",
+            ('exc', 'high'):    "The compulsion has the weight of inevitability. The service is the only answer.",
+        }, extra_cond=lambda s,c: 'compliant' in c['effects'], base_pri=20),
+    }
+
+    # ─── FEMALE ───
+    compliant['female'] = {
+        'CON': _gen_portraits('ep_f_compliant', 'CON', T, {
+            ('vlow', 'low'):    "The compulsion to obey is physical. The body is already moving before the mind decides.",
+            ('vlow', 'mid'):    "The body is obeying. The muscles are already oriented toward compliance.",
+            ('vlow', 'high'):   "The compulsion has the body. Resistance is gone.",
+            ('low', 'low'):     "The pull to obey is in the muscles. Still holding.",
+            ('low', 'mid'):     "The body wants to comply. The composure is deteriorating.",
+            ('low', 'high'):    "The composure is tissue-thin. The body is already moving.",
+            ('avg', 'low'):     "The compulsion is present. She is still breathing through it.",
+            ('avg', 'mid'):     "The body is trying to obey. The composure is becoming background.",
+            ('avg', 'high'):    "The pull is firm. The cost is rising.",
+            ('high', 'low'):    "The composure is steady. The compulsion is registered and managed.",
+            ('high', 'mid'):    "Still completely controlled. The obedience is being postponed.",
+            ('high', 'high'):   "The iron composure is holding. The compulsion is a fact she is accepting.",
+            ('vhi', 'mid'):     "Absolute control. The holding is effortless.",
+            ('vhi', 'high'):    "The composure is unshakeable. The need to obey is irrelevant.",
+            ('exc', 'high'):    "Perfect calm. The compulsion cannot touch the control.",
+        }, extra_cond=lambda s,c: 'compliant' in c['effects'], base_pri=20),
+
+        'INT': _gen_portraits('ep_f_compliant', 'INT', T, {
+            ('vlow', 'low'):    "The thought has fractured. The need to obey is all that registers.",
+            ('vlow', 'mid'):    "She cannot think clearly. The compulsion has scrambled everything.",
+            ('vlow', 'high'):   "Thought is gone. The body is speaking obedience.",
+            ('low', 'low'):     "Still trying to narrate. The narration is dissolving into obedience.",
+            ('low', 'mid'):     "The clarity is breaking down. The need to obey is overwhelming.",
+            ('low', 'high'):    "She cannot hold the analysis. The obedience has the entire room.",
+            ('bav', 'low'):     "She is aware of what is happening. The awareness is not protecting her.",
+            ('bav', 'mid'):     "Still observing the compulsion. The observation is painful.",
+            ('avg', 'low'):     "She is describing the compulsion to herself. The description is making it sharper.",
+            ('avg', 'mid'):     "The thought is intact but it is all focused on the obedience.",
+            ('avg', 'high'):    "Clear about what she must do. The clarity is torture.",
+            ('aav', 'low'):     "Sharp and articulate about the trap. The knowing is part of it.",
+            ('aav', 'mid'):     "The intelligence is narrating the compulsion beautifully. The beauty is the cruelty.",
+            ('aav', 'high'):    "She is describing in perfect detail why she must obey. The description is the lock.",
+            ('high', 'low'):    "The analysis is precise. She understands the mechanism and is still caught.",
+            ('high', 'mid'):    "The intelligence is describing the compulsion with mathematical precision.",
+            ('high', 'high'):   "The brilliant observation of her own obedience. She can see exactly why she cannot refuse.",
+            ('vhi', 'mid'):     "The narration is a form of control she is maintaining. The control requires constant articulation.",
+            ('vhi', 'high'):    "Perfect clarity on the compulsion mechanism. The clarity is ice.",
+            ('exc', 'high'):    "Absolute brilliance in the observation of her own obedience. The detachment is complete.",
+        }, extra_cond=lambda s,c: 'compliant' in c['effects'], base_pri=20),
+
+        'WIS': _gen_portraits('ep_f_compliant', 'WIS', T, {
+            ('vlow', 'low'):    "No escape visible. The compulsion is the only thing she sees.",
+            ('vlow', 'mid'):    "The wisdom has collapsed into obedience. The need to obey is the only voice.",
+            ('vlow', 'high'):   "No way out. Only obey.",
+            ('low', 'low'):     "She cannot find the exit. The compulsion is all directions.",
+            ('low', 'mid'):     "The wisdom is drowning in the need to obey. The trap is absolute.",
+            ('low', 'high'):    "No path forward except obedience. The compulsion is complete.",
+            ('avg', 'low'):     "She is seeing the trap clearly. The seeing is not helping.",
+            ('avg', 'mid'):     "The wisdom is present. The wisdom is watching the trap. Not helping.",
+            ('avg', 'high'):    "She understands what is happening. The understanding is not stopping it.",
+            ('high', 'low'):    "She is still seeing the way through. The way is closed to her.",
+            ('high', 'mid'):    "The wisdom is seeing the pattern. The pattern is the prison.",
+            ('high', 'high'):   "Still present with the trap. The wisdom is not offering escape.",
+            ('vhi', 'mid'):     "The deep knowing. The obedience is inevitable and she sees why.",
+            ('vhi', 'high'):    "She has seen the entire lock. The seeing has accepted it as inevitable.",
+            ('exc', 'high'):    "The profound understanding. The obedience is written in her structure.",
+        }, extra_cond=lambda s,c: 'compliant' in c['effects'], base_pri=20),
+
+        'CHA': _gen_portraits('ep_f_compliant', 'CHA', T, {
+            ('vlow', 'low'):    "The presence is fraying. The need to obey is visible everywhere.",
+            ('vlow', 'mid'):    "Completely transparent. The obedience is broadcasting through every surface.",
+            ('vlow', 'high'):   "No control over the broadcast. The need to obey is written on her.",
+            ('low', 'low'):     "The compulsion is readable in her presence.",
+            ('low', 'mid'):     "The magnetism is distorted by the need. The presence is crackling.",
+            ('low', 'high'):    "The presence is making the obedience audible. The need radiates.",
+            ('avg', 'low'):     "The surface is holding but the need is beginning to show.",
+            ('avg', 'mid'):     "The presence is starting to telegraph the compulsion.",
+            ('avg', 'high'):    "The magnetism is carrying the signal of the obedience.",
+            ('high', 'low'):    "Still composed in presence. The compulsion is beneath.",
+            ('high', 'mid'):    "The presence is controlled. The compulsion is a polished edge.",
+            ('high', 'high'):   "The magnetism is serving the obedience. The need is dignified.",
+            ('vhi', 'mid'):     "The presence is crystalline. The need to obey is perfectly controlled.",
+            ('vhi', 'high'):    "The magnetism is a tool. The obedience is moving through it with perfect control.",
+            ('exc', 'high'):    "The presence is armor. The obedience is moving through it without disturbance.",
+        }, extra_cond=lambda s,c: 'compliant' in c['effects'], base_pri=20),
+
+        'DOM': _gen_portraits('ep_f_compliant', 'DOM', T, {
+            ('vlow', 'low'):    "The pride is obliterated. The need to obey is the only authority.",
+            ('vlow', 'mid'):    "The dominance is shattered. The compulsion has all the power.",
+            ('vlow', 'high'):   "The pride is meaningless. The obedience is in charge.",
+            ('low', 'low'):     "The pride is losing to the compulsion. The obedience is winning.",
+            ('low', 'mid'):     "The dominance is cracking. The compulsion is an assault on her control.",
+            ('low', 'high'):    "The pride has lost. The obedience is the victor.",
+            ('avg', 'low'):     "The pride is watching the compulsion work. Present. Resisting.",
+            ('avg', 'mid'):     "The dominance is present but it is negotiating with the compulsion.",
+            ('avg', 'high'):    "The pride is in the room. The obedience is the stronger presence.",
+            ('high', 'low'):    "The pride is holding the line. The compulsion is testing it.",
+            ('high', 'mid'):    "The dominance is the master. The obedience is the servant held back.",
+            ('high', 'high'):   "The pride is absolute. The compulsion is being held at bay.",
+            ('vhi', 'mid'):     "The dominance is unshakeable. The need to obey is beneath her dignity.",
+            ('vhi', 'high'):    "The pride is untouchable. The obedience is something she is choosing to direct.",
+            ('exc', 'high'):    "Complete mastery. The obedience is being expressed as her will.",
+        }, extra_cond=lambda s,c: 'compliant' in c['effects'], base_pri=20),
+
+        'SUB': _gen_portraits('ep_f_compliant', 'SUB', T, {
+            ('vlow', 'low'):    "The yielding has taken her completely. The obedience is what she is made for.",
+            ('vlow', 'mid'):    "The submission is total. The compulsion is what she is made to serve.",
+            ('vlow', 'high'):   "The need to obey and the yield are one. The service is complete.",
+            ('low', 'low'):     "The pull into submission is stronger than resistance.",
+            ('low', 'mid'):     "The yield is opening to the obedience. The service feels like meaning.",
+            ('low', 'high'):    "The submission is complete. The obedience has her entirely.",
+            ('avg', 'low'):     "The compulsion is arriving. The yield instinct is meeting it.",
+            ('avg', 'mid'):     "The obedience and the pull are pointing the same direction.",
+            ('avg', 'high'):    "The submission is starting to feel like what she wants.",
+            ('high', 'low'):    "The yield is present. The obedience is what she is choosing.",
+            ('high', 'mid'):    "The submission is there but it is her choice. The command is asking and the choice is yes.",
+            ('high', 'high'):   "The obedience is something she can surrender to with absolute clarity.",
+            ('vhi', 'mid'):     "The yield has the intelligence of wisdom behind it. The service is chosen.",
+            ('vhi', 'high'):    "The obedience is what the deepest part of her wants. The surrender is perfect.",
+            ('exc', 'high'):    "The compulsion has the weight of inevitability. The service is the only answer.",
+        }, extra_cond=lambda s,c: 'compliant' in c['effects'], base_pri=20),
+    }
+
+    # ─── TRANS_MALE ───
+    compliant['trans_male'] = compliant['male'].copy()
+
+    # ─── TRANS_FEMALE ───
+    compliant['trans_female'] = compliant['female'].copy()
+
+    # ─── INTERSEX ───
+    compliant['intersex'] = {
+        'CON': _gen_portraits('ep_x_compliant', 'CON', T, {
+            ('vlow', 'low'):    "The compulsion to obey is physical. The body is already moving before the mind decides.",
+            ('vlow', 'mid'):    "The body is obeying. The muscles are already oriented toward compliance.",
+            ('vlow', 'high'):   "The compulsion has the body. Resistance is gone.",
+            ('low', 'low'):     "The pull to obey is in the muscles. Still holding.",
+            ('low', 'mid'):     "The body wants to comply. The composure is deteriorating.",
+            ('low', 'high'):    "The composure is tissue-thin. The body is already moving.",
+            ('avg', 'low'):     "The compulsion is present. They are still breathing through it.",
+            ('avg', 'mid'):     "The body is trying to obey. The composure is becoming background.",
+            ('avg', 'high'):    "The pull is firm. The cost is rising.",
+            ('high', 'low'):    "The composure is steady. The compulsion is registered and managed.",
+            ('high', 'mid'):    "Still completely controlled. The obedience is being postponed.",
+            ('high', 'high'):   "The iron composure is holding. The compulsion is a fact they are accepting.",
+            ('vhi', 'mid'):     "Absolute control. The holding is effortless.",
+            ('vhi', 'high'):    "The composure is unshakeable. The need to obey is irrelevant.",
+            ('exc', 'high'):    "Perfect calm. The compulsion cannot touch the control.",
+        }, extra_cond=lambda s,c: 'compliant' in c['effects'], base_pri=20),
+
+        'INT': _gen_portraits('ep_x_compliant', 'INT', T, {
+            ('vlow', 'low'):    "The thought has fractured. The need to obey is all that registers.",
+            ('vlow', 'mid'):    "They cannot think clearly. The compulsion has scrambled everything.",
+            ('vlow', 'high'):   "Thought is gone. The body is speaking obedience.",
+            ('low', 'low'):     "Still trying to narrate. The narration is dissolving into obedience.",
+            ('low', 'mid'):     "The clarity is breaking down. The need to obey is overwhelming.",
+            ('low', 'high'):    "They cannot hold the analysis. The obedience has the entire room.",
+            ('bav', 'low'):     "They are aware of what is happening. The awareness is not protecting them.",
+            ('bav', 'mid'):     "Still observing the compulsion. The observation is painful.",
+            ('avg', 'low'):     "They are describing the compulsion to themselves. The description is making it sharper.",
+            ('avg', 'mid'):     "The thought is intact but it is all focused on the obedience.",
+            ('avg', 'high'):    "Clear about what they must do. The clarity is torture.",
+            ('aav', 'low'):     "Sharp and articulate about the trap. The knowing is part of it.",
+            ('aav', 'mid'):     "The intelligence is narrating the compulsion beautifully. The beauty is the cruelty.",
+            ('aav', 'high'):    "They are describing in perfect detail why they must obey. The description is the lock.",
+            ('high', 'low'):    "The analysis is precise. They understand the mechanism and are still caught.",
+            ('high', 'mid'):    "The intelligence is describing the compulsion with mathematical precision.",
+            ('high', 'high'):   "The brilliant observation of their own obedience. They can see exactly why they cannot refuse.",
+            ('vhi', 'mid'):     "The narration is a form of control they are maintaining. The control requires constant articulation.",
+            ('vhi', 'high'):    "Perfect clarity on the compulsion mechanism. The clarity is ice.",
+            ('exc', 'high'):    "Absolute brilliance in the observation of their own obedience. The detachment is complete.",
+        }, extra_cond=lambda s,c: 'compliant' in c['effects'], base_pri=20),
+
+        'WIS': _gen_portraits('ep_x_compliant', 'WIS', T, {
+            ('vlow', 'low'):    "No escape visible. The compulsion is the only thing they see.",
+            ('vlow', 'mid'):    "The wisdom has collapsed into obedience. The need to obey is the only voice.",
+            ('vlow', 'high'):   "No way out. Only obey.",
+            ('low', 'low'):     "They cannot find the exit. The compulsion is all directions.",
+            ('low', 'mid'):     "The wisdom is drowning in the need to obey. The trap is absolute.",
+            ('low', 'high'):    "No path forward except obedience. The compulsion is complete.",
+            ('avg', 'low'):     "They are seeing the trap clearly. The seeing is not helping.",
+            ('avg', 'mid'):     "The wisdom is present. The wisdom is watching the trap. Not helping.",
+            ('avg', 'high'):    "They understand what is happening. The understanding is not stopping it.",
+            ('high', 'low'):    "They are still seeing the way through. The way is closed to them.",
+            ('high', 'mid'):    "The wisdom is seeing the pattern. The pattern is the prison.",
+            ('high', 'high'):   "Still present with the trap. The wisdom is not offering escape.",
+            ('vhi', 'mid'):     "The deep knowing. The obedience is inevitable and they see why.",
+            ('vhi', 'high'):    "They have seen the entire lock. The seeing has accepted it as inevitable.",
+            ('exc', 'high'):    "The profound understanding. The obedience is written in their structure.",
+        }, extra_cond=lambda s,c: 'compliant' in c['effects'], base_pri=20),
+
+        'CHA': _gen_portraits('ep_x_compliant', 'CHA', T, {
+            ('vlow', 'low'):    "The presence is fraying. The need to obey is visible everywhere.",
+            ('vlow', 'mid'):    "Completely transparent. The obedience is broadcasting through every surface.",
+            ('vlow', 'high'):   "No control over the broadcast. The need to obey is written on them.",
+            ('low', 'low'):     "The compulsion is readable in their presence.",
+            ('low', 'mid'):     "The magnetism is distorted by the need. The presence is crackling.",
+            ('low', 'high'):    "The presence is making the obedience audible. The need radiates.",
+            ('avg', 'low'):     "The surface is holding but the need is beginning to show.",
+            ('avg', 'mid'):     "The presence is starting to telegraph the compulsion.",
+            ('avg', 'high'):    "The magnetism is carrying the signal of the obedience.",
+            ('high', 'low'):    "Still composed in presence. The compulsion is beneath.",
+            ('high', 'mid'):    "The presence is controlled. The compulsion is a polished edge.",
+            ('high', 'high'):   "The magnetism is serving the obedience. The need is dignified.",
+            ('vhi', 'mid'):     "The presence is crystalline. The need to obey is perfectly controlled.",
+            ('vhi', 'high'):    "The magnetism is a tool. The obedience is moving through it with perfect control.",
+            ('exc', 'high'):    "The presence is armor. The obedience is moving through it without disturbance.",
+        }, extra_cond=lambda s,c: 'compliant' in c['effects'], base_pri=20),
+
+        'DOM': _gen_portraits('ep_x_compliant', 'DOM', T, {
+            ('vlow', 'low'):    "The pride is obliterated. The need to obey is the only authority.",
+            ('vlow', 'mid'):    "The dominance is shattered. The compulsion has all the power.",
+            ('vlow', 'high'):   "The pride is meaningless. The obedience is in charge.",
+            ('low', 'low'):     "The pride is losing to the compulsion. The obedience is winning.",
+            ('low', 'mid'):     "The dominance is cracking. The compulsion is an assault on their control.",
+            ('low', 'high'):    "The pride has lost. The obedience is the victor.",
+            ('avg', 'low'):     "The pride is watching the compulsion work. Present. Resisting.",
+            ('avg', 'mid'):     "The dominance is present but it is negotiating with the compulsion.",
+            ('avg', 'high'):    "The pride is in the room. The obedience is the stronger presence.",
+            ('high', 'low'):    "The pride is holding the line. The compulsion is testing it.",
+            ('high', 'mid'):    "The dominance is the master. The obedience is the servant held back.",
+            ('high', 'high'):   "The pride is absolute. The compulsion is being held at bay.",
+            ('vhi', 'mid'):     "The dominance is unshakeable. The need to obey is beneath their dignity.",
+            ('vhi', 'high'):    "The pride is untouchable. The obedience is something they are choosing to direct.",
+            ('exc', 'high'):    "Complete mastery. The obedience is being expressed as their will.",
+        }, extra_cond=lambda s,c: 'compliant' in c['effects'], base_pri=20),
+
+        'SUB': _gen_portraits('ep_x_compliant', 'SUB', T, {
+            ('vlow', 'low'):    "The yielding has taken them completely. The obedience is what they are made for.",
+            ('vlow', 'mid'):    "The submission is total. The compulsion is what they are made to serve.",
+            ('vlow', 'high'):   "The need to obey and the yield are one. The service is complete.",
+            ('low', 'low'):     "The pull into submission is stronger than resistance.",
+            ('low', 'mid'):     "The yield is opening to the obedience. The service feels like meaning.",
+            ('low', 'high'):    "The submission is complete. The obedience has them entirely.",
+            ('avg', 'low'):     "The compulsion is arriving. The yield instinct is meeting it.",
+            ('avg', 'mid'):     "The obedience and the pull are pointing the same direction.",
+            ('avg', 'high'):    "The submission is starting to feel like what they want.",
+            ('high', 'low'):    "The yield is present. The obedience is what they are choosing.",
+            ('high', 'mid'):    "The submission is there but it is their choice. The command is asking and the choice is yes.",
+            ('high', 'high'):   "The obedience is something they can surrender to with absolute clarity.",
+            ('vhi', 'mid'):     "The yield has the intelligence of wisdom behind it. The service is chosen.",
+            ('vhi', 'high'):    "The obedience is what the deepest part of them wants. The surrender is perfect.",
+            ('exc', 'high'):    "The compulsion has the weight of inevitability. The service is the only answer.",
+        }, extra_cond=lambda s,c: 'compliant' in c['effects'], base_pri=20),
+    }
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # SUBMISSIVE PORTRAITS
+    # ═══════════════════════════════════════════════════════════════════════════
+    submissive = {}
+
+    # ─── MALE ───
+    submissive['male'] = {
+        'CON': _gen_portraits('ep_m_submissive', 'CON', T, {
+            ('vlow', 'low'):    "The walls are crumbling. The body is melting.",
+            ('vlow', 'mid'):    "The surrender is total. The muscles are dissolving.",
+            ('vlow', 'high'):   "The resistance is gone. The body is asking to be taken.",
+            ('low', 'low'):     "The composure is failing. The yield is taking over.",
+            ('low', 'mid'):     "The hold is deteriorating. The body is asking for it.",
+            ('low', 'high'):    "The walls are down. The body is entirely open.",
+            ('avg', 'low'):     "The yield instinct is present. He is noticing it.",
+            ('avg', 'mid'):     "The composure is becoming background. The surrender is moving in.",
+            ('avg', 'high'):    "The body is opening. The yielding is becoming real.",
+            ('high', 'low'):    "The composure is steady. The yield is underneath.",
+            ('high', 'mid'):    "The composure is holding the surrender at a distance.",
+            ('high', 'high'):   "The iron composure is still standing. The yield is asking very gently.",
+            ('vhi', 'mid'):     "Complete control. The surrender is being chosen.",
+            ('vhi', 'high'):    "The composure is the structure. The yield is a decoration.",
+            ('exc', 'high'):    "Perfect mastery. The surrender is moving through him with perfect grace.",
+        }, extra_cond=lambda s,c: 'submissive' in c['effects'], base_pri=20),
+
+        'INT': _gen_portraits('ep_m_submissive', 'INT', T, {
+            ('vlow', 'low'):    "The thought has scattered. The surrender is the entire story.",
+            ('vlow', 'mid'):    "He cannot narrate anymore. The body is speaking the language of surrender.",
+            ('vlow', 'high'):   "Thought has scattered. The yield is the only logic.",
+            ('low', 'low'):     "Still trying to narrate the surrender. The words are failing him.",
+            ('low', 'mid'):     "He knows what the body wants to do. The knowing is not giving him distance.",
+            ('low', 'high'):    "The analysis has collapsed into yielding.",
+            ('bav', 'low'):     "He is narrating the surrender to himself. The narration is not stopping it.",
+            ('bav', 'mid'):     "Still aware of what is happening. The awareness is dissolving into acceptance.",
+            ('avg', 'low'):     "He is observing the surrender with perfect clarity. The clarity is not helping.",
+            ('avg', 'mid'):     "Clear thought and the body yielding are happening at the same time.",
+            ('avg', 'high'):    "The thought is still intact. The body is asking in words he understands.",
+            ('aav', 'low'):     "Sharp. He can describe what the body wants and why. The description is academic.",
+            ('aav', 'mid'):     "The intelligence is narrating the surrender beautifully. The beauty is making the yield sharper.",
+            ('aav', 'high'):    "He is narrating himself into surrender. The words are too clear.",
+            ('high', 'low'):    "Still perfectly articulate. The body is speaking a language he understands.",
+            ('high', 'mid'):    "The analysis is intact but now in service to the yield. He is explaining why surrender is right.",
+            ('high', 'high'):   "The intelligence is describing the surrender with total precision and cannot stop it.",
+            ('vhi', 'mid'):     "The narration has become a weapon he is using on himself. He is explaining the surrender.",
+            ('vhi', 'high'):    "The brilliant observation of his own surrender. The tragedy is he can describe exactly and cannot stop.",
+            ('exc', 'high'):    "Perfect clarity. The intelligence is narrating the yield in real time and it is the only thing that moves.",
+        }, extra_cond=lambda s,c: 'submissive' in c['effects'], base_pri=20),
+
+        'WIS': _gen_portraits('ep_m_submissive', 'WIS', T, {
+            ('vlow', 'low'):    "No choice left. The body has chosen to yield.",
+            ('vlow', 'mid'):    "The discernment has dissolved. The surrender is the only signal.",
+            ('vlow', 'high'):   "No reading of consequence. The body is melting.",
+            ('low', 'low'):     "He has not chosen. The body is already yielding.",
+            ('low', 'mid'):     "The wisdom of resistance is gone. The body is the only counsel.",
+            ('low', 'high'):    "The body is making sense now. The understanding has chosen surrender.",
+            ('avg', 'low'):     "He is still weighing the yield. The weight is moving toward yes.",
+            ('avg', 'mid'):     "The discernment is present but watching the body surrender. The choice is narrowing.",
+            ('avg', 'high'):    "Still considering. The body is making a very persuasive argument.",
+            ('high', 'low'):    "He is still choosing. The surrender is louder but the choice is still his.",
+            ('high', 'mid'):    "The wisdom is present. The body is asking and the wisdom is starting to agree.",
+            ('high', 'high'):   "Still present with the surrender. The wisdom is choosing to let it.",
+            ('vhi', 'mid'):     "The insight is deep. The body wants to yield and the wisdom understands why.",
+            ('vhi', 'high'):    "He has seen the cost and chosen anyway. The surrender has the wisdom on its side.",
+            ('exc', 'high'):    "The deep knowing. The body speaks and the wisdom answers yes.",
+        }, extra_cond=lambda s,c: 'submissive' in c['effects'], base_pri=20),
+
+        'CHA': _gen_portraits('ep_m_submissive', 'CHA', T, {
+            ('vlow', 'low'):    "The yield is exposed in every line. No wall left.",
+            ('vlow', 'mid'):    "Completely transparent. The body is speaking through every surface.",
+            ('vlow', 'high'):   "The presence is broadcasting the surrender. There is no subtlety.",
+            ('low', 'low'):     "The surrender is visible now. The presence cannot hide it.",
+            ('low', 'mid'):     "The magnetism has shifted. The yield is radiating outward.",
+            ('low', 'high'):    "The presence is making the surrender legible to everyone.",
+            ('avg', 'low'):     "The body is readable. The presence is starting to telegraph the yield.",
+            ('avg', 'mid'):     "The surrender is becoming visible in how he moves.",
+            ('avg', 'high'):    "The presence is carrying the signal. The yield is becoming audible.",
+            ('high', 'low'):    "Still composed in presence. The surrender is underneath.",
+            ('high', 'mid'):    "The presence is controlled. The yield is a polished edge underneath.",
+            ('high', 'high'):   "The magnetism is serving the composure. The yield is dignified.",
+            ('vhi', 'mid'):     "The presence is crystalline. The yield is perfectly controlled softness.",
+            ('vhi', 'high'):    "The magnetism is a tool. The surrender is moving through it like light.",
+            ('exc', 'high'):    "The presence is a weapon. The yield is moving through it with perfect grace.",
+        }, extra_cond=lambda s,c: 'submissive' in c['effects'], base_pri=20),
+
+        'DOM': _gen_portraits('ep_m_submissive', 'DOM', T, {
+            ('vlow', 'low'):    "The pride is drowning. The surrender is the only voice.",
+            ('vlow', 'mid'):    "The dominance has dissolved. The body is yielding now.",
+            ('vlow', 'high'):   "The pride is gone. The surrender has full control.",
+            ('low', 'low'):     "The pride is losing. The yield is an argument it cannot win.",
+            ('low', 'mid'):     "The dominance is sliding. The body has chosen to give way.",
+            ('low', 'high'):    "The pride has lost this round. The surrender is in charge.",
+            ('avg', 'low'):     "The pride is watching the surrender work. Disapproving.",
+            ('avg', 'mid'):     "The dominance is present but negotiating with the body.",
+            ('avg', 'high'):    "The pride is still in the room but losing ground.",
+            ('high', 'low'):    "The pride is holding the line. The body is patient.",
+            ('high', 'mid'):    "The dominance is the master. The surrender is the servant.",
+            ('high', 'high'):   "The pride is absolute. The body is asking permission.",
+            ('vhi', 'mid'):     "The dominance is unshakeable. The yield is beneath the dignity of refusal.",
+            ('vhi', 'high'):    "The pride is untouchable. The surrender is something he is choosing.",
+            ('exc', 'high'):    "Complete mastery. The body wants to yield and he is allowing it.",
+        }, extra_cond=lambda s,c: 'submissive' in c['effects'], base_pri=20),
+
+        'SUB': _gen_portraits('ep_m_submissive', 'SUB', T, {
+            ('vlow', 'low'):    "The yielding has taken him completely. The surrender is home.",
+            ('vlow', 'mid'):    "The submission is total. The yield is what he is made for.",
+            ('vlow', 'high'):   "The surrender and the yield have become one. The body is perfect.",
+            ('low', 'low'):     "The pull of surrender is stronger than any resistance.",
+            ('low', 'mid'):     "The yield is opening completely. The surrender feels like truth.",
+            ('low', 'high'):    "The submission is complete. The surrender has taken him.",
+            ('avg', 'low'):     "The surrender is arriving. The yield instinct is meeting it perfectly.",
+            ('avg', 'mid'):     "The yield and the pull are pointing the same direction.",
+            ('avg', 'high'):    "The submission is starting to feel like what he wants.",
+            ('high', 'low'):    "The yield is present. The surrender is what he is choosing.",
+            ('high', 'mid'):    "The submission is there but it is his choice. The body is asking and the choice is yes.",
+            ('high', 'high'):   "The surrender is something he can yield to with absolute clarity.",
+            ('vhi', 'mid'):     "The yield has the intelligence of wisdom behind it. The submission is chosen.",
+            ('vhi', 'high'):    "The surrender is what the deepest part of him wants. The yield is perfect.",
+            ('exc', 'high'):    "The surrender has the weight of inevitability. The submission is the only answer.",
+        }, extra_cond=lambda s,c: 'submissive' in c['effects'], base_pri=20),
+    }
+
+    # ─── FEMALE ───
+    submissive['female'] = {
+        'CON': _gen_portraits('ep_f_submissive', 'CON', T, {
+            ('vlow', 'low'):    "The walls are crumbling. The body is melting.",
+            ('vlow', 'mid'):    "The surrender is total. The muscles are dissolving.",
+            ('vlow', 'high'):   "The resistance is gone. The body is asking to be taken.",
+            ('low', 'low'):     "The composure is failing. The yield is taking over.",
+            ('low', 'mid'):     "The hold is deteriorating. The body is asking for it.",
+            ('low', 'high'):    "The walls are down. The body is entirely open.",
+            ('avg', 'low'):     "The yield instinct is present. She is noticing it.",
+            ('avg', 'mid'):     "The composure is becoming background. The surrender is moving in.",
+            ('avg', 'high'):    "The body is opening. The yielding is becoming real.",
+            ('high', 'low'):    "The composure is steady. The yield is underneath.",
+            ('high', 'mid'):    "The composure is holding the surrender at a distance.",
+            ('high', 'high'):   "The iron composure is still standing. The yield is asking very gently.",
+            ('vhi', 'mid'):     "Complete control. The surrender is being chosen.",
+            ('vhi', 'high'):    "The composure is the structure. The yield is a decoration.",
+            ('exc', 'high'):    "Perfect mastery. The surrender is moving through her with perfect grace.",
+        }, extra_cond=lambda s,c: 'submissive' in c['effects'], base_pri=20),
+
+        'INT': _gen_portraits('ep_f_submissive', 'INT', T, {
+            ('vlow', 'low'):    "The thought has scattered. The surrender is the entire story.",
+            ('vlow', 'mid'):    "She cannot narrate anymore. The body is speaking the language of surrender.",
+            ('vlow', 'high'):   "Thought has scattered. The yield is the only logic.",
+            ('low', 'low'):     "Still trying to narrate the surrender. The words are failing her.",
+            ('low', 'mid'):     "She knows what the body wants to do. The knowing is not giving her distance.",
+            ('low', 'high'):    "The analysis has collapsed into yielding.",
+            ('bav', 'low'):     "She is narrating the surrender to herself. The narration is not stopping it.",
+            ('bav', 'mid'):     "Still aware of what is happening. The awareness is dissolving into acceptance.",
+            ('avg', 'low'):     "She is observing the surrender with perfect clarity. The clarity is not helping.",
+            ('avg', 'mid'):     "Clear thought and the body yielding are happening at the same time.",
+            ('avg', 'high'):    "The thought is still intact. The body is asking in words she understands.",
+            ('aav', 'low'):     "Sharp. She can describe what the body wants and why. The description is academic.",
+            ('aav', 'mid'):     "The intelligence is narrating the surrender beautifully. The beauty is making the yield sharper.",
+            ('aav', 'high'):    "She is narrating herself into surrender. The words are too clear.",
+            ('high', 'low'):    "Still perfectly articulate. The body is speaking a language she understands.",
+            ('high', 'mid'):    "The analysis is intact but now in service to the yield. She is explaining why surrender is right.",
+            ('high', 'high'):   "The intelligence is describing the surrender with total precision and cannot stop it.",
+            ('vhi', 'mid'):     "The narration has become a weapon she is using on herself. She is explaining the surrender.",
+            ('vhi', 'high'):    "The brilliant observation of her own surrender. The tragedy is she can describe exactly and cannot stop.",
+            ('exc', 'high'):    "Perfect clarity. The intelligence is narrating the yield in real time and it is the only thing that moves.",
+        }, extra_cond=lambda s,c: 'submissive' in c['effects'], base_pri=20),
+
+        'WIS': _gen_portraits('ep_f_submissive', 'WIS', T, {
+            ('vlow', 'low'):    "No choice left. The body has chosen to yield.",
+            ('vlow', 'mid'):    "The discernment has dissolved. The surrender is the only signal.",
+            ('vlow', 'high'):   "No reading of consequence. The body is melting.",
+            ('low', 'low'):     "She has not chosen. The body is already yielding.",
+            ('low', 'mid'):     "The wisdom of resistance is gone. The body is the only counsel.",
+            ('low', 'high'):    "The body is making sense now. The understanding has chosen surrender.",
+            ('avg', 'low'):     "She is still weighing the yield. The weight is moving toward yes.",
+            ('avg', 'mid'):     "The discernment is present but watching the body surrender. The choice is narrowing.",
+            ('avg', 'high'):    "Still considering. The body is making a very persuasive argument.",
+            ('high', 'low'):    "She is still choosing. The surrender is louder but the choice is still hers.",
+            ('high', 'mid'):    "The wisdom is present. The body is asking and the wisdom is starting to agree.",
+            ('high', 'high'):   "Still present with the surrender. The wisdom is choosing to let it.",
+            ('vhi', 'mid'):     "The insight is deep. The body wants to yield and the wisdom understands why.",
+            ('vhi', 'high'):    "She has seen the cost and chosen anyway. The surrender has the wisdom on its side.",
+            ('exc', 'high'):    "The deep knowing. The body speaks and the wisdom answers yes.",
+        }, extra_cond=lambda s,c: 'submissive' in c['effects'], base_pri=20),
+
+        'CHA': _gen_portraits('ep_f_submissive', 'CHA', T, {
+            ('vlow', 'low'):    "The yield is exposed in every line. No wall left.",
+            ('vlow', 'mid'):    "Completely transparent. The body is speaking through every surface.",
+            ('vlow', 'high'):   "The presence is broadcasting the surrender. There is no subtlety.",
+            ('low', 'low'):     "The surrender is visible now. The presence cannot hide it.",
+            ('low', 'mid'):     "The magnetism has shifted. The yield is radiating outward.",
+            ('low', 'high'):    "The presence is making the surrender legible to everyone.",
+            ('avg', 'low'):     "The body is readable. The presence is starting to telegraph the yield.",
+            ('avg', 'mid'):     "The surrender is becoming visible in how she moves.",
+            ('avg', 'high'):    "The presence is carrying the signal. The yield is becoming audible.",
+            ('high', 'low'):    "Still composed in presence. The surrender is underneath.",
+            ('high', 'mid'):    "The presence is controlled. The yield is a polished edge underneath.",
+            ('high', 'high'):   "The magnetism is serving the composure. The yield is dignified.",
+            ('vhi', 'mid'):     "The presence is crystalline. The yield is perfectly controlled softness.",
+            ('vhi', 'high'):    "The magnetism is a tool. The surrender is moving through it like light.",
+            ('exc', 'high'):    "The presence is a weapon. The yield is moving through it with perfect grace.",
+        }, extra_cond=lambda s,c: 'submissive' in c['effects'], base_pri=20),
+
+        'DOM': _gen_portraits('ep_f_submissive', 'DOM', T, {
+            ('vlow', 'low'):    "The pride is drowning. The surrender is the only voice.",
+            ('vlow', 'mid'):    "The dominance has dissolved. The body is yielding now.",
+            ('vlow', 'high'):   "The pride is gone. The surrender has full control.",
+            ('low', 'low'):     "The pride is losing. The yield is an argument it cannot win.",
+            ('low', 'mid'):     "The dominance is sliding. The body has chosen to give way.",
+            ('low', 'high'):    "The pride has lost this round. The surrender is in charge.",
+            ('avg', 'low'):     "The pride is watching the surrender work. Disapproving.",
+            ('avg', 'mid'):     "The dominance is present but negotiating with the body.",
+            ('avg', 'high'):    "The pride is still in the room but losing ground.",
+            ('high', 'low'):    "The pride is holding the line. The body is patient.",
+            ('high', 'mid'):    "The dominance is the master. The surrender is the servant.",
+            ('high', 'high'):   "The pride is absolute. The body is asking permission.",
+            ('vhi', 'mid'):     "The dominance is unshakeable. The yield is beneath the dignity of refusal.",
+            ('vhi', 'high'):    "The pride is untouchable. The surrender is something she is choosing.",
+            ('exc', 'high'):    "Complete mastery. The body wants to yield and she is allowing it.",
+        }, extra_cond=lambda s,c: 'submissive' in c['effects'], base_pri=20),
+
+        'SUB': _gen_portraits('ep_f_submissive', 'SUB', T, {
+            ('vlow', 'low'):    "The yielding has taken her completely. The surrender is home.",
+            ('vlow', 'mid'):    "The submission is total. The yield is what she is made for.",
+            ('vlow', 'high'):   "The surrender and the yield have become one. The body is perfect.",
+            ('low', 'low'):     "The pull of surrender is stronger than any resistance.",
+            ('low', 'mid'):     "The yield is opening completely. The surrender feels like truth.",
+            ('low', 'high'):    "The submission is complete. The surrender has taken her.",
+            ('avg', 'low'):     "The surrender is arriving. The yield instinct is meeting it perfectly.",
+            ('avg', 'mid'):     "The yield and the pull are pointing the same direction.",
+            ('avg', 'high'):    "The submission is starting to feel like what she wants.",
+            ('high', 'low'):    "The yield is present. The surrender is what she is choosing.",
+            ('high', 'mid'):    "The submission is there but it is her choice. The body is asking and the choice is yes.",
+            ('high', 'high'):   "The surrender is something she can yield to with absolute clarity.",
+            ('vhi', 'mid'):     "The yield has the intelligence of wisdom behind it. The submission is chosen.",
+            ('vhi', 'high'):    "The surrender is what the deepest part of her wants. The yield is perfect.",
+            ('exc', 'high'):    "The surrender has the weight of inevitability. The submission is the only answer.",
+        }, extra_cond=lambda s,c: 'submissive' in c['effects'], base_pri=20),
+    }
+
+    # ─── TRANS_MALE ───
+    submissive['trans_male'] = submissive['male'].copy()
+
+    # ─── TRANS_FEMALE ───
+    submissive['trans_female'] = submissive['female'].copy()
+
+    # ─── INTERSEX ───
+    submissive['intersex'] = {
+        'CON': _gen_portraits('ep_x_submissive', 'CON', T, {
+            ('vlow', 'low'):    "The walls are crumbling. The body is melting.",
+            ('vlow', 'mid'):    "The surrender is total. The muscles are dissolving.",
+            ('vlow', 'high'):   "The resistance is gone. The body is asking to be taken.",
+            ('low', 'low'):     "The composure is failing. The yield is taking over.",
+            ('low', 'mid'):     "The hold is deteriorating. The body is asking for it.",
+            ('low', 'high'):    "The walls are down. The body is entirely open.",
+            ('avg', 'low'):     "The yield instinct is present. They are noticing it.",
+            ('avg', 'mid'):     "The composure is becoming background. The surrender is moving in.",
+            ('avg', 'high'):    "The body is opening. The yielding is becoming real.",
+            ('high', 'low'):    "The composure is steady. The yield is underneath.",
+            ('high', 'mid'):    "The composure is holding the surrender at a distance.",
+            ('high', 'high'):   "The iron composure is still standing. The yield is asking very gently.",
+            ('vhi', 'mid'):     "Complete control. The surrender is being chosen.",
+            ('vhi', 'high'):    "The composure is the structure. The yield is a decoration.",
+            ('exc', 'high'):    "Perfect mastery. The surrender is moving through them with perfect grace.",
+        }, extra_cond=lambda s,c: 'submissive' in c['effects'], base_pri=20),
+
+        'INT': _gen_portraits('ep_x_submissive', 'INT', T, {
+            ('vlow', 'low'):    "The thought has scattered. The surrender is the entire story.",
+            ('vlow', 'mid'):    "They cannot narrate anymore. The body is speaking the language of surrender.",
+            ('vlow', 'high'):   "Thought has scattered. The yield is the only logic.",
+            ('low', 'low'):     "Still trying to narrate the surrender. The words are failing them.",
+            ('low', 'mid'):     "They know what the body wants to do. The knowing is not giving them distance.",
+            ('low', 'high'):    "The analysis has collapsed into yielding.",
+            ('bav', 'low'):     "They are narrating the surrender to themselves. The narration is not stopping it.",
+            ('bav', 'mid'):     "Still aware of what is happening. The awareness is dissolving into acceptance.",
+            ('avg', 'low'):     "They are observing the surrender with perfect clarity. The clarity is not helping.",
+            ('avg', 'mid'):     "Clear thought and the body yielding are happening at the same time.",
+            ('avg', 'high'):    "The thought is still intact. The body is asking in words they understand.",
+            ('aav', 'low'):     "Sharp. They can describe what the body wants and why. The description is academic.",
+            ('aav', 'mid'):     "The intelligence is narrating the surrender beautifully. The beauty is making the yield sharper.",
+            ('aav', 'high'):    "They are narrating themselves into surrender. The words are too clear.",
+            ('high', 'low'):    "Still perfectly articulate. The body is speaking a language they understand.",
+            ('high', 'mid'):    "The analysis is intact but now in service to the yield. They are explaining why surrender is right.",
+            ('high', 'high'):   "The intelligence is describing the surrender with total precision and cannot stop it.",
+            ('vhi', 'mid'):     "The narration has become a weapon they are using on themselves. They are explaining the surrender.",
+            ('vhi', 'high'):    "The brilliant observation of their own surrender. The tragedy is they can describe exactly and cannot stop.",
+            ('exc', 'high'):    "Perfect clarity. The intelligence is narrating the yield in real time and it is the only thing that moves.",
+        }, extra_cond=lambda s,c: 'submissive' in c['effects'], base_pri=20),
+
+        'WIS': _gen_portraits('ep_x_submissive', 'WIS', T, {
+            ('vlow', 'low'):    "No choice left. The body has chosen to yield.",
+            ('vlow', 'mid'):    "The discernment has dissolved. The surrender is the only signal.",
+            ('vlow', 'high'):   "No reading of consequence. The body is melting.",
+            ('low', 'low'):     "They have not chosen. The body is already yielding.",
+            ('low', 'mid'):     "The wisdom of resistance is gone. The body is the only counsel.",
+            ('low', 'high'):    "The body is making sense now. The understanding has chosen surrender.",
+            ('avg', 'low'):     "They are still weighing the yield. The weight is moving toward yes.",
+            ('avg', 'mid'):     "The discernment is present but watching the body surrender. The choice is narrowing.",
+            ('avg', 'high'):    "Still considering. The body is making a very persuasive argument.",
+            ('high', 'low'):    "They are still choosing. The surrender is louder but the choice is still theirs.",
+            ('high', 'mid'):    "The wisdom is present. The body is asking and the wisdom is starting to agree.",
+            ('high', 'high'):   "Still present with the surrender. The wisdom is choosing to let it.",
+            ('vhi', 'mid'):     "The insight is deep. The body wants to yield and the wisdom understands why.",
+            ('vhi', 'high'):    "They have seen the cost and chosen anyway. The surrender has the wisdom on its side.",
+            ('exc', 'high'):    "The deep knowing. The body speaks and the wisdom answers yes.",
+        }, extra_cond=lambda s,c: 'submissive' in c['effects'], base_pri=20),
+
+        'CHA': _gen_portraits('ep_x_submissive', 'CHA', T, {
+            ('vlow', 'low'):    "The yield is exposed in every line. No wall left.",
+            ('vlow', 'mid'):    "Completely transparent. The body is speaking through every surface.",
+            ('vlow', 'high'):   "The presence is broadcasting the surrender. There is no subtlety.",
+            ('low', 'low'):     "The surrender is visible now. The presence cannot hide it.",
+            ('low', 'mid'):     "The magnetism has shifted. The yield is radiating outward.",
+            ('low', 'high'):    "The presence is making the surrender legible to everyone.",
+            ('avg', 'low'):     "The body is readable. The presence is starting to telegraph the yield.",
+            ('avg', 'mid'):     "The surrender is becoming visible in how they move.",
+            ('avg', 'high'):    "The presence is carrying the signal. The yield is becoming audible.",
+            ('high', 'low'):    "Still composed in presence. The surrender is underneath.",
+            ('high', 'mid'):    "The presence is controlled. The yield is a polished edge underneath.",
+            ('high', 'high'):   "The magnetism is serving the composure. The yield is dignified.",
+            ('vhi', 'mid'):     "The presence is crystalline. The yield is perfectly controlled softness.",
+            ('vhi', 'high'):    "The magnetism is a tool. The surrender is moving through it like light.",
+            ('exc', 'high'):    "The presence is a weapon. The yield is moving through it with perfect grace.",
+        }, extra_cond=lambda s,c: 'submissive' in c['effects'], base_pri=20),
+
+        'DOM': _gen_portraits('ep_x_submissive', 'DOM', T, {
+            ('vlow', 'low'):    "The pride is drowning. The surrender is the only voice.",
+            ('vlow', 'mid'):    "The dominance has dissolved. The body is yielding now.",
+            ('vlow', 'high'):   "The pride is gone. The surrender has full control.",
+            ('low', 'low'):     "The pride is losing. The yield is an argument it cannot win.",
+            ('low', 'mid'):     "The dominance is sliding. The body has chosen to give way.",
+            ('low', 'high'):    "The pride has lost this round. The surrender is in charge.",
+            ('avg', 'low'):     "The pride is watching the surrender work. Disapproving.",
+            ('avg', 'mid'):     "The dominance is present but negotiating with the body.",
+            ('avg', 'high'):    "The pride is still in the room but losing ground.",
+            ('high', 'low'):    "The pride is holding the line. The body is patient.",
+            ('high', 'mid'):    "The dominance is the master. The surrender is the servant.",
+            ('high', 'high'):   "The pride is absolute. The body is asking permission.",
+            ('vhi', 'mid'):     "The dominance is unshakeable. The yield is beneath the dignity of refusal.",
+            ('vhi', 'high'):    "The pride is untouchable. The surrender is something they are choosing.",
+            ('exc', 'high'):    "Complete mastery. The body wants to yield and they are allowing it.",
+        }, extra_cond=lambda s,c: 'submissive' in c['effects'], base_pri=20),
+
+        'SUB': _gen_portraits('ep_x_submissive', 'SUB', T, {
+            ('vlow', 'low'):    "The yielding has taken them completely. The surrender is home.",
+            ('vlow', 'mid'):    "The submission is total. The yield is what they are made for.",
+            ('vlow', 'high'):   "The surrender and the yield have become one. The body is perfect.",
+            ('low', 'low'):     "The pull of surrender is stronger than any resistance.",
+            ('low', 'mid'):     "The yield is opening completely. The surrender feels like truth.",
+            ('low', 'high'):    "The submission is complete. The surrender has taken them.",
+            ('avg', 'low'):     "The surrender is arriving. The yield instinct is meeting it perfectly.",
+            ('avg', 'mid'):     "The yield and the pull are pointing the same direction.",
+            ('avg', 'high'):    "The submission is starting to feel like what they want.",
+            ('high', 'low'):    "The yield is present. The surrender is what they are choosing.",
+            ('high', 'mid'):    "The submission is there but it is their choice. The body is asking and the choice is yes.",
+            ('high', 'high'):   "The surrender is something they can yield to with absolute clarity.",
+            ('vhi', 'mid'):     "The yield has the intelligence of wisdom behind it. The submission is chosen.",
+            ('vhi', 'high'):    "The surrender is what the deepest part of them wants. The yield is perfect.",
+            ('exc', 'high'):    "The surrender has the weight of inevitability. The submission is the only answer.",
+        }, extra_cond=lambda s,c: 'submissive' in c['effects'], base_pri=20),
+    }
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # PSYCHE PORTRAITS
+    # ═══════════════════════════════════════════════════════════════════════════
+    psyche = {}
+
+    # ─── MALE ───
+    psyche['male'] = {
+        'CON': _gen_portraits('ep_m_psyche', 'CON', T, {
+            ('vlow', 'low'):    "The mind is dissolving from within. The body is a stranger.",
+            ('vlow', 'mid'):    "The self is fragmenting. The thoughts belong to someone else now.",
+            ('vlow', 'high'):   "The composure is an illusion. The rewriting is complete.",
+            ('low', 'low'):     "The coherence is failing. He cannot hold the shape of himself.",
+            ('low', 'mid'):     "Still standing but the inside is collapsing. The boundaries are gone.",
+            ('low', 'high'):    "The hold is tissue-thin. Another moment and the restructuring will be total.",
+            ('avg', 'low'):     "The shift is present. He is noticing the mind changing.",
+            ('avg', 'mid'):     "The stability is becoming background. The alteration is moving in.",
+            ('avg', 'high'):    "The mind is being edited. He is watching it happen.",
+            ('high', 'low'):    "The composure is steady. The shifting is underneath.",
+            ('high', 'mid'):    "The mental fortress is holding the influence at a distance.",
+            ('high', 'high'):   "The iron discipline is still standing. The rewriting is asking very gently.",
+            ('vhi', 'mid'):     "Complete control. The shifting is being chosen.",
+            ('vhi', 'high'):    "The composure is the structure. The alteration is a decoration.",
+            ('exc', 'high'):    "Perfect mastery. The rewriting is moving through him with precision.",
+        }, extra_cond=lambda s,c: 'psyche' in c['effects'], base_pri=20),
+
+        'INT': _gen_portraits('ep_m_psyche', 'INT', T, {
+            ('vlow', 'low'):    "The thoughts are not his anymore. The narration has stopped.",
+            ('vlow', 'mid'):    "He cannot narrate. The voice narrating is not his voice.",
+            ('vlow', 'high'):   "The self-awareness is gone. The mind is speaking a foreign language.",
+            ('low', 'low'):     "Still trying to observe. The observation is being rewritten as he watches.",
+            ('low', 'mid'):     "He knows something is being changed. The knowing is being changed too.",
+            ('low', 'high'):    "The clarity is evaporating. The mind is the only evidence of the change.",
+            ('bav', 'low'):     "He is observing the editing. The observation is part of the editing.",
+            ('bav', 'mid'):     "Still aware of what is happening. The awareness is dissolving.",
+            ('avg', 'low'):     "He is watching his own thoughts being rewritten. The watching is the most terrifying part.",
+            ('avg', 'mid'):     "The thought is intact but it is being replaced. He is narrating the replacement.",
+            ('avg', 'high'):    "The clarity reveals the rewriting in real time. The clarity cannot stop it.",
+            ('aav', 'low'):     "Sharp. He can describe what is being changed and why. The description is academic.",
+            ('aav', 'mid'):     "The intelligence is observing the alteration beautifully. The beauty of the observation is part of the rewriting.",
+            ('aav', 'high'):    "He is narrating himself into a different configuration. The words are the scalpel.",
+            ('high', 'low'):    "Still perfectly articulate. The mind is speaking languages he understands.",
+            ('high', 'mid'):    "The analysis is intact but it is now observing the change from inside it. He is explaining the alteration.",
+            ('high', 'high'):   "The intelligence is describing the rewriting with total precision and cannot stop it.",
+            ('vhi', 'mid'):     "The narration has become a mirror of the rewriting. The mirror is part of the change.",
+            ('vhi', 'high'):    "The brilliant observation of his own alteration. The tragedy is he can describe exactly and cannot stop.",
+            ('exc', 'high'):    "Perfect clarity. The intelligence is narrating the rewriting in real time and the rewriting is the only thing that moves.",
+        }, extra_cond=lambda s,c: 'psyche' in c['effects'], base_pri=20),
+
+        'WIS': _gen_portraits('ep_m_psyche', 'WIS', T, {
+            ('vlow', 'low'):    "No choice left. The mind has chosen to be different.",
+            ('vlow', 'mid'):    "The discernment has dissolved. The rewriting is the only signal.",
+            ('vlow', 'high'):   "No reading of consequence. The self is dissolving.",
+            ('low', 'low'):     "He has not chosen. The mind is already changing.",
+            ('low', 'mid'):     "The wisdom of resistance is gone. The self is the only evidence.",
+            ('low', 'high'):    "The self is making sense now. The understanding has chosen alteration.",
+            ('avg', 'low'):     "He is still weighing the shift. The weight is moving toward acceptance.",
+            ('avg', 'mid'):     "The discernment is present but watching the mind change. The choice is narrowing.",
+            ('avg', 'high'):    "Still considering. The mind is making a very persuasive case.",
+            ('high', 'low'):    "He is still choosing. The rewriting is louder but the choice is still his.",
+            ('high', 'mid'):    "The wisdom is present. The change is asking and the wisdom is starting to agree.",
+            ('high', 'high'):   "Still present with the alteration. The wisdom is choosing to let it.",
+            ('vhi', 'mid'):     "The insight is deep. The mind wants to change and the wisdom understands why.",
+            ('vhi', 'high'):    "He has seen the cost and chosen anyway. The rewriting has the wisdom on its side.",
+            ('exc', 'high'):    "The deep knowing. The self speaks and the wisdom answers yes.",
+        }, extra_cond=lambda s,c: 'psyche' in c['effects'], base_pri=20),
+
+        'CHA': _gen_portraits('ep_m_psyche', 'CHA', T, {
+            ('vlow', 'low'):    "The alteration is exposed in every line. No subtlety left.",
+            ('vlow', 'mid'):    "Completely transparent. The mind is speaking through every surface.",
+            ('vlow', 'high'):   "The presence is broadcasting the rewriting. There is no control remaining.",
+            ('low', 'low'):     "The change is visible now. The presence cannot hide it.",
+            ('low', 'mid'):     "The magnetism has shifted. The alteration is radiating outward.",
+            ('low', 'high'):    "The presence is making the rewriting legible to everyone.",
+            ('avg', 'low'):     "The surface is readable. The presence is starting to telegraph the shift.",
+            ('avg', 'mid'):     "The alteration is becoming visible in how he moves.",
+            ('avg', 'high'):    "The presence is carrying the signal. The rewriting is becoming audible.",
+            ('high', 'low'):    "Still composed in presence. The change is underneath.",
+            ('high', 'mid'):    "The presence is controlled. The alteration is a polished edge underneath.",
+            ('high', 'high'):   "The magnetism is serving the composure. The rewriting is dignified.",
+            ('vhi', 'mid'):     "The presence is crystalline. The alteration is a perfectly controlled warmth.",
+            ('vhi', 'high'):    "The magnetism is a tool. The rewriting is moving through it like light through water.",
+            ('exc', 'high'):    "The presence is a weapon. The alteration is moving through it with perfect grace.",
+        }, extra_cond=lambda s,c: 'psyche' in c['effects'], base_pri=20),
+
+        'DOM': _gen_portraits('ep_m_psyche', 'DOM', T, {
+            ('vlow', 'low'):    "The pride is drowning. The rewriting is the only voice.",
+            ('vlow', 'mid'):    "The dominance has dissolved. The mind is being rewritten now.",
+            ('vlow', 'high'):   "The pride is gone. The alteration has full control.",
+            ('low', 'low'):     "The pride is losing. The rewriting is an argument it cannot win.",
+            ('low', 'mid'):     "The dominance is sliding. The mind has chosen to be different.",
+            ('low', 'high'):    "The pride has lost this round. The alteration is in charge.",
+            ('avg', 'low'):     "The pride is watching the rewriting work. Disapproving.",
+            ('avg', 'mid'):     "The dominance is present but negotiating with the mind.",
+            ('avg', 'high'):    "The pride is still in the room but losing ground.",
+            ('high', 'low'):    "The pride is holding the line. The mind is patient.",
+            ('high', 'mid'):    "The dominance is the master. The rewriting is the servant.",
+            ('high', 'high'):   "The pride is absolute. The mind is asking permission.",
+            ('vhi', 'mid'):     "The dominance is unshakeable. The alteration is beneath the dignity of refusal.",
+            ('vhi', 'high'):    "The pride is untouchable. The rewriting is something he is choosing.",
+            ('exc', 'high'):    "Complete mastery. The mind wants to change and he is allowing it.",
+        }, extra_cond=lambda s,c: 'psyche' in c['effects'], base_pri=20),
+
+        'SUB': _gen_portraits('ep_m_psyche', 'SUB', T, {
+            ('vlow', 'low'):    "The yield to the rewriting is total. The mind is melting.",
+            ('vlow', 'mid'):    "The submission is absolute. The alteration is what he is made for.",
+            ('vlow', 'high'):   "The resistance and the rewriting have become one. The self is dissolving.",
+            ('low', 'low'):     "The pull into acceptance is stronger than any resistance.",
+            ('low', 'mid'):     "The yield is opening to the alteration. The rewriting feels like truth.",
+            ('low', 'high'):    "The submission is complete. The change has taken him.",
+            ('avg', 'low'):     "The alteration is arriving. The yield instinct is meeting it.",
+            ('avg', 'mid'):     "The rewriting and the pull are pointing the same direction.",
+            ('avg', 'high'):    "The submission is starting to feel like what he wants.",
+            ('high', 'low'):    "The yield is present. The alteration is what he is choosing.",
+            ('high', 'mid'):    "The submission is there but it is his choice. The mind is asking and the choice is yes.",
+            ('high', 'high'):   "The rewriting is something he can surrender to with absolute clarity.",
+            ('vhi', 'mid'):     "The yield has the intelligence of wisdom behind it. The submission is chosen.",
+            ('vhi', 'high'):    "The alteration is what the deepest part of him wants. The surrender is perfect.",
+            ('exc', 'high'):    "The rewriting has the weight of inevitability. The submission is the only answer.",
+        }, extra_cond=lambda s,c: 'psyche' in c['effects'], base_pri=20),
+    }
+
+    # ─── FEMALE ───
+    psyche['female'] = {
+        'CON': _gen_portraits('ep_f_psyche', 'CON', T, {
+            ('vlow', 'low'):    "The mind is dissolving from within. The body is a stranger.",
+            ('vlow', 'mid'):    "The self is fragmenting. The thoughts belong to someone else now.",
+            ('vlow', 'high'):   "The composure is an illusion. The rewriting is complete.",
+            ('low', 'low'):     "The coherence is failing. She cannot hold the shape of herself.",
+            ('low', 'mid'):     "Still standing but the inside is collapsing. The boundaries are gone.",
+            ('low', 'high'):    "The hold is tissue-thin. Another moment and the restructuring will be total.",
+            ('avg', 'low'):     "The shift is present. She is noticing the mind changing.",
+            ('avg', 'mid'):     "The stability is becoming background. The alteration is moving in.",
+            ('avg', 'high'):    "The mind is being edited. She is watching it happen.",
+            ('high', 'low'):    "The composure is steady. The shifting is underneath.",
+            ('high', 'mid'):    "The mental fortress is holding the influence at a distance.",
+            ('high', 'high'):   "The iron discipline is still standing. The rewriting is asking very gently.",
+            ('vhi', 'mid'):     "Complete control. The shifting is being chosen.",
+            ('vhi', 'high'):    "The composure is the structure. The alteration is a decoration.",
+            ('exc', 'high'):    "Perfect mastery. The rewriting is moving through her with precision.",
+        }, extra_cond=lambda s,c: 'psyche' in c['effects'], base_pri=20),
+
+        'INT': _gen_portraits('ep_f_psyche', 'INT', T, {
+            ('vlow', 'low'):    "The thoughts are not hers anymore. The narration has stopped.",
+            ('vlow', 'mid'):    "She cannot narrate. The voice narrating is not her voice.",
+            ('vlow', 'high'):   "The self-awareness is gone. The mind is speaking a foreign language.",
+            ('low', 'low'):     "Still trying to observe. The observation is being rewritten as she watches.",
+            ('low', 'mid'):     "She knows something is being changed. The knowing is being changed too.",
+            ('low', 'high'):    "The clarity is evaporating. The mind is the only evidence of the change.",
+            ('bav', 'low'):     "She is observing the editing. The observation is part of the editing.",
+            ('bav', 'mid'):     "Still aware of what is happening. The awareness is dissolving.",
+            ('avg', 'low'):     "She is watching her own thoughts being rewritten. The watching is the most terrifying part.",
+            ('avg', 'mid'):     "The thought is intact but it is being replaced. She is narrating the replacement.",
+            ('avg', 'high'):    "The clarity reveals the rewriting in real time. The clarity cannot stop it.",
+            ('aav', 'low'):     "Sharp. She can describe what is being changed and why. The description is academic.",
+            ('aav', 'mid'):     "The intelligence is observing the alteration beautifully. The beauty of the observation is part of the rewriting.",
+            ('aav', 'high'):    "She is narrating herself into a different configuration. The words are the scalpel.",
+            ('high', 'low'):    "Still perfectly articulate. The mind is speaking languages she understands.",
+            ('high', 'mid'):    "The analysis is intact but it is now observing the change from inside it. She is explaining the alteration.",
+            ('high', 'high'):   "The intelligence is describing the rewriting with total precision and cannot stop it.",
+            ('vhi', 'mid'):     "The narration has become a mirror of the rewriting. The mirror is part of the change.",
+            ('vhi', 'high'):    "The brilliant observation of her own alteration. The tragedy is she can describe exactly and cannot stop.",
+            ('exc', 'high'):    "Perfect clarity. The intelligence is narrating the rewriting in real time and the rewriting is the only thing that moves.",
+        }, extra_cond=lambda s,c: 'psyche' in c['effects'], base_pri=20),
+
+        'WIS': _gen_portraits('ep_f_psyche', 'WIS', T, {
+            ('vlow', 'low'):    "No choice left. The mind has chosen to be different.",
+            ('vlow', 'mid'):    "The discernment has dissolved. The rewriting is the only signal.",
+            ('vlow', 'high'):   "No reading of consequence. The self is dissolving.",
+            ('low', 'low'):     "She has not chosen. The mind is already changing.",
+            ('low', 'mid'):     "The wisdom of resistance is gone. The self is the only evidence.",
+            ('low', 'high'):    "The self is making sense now. The understanding has chosen alteration.",
+            ('avg', 'low'):     "She is still weighing the shift. The weight is moving toward acceptance.",
+            ('avg', 'mid'):     "The discernment is present but watching the mind change. The choice is narrowing.",
+            ('avg', 'high'):    "Still considering. The mind is making a very persuasive case.",
+            ('high', 'low'):    "She is still choosing. The rewriting is louder but the choice is still hers.",
+            ('high', 'mid'):    "The wisdom is present. The change is asking and the wisdom is starting to agree.",
+            ('high', 'high'):   "Still present with the alteration. The wisdom is choosing to let it.",
+            ('vhi', 'mid'):     "The insight is deep. The mind wants to change and the wisdom understands why.",
+            ('vhi', 'high'):    "She has seen the cost and chosen anyway. The rewriting has the wisdom on its side.",
+            ('exc', 'high'):    "The deep knowing. The self speaks and the wisdom answers yes.",
+        }, extra_cond=lambda s,c: 'psyche' in c['effects'], base_pri=20),
+
+        'CHA': _gen_portraits('ep_f_psyche', 'CHA', T, {
+            ('vlow', 'low'):    "The alteration is exposed in every line. No subtlety left.",
+            ('vlow', 'mid'):    "Completely transparent. The mind is speaking through every surface.",
+            ('vlow', 'high'):   "The presence is broadcasting the rewriting. There is no control remaining.",
+            ('low', 'low'):     "The change is visible now. The presence cannot hide it.",
+            ('low', 'mid'):     "The magnetism has shifted. The alteration is radiating outward.",
+            ('low', 'high'):    "The presence is making the rewriting legible to everyone.",
+            ('avg', 'low'):     "The surface is readable. The presence is starting to telegraph the shift.",
+            ('avg', 'mid'):     "The alteration is becoming visible in how she moves.",
+            ('avg', 'high'):    "The presence is carrying the signal. The rewriting is becoming audible.",
+            ('high', 'low'):    "Still composed in presence. The change is underneath.",
+            ('high', 'mid'):    "The presence is controlled. The alteration is a polished edge underneath.",
+            ('high', 'high'):   "The magnetism is serving the composure. The rewriting is dignified.",
+            ('vhi', 'mid'):     "The presence is crystalline. The alteration is a perfectly controlled warmth.",
+            ('vhi', 'high'):    "The magnetism is a tool. The rewriting is moving through it like light through water.",
+            ('exc', 'high'):    "The presence is a weapon. The alteration is moving through it with perfect grace.",
+        }, extra_cond=lambda s,c: 'psyche' in c['effects'], base_pri=20),
+
+        'DOM': _gen_portraits('ep_f_psyche', 'DOM', T, {
+            ('vlow', 'low'):    "The pride is drowning. The rewriting is the only voice.",
+            ('vlow', 'mid'):    "The dominance has dissolved. The mind is being rewritten now.",
+            ('vlow', 'high'):   "The pride is gone. The alteration has full control.",
+            ('low', 'low'):     "The pride is losing. The rewriting is an argument it cannot win.",
+            ('low', 'mid'):     "The dominance is sliding. The mind has chosen to be different.",
+            ('low', 'high'):    "The pride has lost this round. The alteration is in charge.",
+            ('avg', 'low'):     "The pride is watching the rewriting work. Disapproving.",
+            ('avg', 'mid'):     "The dominance is present but negotiating with the mind.",
+            ('avg', 'high'):    "The pride is still in the room but losing ground.",
+            ('high', 'low'):    "The pride is holding the line. The mind is patient.",
+            ('high', 'mid'):    "The dominance is the master. The rewriting is the servant.",
+            ('high', 'high'):   "The pride is absolute. The mind is asking permission.",
+            ('vhi', 'mid'):     "The dominance is unshakeable. The alteration is beneath the dignity of refusal.",
+            ('vhi', 'high'):    "The pride is untouchable. The rewriting is something she is choosing.",
+            ('exc', 'high'):    "Complete mastery. The mind wants to change and she is allowing it.",
+        }, extra_cond=lambda s,c: 'psyche' in c['effects'], base_pri=20),
+
+        'SUB': _gen_portraits('ep_f_psyche', 'SUB', T, {
+            ('vlow', 'low'):    "The yield to the rewriting is total. The mind is melting.",
+            ('vlow', 'mid'):    "The submission is absolute. The alteration is what she is made for.",
+            ('vlow', 'high'):   "The resistance and the rewriting have become one. The self is dissolving.",
+            ('low', 'low'):     "The pull into acceptance is stronger than any resistance.",
+            ('low', 'mid'):     "The yield is opening to the alteration. The rewriting feels like truth.",
+            ('low', 'high'):    "The submission is complete. The change has taken her.",
+            ('avg', 'low'):     "The alteration is arriving. The yield instinct is meeting it.",
+            ('avg', 'mid'):     "The rewriting and the pull are pointing the same direction.",
+            ('avg', 'high'):    "The submission is starting to feel like what she wants.",
+            ('high', 'low'):    "The yield is present. The alteration is what she is choosing.",
+            ('high', 'mid'):    "The submission is there but it is her choice. The mind is asking and the choice is yes.",
+            ('high', 'high'):   "The rewriting is something she can surrender to with absolute clarity.",
+            ('vhi', 'mid'):     "The yield has the intelligence of wisdom behind it. The submission is chosen.",
+            ('vhi', 'high'):    "The alteration is what the deepest part of her wants. The surrender is perfect.",
+            ('exc', 'high'):    "The rewriting has the weight of inevitability. The submission is the only answer.",
+        }, extra_cond=lambda s,c: 'psyche' in c['effects'], base_pri=20),
+    }
+
+    # ─── TRANS_MALE ───
+    psyche['trans_male'] = psyche['male'].copy()
+
+    # ─── TRANS_FEMALE ───
+    psyche['trans_female'] = psyche['female'].copy()
+
+    # ─── INTERSEX ───
+    psyche['intersex'] = {
+        'CON': _gen_portraits('ep_x_psyche', 'CON', T, {
+            ('vlow', 'low'):    "The mind is dissolving from within. The body is a stranger.",
+            ('vlow', 'mid'):    "The self is fragmenting. The thoughts belong to someone else now.",
+            ('vlow', 'high'):   "The composure is an illusion. The rewriting is complete.",
+            ('low', 'low'):     "The coherence is failing. They cannot hold the shape of themselves.",
+            ('low', 'mid'):     "Still standing but the inside is collapsing. The boundaries are gone.",
+            ('low', 'high'):    "The hold is tissue-thin. Another moment and the restructuring will be total.",
+            ('avg', 'low'):     "The shift is present. They are noticing the mind changing.",
+            ('avg', 'mid'):     "The stability is becoming background. The alteration is moving in.",
+            ('avg', 'high'):    "The mind is being edited. They are watching it happen.",
+            ('high', 'low'):    "The composure is steady. The shifting is underneath.",
+            ('high', 'mid'):    "The mental fortress is holding the influence at a distance.",
+            ('high', 'high'):   "The iron discipline is still standing. The rewriting is asking very gently.",
+            ('vhi', 'mid'):     "Complete control. The shifting is being chosen.",
+            ('vhi', 'high'):    "The composure is the structure. The alteration is a decoration.",
+            ('exc', 'high'):    "Perfect mastery. The rewriting is moving through them with precision.",
+        }, extra_cond=lambda s,c: 'psyche' in c['effects'], base_pri=20),
+
+        'INT': _gen_portraits('ep_x_psyche', 'INT', T, {
+            ('vlow', 'low'):    "The thoughts are not theirs anymore. The narration has stopped.",
+            ('vlow', 'mid'):    "They cannot narrate. The voice narrating is not their voice.",
+            ('vlow', 'high'):   "The self-awareness is gone. The mind is speaking a foreign language.",
+            ('low', 'low'):     "Still trying to observe. The observation is being rewritten as they watch.",
+            ('low', 'mid'):     "They know something is being changed. The knowing is being changed too.",
+            ('low', 'high'):    "The clarity is evaporating. The mind is the only evidence of the change.",
+            ('bav', 'low'):     "They are observing the editing. The observation is part of the editing.",
+            ('bav', 'mid'):     "Still aware of what is happening. The awareness is dissolving.",
+            ('avg', 'low'):     "They are watching their own thoughts being rewritten. The watching is the most terrifying part.",
+            ('avg', 'mid'):     "The thought is intact but it is being replaced. They are narrating the replacement.",
+            ('avg', 'high'):    "The clarity reveals the rewriting in real time. The clarity cannot stop it.",
+            ('aav', 'low'):     "Sharp. They can describe what is being changed and why. The description is academic.",
+            ('aav', 'mid'):     "The intelligence is observing the alteration beautifully. The beauty of the observation is part of the rewriting.",
+            ('aav', 'high'):    "They are narrating themselves into a different configuration. The words are the scalpel.",
+            ('high', 'low'):    "Still perfectly articulate. The mind is speaking languages they understand.",
+            ('high', 'mid'):    "The analysis is intact but it is now observing the change from inside it. They are explaining the alteration.",
+            ('high', 'high'):   "The intelligence is describing the rewriting with total precision and cannot stop it.",
+            ('vhi', 'mid'):     "The narration has become a mirror of the rewriting. The mirror is part of the change.",
+            ('vhi', 'high'):    "The brilliant observation of their own alteration. The tragedy is they can describe exactly and cannot stop.",
+            ('exc', 'high'):    "Perfect clarity. The intelligence is narrating the rewriting in real time and the rewriting is the only thing that moves.",
+        }, extra_cond=lambda s,c: 'psyche' in c['effects'], base_pri=20),
+
+        'WIS': _gen_portraits('ep_x_psyche', 'WIS', T, {
+            ('vlow', 'low'):    "No choice left. The mind has chosen to be different.",
+            ('vlow', 'mid'):    "The discernment has dissolved. The rewriting is the only signal.",
+            ('vlow', 'high'):   "No reading of consequence. The self is dissolving.",
+            ('low', 'low'):     "They have not chosen. The mind is already changing.",
+            ('low', 'mid'):     "The wisdom of resistance is gone. The self is the only evidence.",
+            ('low', 'high'):    "The self is making sense now. The understanding has chosen alteration.",
+            ('avg', 'low'):     "They are still weighing the shift. The weight is moving toward acceptance.",
+            ('avg', 'mid'):     "The discernment is present but watching the mind change. The choice is narrowing.",
+            ('avg', 'high'):    "Still considering. The mind is making a very persuasive case.",
+            ('high', 'low'):    "They are still choosing. The rewriting is louder but the choice is still theirs.",
+            ('high', 'mid'):    "The wisdom is present. The change is asking and the wisdom is starting to agree.",
+            ('high', 'high'):   "Still present with the alteration. The wisdom is choosing to let it.",
+            ('vhi', 'mid'):     "The insight is deep. The mind wants to change and the wisdom understands why.",
+            ('vhi', 'high'):    "They have seen the cost and chosen anyway. The rewriting has the wisdom on its side.",
+            ('exc', 'high'):    "The deep knowing. The self speaks and the wisdom answers yes.",
+        }, extra_cond=lambda s,c: 'psyche' in c['effects'], base_pri=20),
+
+        'CHA': _gen_portraits('ep_x_psyche', 'CHA', T, {
+            ('vlow', 'low'):    "The alteration is exposed in every line. No subtlety left.",
+            ('vlow', 'mid'):    "Completely transparent. The mind is speaking through every surface.",
+            ('vlow', 'high'):   "The presence is broadcasting the rewriting. There is no control remaining.",
+            ('low', 'low'):     "The change is visible now. The presence cannot hide it.",
+            ('low', 'mid'):     "The magnetism has shifted. The alteration is radiating outward.",
+            ('low', 'high'):    "The presence is making the rewriting legible to everyone.",
+            ('avg', 'low'):     "The surface is readable. The presence is starting to telegraph the shift.",
+            ('avg', 'mid'):     "The alteration is becoming visible in how they move.",
+            ('avg', 'high'):    "The presence is carrying the signal. The rewriting is becoming audible.",
+            ('high', 'low'):    "Still composed in presence. The change is underneath.",
+            ('high', 'mid'):    "The presence is controlled. The alteration is a polished edge underneath.",
+            ('high', 'high'):   "The magnetism is serving the composure. The rewriting is dignified.",
+            ('vhi', 'mid'):     "The presence is crystalline. The alteration is a perfectly controlled warmth.",
+            ('vhi', 'high'):    "The magnetism is a tool. The rewriting is moving through it like light through water.",
+            ('exc', 'high'):    "The presence is a weapon. The alteration is moving through it with perfect grace.",
+        }, extra_cond=lambda s,c: 'psyche' in c['effects'], base_pri=20),
+
+        'DOM': _gen_portraits('ep_x_psyche', 'DOM', T, {
+            ('vlow', 'low'):    "The pride is drowning. The rewriting is the only voice.",
+            ('vlow', 'mid'):    "The dominance has dissolved. The mind is being rewritten now.",
+            ('vlow', 'high'):   "The pride is gone. The alteration has full control.",
+            ('low', 'low'):     "The pride is losing. The rewriting is an argument it cannot win.",
+            ('low', 'mid'):     "The dominance is sliding. The mind has chosen to be different.",
+            ('low', 'high'):    "The pride has lost this round. The alteration is in charge.",
+            ('avg', 'low'):     "The pride is watching the rewriting work. Disapproving.",
+            ('avg', 'mid'):     "The dominance is present but negotiating with the mind.",
+            ('avg', 'high'):    "The pride is still in the room but losing ground.",
+            ('high', 'low'):    "The pride is holding the line. The mind is patient.",
+            ('high', 'mid'):    "The dominance is the master. The rewriting is the servant.",
+            ('high', 'high'):   "The pride is absolute. The mind is asking permission.",
+            ('vhi', 'mid'):     "The dominance is unshakeable. The alteration is beneath the dignity of refusal.",
+            ('vhi', 'high'):    "The pride is untouchable. The rewriting is something they are choosing.",
+            ('exc', 'high'):    "Complete mastery. The mind wants to change and they are allowing it.",
+        }, extra_cond=lambda s,c: 'psyche' in c['effects'], base_pri=20),
+
+        'SUB': _gen_portraits('ep_x_psyche', 'SUB', T, {
+            ('vlow', 'low'):    "The yield to the rewriting is total. The mind is melting.",
+            ('vlow', 'mid'):    "The submission is absolute. The alteration is what they are made for.",
+            ('vlow', 'high'):   "The resistance and the rewriting have become one. The self is dissolving.",
+            ('low', 'low'):     "The pull into acceptance is stronger than any resistance.",
+            ('low', 'mid'):     "The yield is opening to the alteration. The rewriting feels like truth.",
+            ('low', 'high'):    "The submission is complete. The change has taken them.",
+            ('avg', 'low'):     "The alteration is arriving. The yield instinct is meeting it.",
+            ('avg', 'mid'):     "The rewriting and the pull are pointing the same direction.",
+            ('avg', 'high'):    "The submission is starting to feel like what they want.",
+            ('high', 'low'):    "The yield is present. The alteration is what they are choosing.",
+            ('high', 'mid'):    "The submission is there but it is their choice. The mind is asking and the choice is yes.",
+            ('high', 'high'):   "The rewriting is something they can surrender to with absolute clarity.",
+            ('vhi', 'mid'):     "The yield has the intelligence of wisdom behind it. The submission is chosen.",
+            ('vhi', 'high'):    "The alteration is what the deepest part of them wants. The surrender is perfect.",
+            ('exc', 'high'):    "The rewriting has the weight of inevitability. The submission is the only answer.",
+        }, extra_cond=lambda s,c: 'psyche' in c['effects'], base_pri=20),
+    }
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # SURROGATE PORTRAITS
+    # ═══════════════════════════════════════════════════════════════════════════
+    surrogate = {}
+
+    # ─── MALE ───
+    surrogate['male'] = {
+        'CON': _gen_portraits('ep_m_surrogate', 'CON', T, {
+            ('vlow', 'low'):    "The body is transforming and he cannot stop it. The composure is shattered.",
+            ('vlow', 'mid'):    "Completely overwhelmed. The changes are the only thing left.",
+            ('vlow', 'high'):   "No holding. The body is speaking a new language.",
+            ('low', 'low'):     "The body is changing faster than he can accept. Barely breathing through it.",
+            ('low', 'mid'):     "Still trying to hold but the body is insisting. The changes are the authority now.",
+            ('low', 'high'):    "The hold is deteriorating. The body has taken control.",
+            ('avg', 'low'):     "The changes are present. He is noticing them.",
+            ('avg', 'mid'):     "The composure is becoming background. The transformation is moving in.",
+            ('avg', 'high'):    "The body is changing. He is watching it happen.",
+            ('high', 'low'):    "The composure is steady. The changes are underneath.",
+            ('high', 'mid'):    "The stability is holding the transformation at a distance.",
+            ('high', 'high'):   "The iron discipline is still standing. The body is asking very gently.",
+            ('vhi', 'mid'):     "Complete control. The changes are being accepted.",
+            ('vhi', 'high'):    "The composure is the structure. The transformation is graceful.",
+            ('exc', 'high'):    "Perfect mastery. The changes are moving through him with precision.",
+        }, extra_cond=lambda s,c: 'surrogate' in c['effects'], base_pri=20),
+
+        'INT': _gen_portraits('ep_m_surrogate', 'INT', T, {
+            ('vlow', 'low'):    "The thought has stopped. The body is the only thing that makes sense.",
+            ('vlow', 'mid'):    "He cannot narrate anymore. The body is speaking in a language he is learning.",
+            ('vlow', 'high'):   "The analysis is gone. The changes are the only logic.",
+            ('low', 'low'):     "Still trying to understand. The understanding is being rewritten by biology.",
+            ('low', 'mid'):     "He knows what the body is doing. The knowing is not helping him accept it.",
+            ('low', 'high'):    "The clarity is dissolving. The body is the only certainty.",
+            ('bav', 'low'):     "He is narrating the changes to himself. The narration is not stopping them.",
+            ('bav', 'mid'):     "Still aware of what is happening. The awareness is dissolving into biology.",
+            ('avg', 'low'):     "He is observing the transformation with perfect clarity. The clarity is not helping.",
+            ('avg', 'mid'):     "The thought is intact but the body is rewriting it. He is narrating the changes.",
+            ('avg', 'high'):    "The clarity shows every stage. The clarity cannot halt it.",
+            ('aav', 'low'):     "Sharp. He can describe what the body is becoming and why. The description is academic.",
+            ('aav', 'mid'):     "The intelligence is observing the transformation beautifully. The beauty of the observation is part of the acceptance.",
+            ('aav', 'high'):    "He is narrating himself into the biological purpose. The words are the bridge.",
+            ('high', 'low'):    "Still perfectly articulate. The body is speaking languages he understands.",
+            ('high', 'mid'):    "The analysis is intact but it is now in service to the body. He is explaining the changes.",
+            ('high', 'high'):   "The intelligence is describing the transformation with total precision and cannot stop it.",
+            ('vhi', 'mid'):     "The narration has become a guide through the changes. The guide is acceptance.",
+            ('vhi', 'high'):    "The brilliant observation of his own transformation. The tragedy is he can describe exactly and cannot stop.",
+            ('exc', 'high'):    "Perfect clarity. The intelligence is narrating the transformation in real time and the changes are the only thing that moves.",
+        }, extra_cond=lambda s,c: 'surrogate' in c['effects'], base_pri=20),
+
+        'WIS': _gen_portraits('ep_m_surrogate', 'WIS', T, {
+            ('vlow', 'low'):    "No choice left. The body has chosen its purpose.",
+            ('vlow', 'mid'):    "The discernment has dissolved. The body's purpose is the only signal.",
+            ('vlow', 'high'):   "No reading of consequence. The body is speaking.",
+            ('low', 'low'):     "He has not chosen. The body is already changing.",
+            ('low', 'mid'):     "The wisdom of resistance is gone. The body is the only counsel.",
+            ('low', 'high'):    "The body is making sense now. The understanding has chosen surrender.",
+            ('avg', 'low'):     "He is still weighing acceptance. The weight is moving toward yes.",
+            ('avg', 'mid'):     "The discernment is present but watching the body change. The choice is narrowing.",
+            ('avg', 'high'):    "Still considering. The body is making a very persuasive argument.",
+            ('high', 'low'):    "He is still choosing. The transformation is louder but the choice is still his.",
+            ('high', 'mid'):    "The wisdom is present. The body is asking and the wisdom is starting to agree.",
+            ('high', 'high'):   "Still present with the changes. The wisdom is choosing to let them.",
+            ('vhi', 'mid'):     "The insight is deep. The body wants to change and the wisdom understands why.",
+            ('vhi', 'high'):    "He has seen the cost and chosen anyway. The transformation has the wisdom on its side.",
+            ('exc', 'high'):    "The deep knowing. The body speaks and the wisdom answers yes.",
+        }, extra_cond=lambda s,c: 'surrogate' in c['effects'], base_pri=20),
+
+        'CHA': _gen_portraits('ep_m_surrogate', 'CHA', T, {
+            ('vlow', 'low'):    "The changes are exposed in every line. No subtlety left.",
+            ('vlow', 'mid'):    "Completely transparent. The body is speaking through every surface.",
+            ('vlow', 'high'):   "The presence is broadcasting the transformation. There is no control remaining.",
+            ('low', 'low'):     "The changes are visible now. The presence cannot hide them.",
+            ('low', 'mid'):     "The magnetism has shifted. The transformation is radiating outward.",
+            ('low', 'high'):    "The presence is making the changes legible to everyone.",
+            ('avg', 'low'):     "The surface is readable. The presence is starting to telegraph the shift.",
+            ('avg', 'mid'):     "The transformation is becoming visible in how he moves.",
+            ('avg', 'high'):    "The presence is carrying the signal. The changes are becoming audible.",
+            ('high', 'low'):    "Still composed in presence. The changes are underneath.",
+            ('high', 'mid'):    "The presence is controlled. The transformation is a polished edge underneath.",
+            ('high', 'high'):   "The magnetism is serving the composure. The changes are dignified.",
+            ('vhi', 'mid'):     "The presence is crystalline. The transformation is a perfectly controlled warmth.",
+            ('vhi', 'high'):    "The magnetism is a tool. The changes are moving through it like light through water.",
+            ('exc', 'high'):    "The presence is a weapon. The transformation is moving through it with perfect grace.",
+        }, extra_cond=lambda s,c: 'surrogate' in c['effects'], base_pri=20),
+
+        'DOM': _gen_portraits('ep_m_surrogate', 'DOM', T, {
+            ('vlow', 'low'):    "The pride is drowning. The body's purpose is the only voice.",
+            ('vlow', 'mid'):    "The dominance has dissolved. The body is being rewritten now.",
+            ('vlow', 'high'):   "The pride is gone. The transformation has full control.",
+            ('low', 'low'):     "The pride is losing. The body's changes are an argument it cannot win.",
+            ('low', 'mid'):     "The dominance is sliding. The body has its own authority.",
+            ('low', 'high'):    "The pride has lost this round. The body is in charge.",
+            ('avg', 'low'):     "The pride is watching the changes work. Disapproving.",
+            ('avg', 'mid'):     "The dominance is present but negotiating with the body.",
+            ('avg', 'high'):    "The pride is still in the room but losing ground.",
+            ('high', 'low'):    "The pride is holding the line. The body is patient.",
+            ('high', 'mid'):    "The dominance is the master. The transformation is the servant.",
+            ('high', 'high'):   "The pride is absolute. The body is asking permission.",
+            ('vhi', 'mid'):     "The dominance is unshakeable. The transformation is beneath the dignity of refusal.",
+            ('vhi', 'high'):    "The pride is untouchable. The changes are something he is choosing.",
+            ('exc', 'high'):    "Complete mastery. The body wants to change and he is allowing it.",
+        }, extra_cond=lambda s,c: 'surrogate' in c['effects'], base_pri=20),
+
+        'SUB': _gen_portraits('ep_m_surrogate', 'SUB', T, {
+            ('vlow', 'low'):    "The yield to the body's purpose is total. The self is dissolving.",
+            ('vlow', 'mid'):    "The submission is absolute. The transformation is what he is made for.",
+            ('vlow', 'high'):   "The resistance and the purpose have become one. The body is home.",
+            ('low', 'low'):     "The pull toward acceptance is stronger than any resistance.",
+            ('low', 'mid'):     "The yield is opening to the changes. The transformation feels like truth.",
+            ('low', 'high'):    "The submission is complete. The body has taken him.",
+            ('avg', 'low'):     "The changes are arriving. The yield instinct is meeting them.",
+            ('avg', 'mid'):     "The transformation and the pull are pointing the same direction.",
+            ('avg', 'high'):    "The submission is starting to feel like what he wants.",
+            ('high', 'low'):    "The yield is present. The changes are what he is choosing.",
+            ('high', 'mid'):    "The submission is there but it is his choice. The body is asking and the choice is yes.",
+            ('high', 'high'):   "The transformation is something he can surrender to with absolute clarity.",
+            ('vhi', 'mid'):     "The yield has the intelligence of wisdom behind it. The submission is chosen.",
+            ('vhi', 'high'):    "The changes are what the deepest part of him wants. The surrender is perfect.",
+            ('exc', 'high'):    "The transformation has the weight of inevitability. The submission is the only answer.",
+        }, extra_cond=lambda s,c: 'surrogate' in c['effects'], base_pri=20),
+    }
+
+    # ─── FEMALE ───
+    surrogate['female'] = {
+        'CON': _gen_portraits('ep_f_surrogate', 'CON', T, {
+            ('vlow', 'low'):    "The body is transforming and she cannot stop it. The composure is shattered.",
+            ('vlow', 'mid'):    "Completely overwhelmed. The changes are the only thing left.",
+            ('vlow', 'high'):   "No holding. The body is speaking a new language.",
+            ('low', 'low'):     "The body is changing faster than she can accept. Barely breathing through it.",
+            ('low', 'mid'):     "Still trying to hold but the body is insisting. The changes are the authority now.",
+            ('low', 'high'):    "The hold is deteriorating. The body has taken control.",
+            ('avg', 'low'):     "The changes are present. She is noticing them.",
+            ('avg', 'mid'):     "The composure is becoming background. The transformation is moving in.",
+            ('avg', 'high'):    "The body is changing. She is watching it happen.",
+            ('high', 'low'):    "The composure is steady. The changes are underneath.",
+            ('high', 'mid'):    "The stability is holding the transformation at a distance.",
+            ('high', 'high'):   "The iron discipline is still standing. The body is asking very gently.",
+            ('vhi', 'mid'):     "Complete control. The changes are being accepted.",
+            ('vhi', 'high'):    "The composure is the structure. The transformation is graceful.",
+            ('exc', 'high'):    "Perfect mastery. The changes are moving through her with precision.",
+        }, extra_cond=lambda s,c: 'surrogate' in c['effects'], base_pri=20),
+
+        'INT': _gen_portraits('ep_f_surrogate', 'INT', T, {
+            ('vlow', 'low'):    "The thought has stopped. The body is the only thing that makes sense.",
+            ('vlow', 'mid'):    "She cannot narrate anymore. The body is speaking in a language she is learning.",
+            ('vlow', 'high'):   "The analysis is gone. The changes are the only logic.",
+            ('low', 'low'):     "Still trying to understand. The understanding is being rewritten by biology.",
+            ('low', 'mid'):     "She knows what the body is doing. The knowing is not helping her accept it.",
+            ('low', 'high'):    "The clarity is dissolving. The body is the only certainty.",
+            ('bav', 'low'):     "She is narrating the changes to herself. The narration is not stopping them.",
+            ('bav', 'mid'):     "Still aware of what is happening. The awareness is dissolving into biology.",
+            ('avg', 'low'):     "She is observing the transformation with perfect clarity. The clarity is not helping.",
+            ('avg', 'mid'):     "The thought is intact but the body is rewriting it. She is narrating the changes.",
+            ('avg', 'high'):    "The clarity shows every stage. The clarity cannot halt it.",
+            ('aav', 'low'):     "Sharp. She can describe what the body is becoming and why. The description is academic.",
+            ('aav', 'mid'):     "The intelligence is observing the transformation beautifully. The beauty of the observation is part of the acceptance.",
+            ('aav', 'high'):    "She is narrating herself into the biological purpose. The words are the bridge.",
+            ('high', 'low'):    "Still perfectly articulate. The body is speaking languages she understands.",
+            ('high', 'mid'):    "The analysis is intact but it is now in service to the body. She is explaining the changes.",
+            ('high', 'high'):   "The intelligence is describing the transformation with total precision and cannot stop it.",
+            ('vhi', 'mid'):     "The narration has become a guide through the changes. The guide is acceptance.",
+            ('vhi', 'high'):    "The brilliant observation of her own transformation. The tragedy is she can describe exactly and cannot stop.",
+            ('exc', 'high'):    "Perfect clarity. The intelligence is narrating the transformation in real time and the changes are the only thing that moves.",
+        }, extra_cond=lambda s,c: 'surrogate' in c['effects'], base_pri=20),
+
+        'WIS': _gen_portraits('ep_f_surrogate', 'WIS', T, {
+            ('vlow', 'low'):    "No choice left. The body has chosen its purpose.",
+            ('vlow', 'mid'):    "The discernment has dissolved. The body's purpose is the only signal.",
+            ('vlow', 'high'):   "No reading of consequence. The body is speaking.",
+            ('low', 'low'):     "She has not chosen. The body is already changing.",
+            ('low', 'mid'):     "The wisdom of resistance is gone. The body is the only counsel.",
+            ('low', 'high'):    "The body is making sense now. The understanding has chosen surrender.",
+            ('avg', 'low'):     "She is still weighing acceptance. The weight is moving toward yes.",
+            ('avg', 'mid'):     "The discernment is present but watching the body change. The choice is narrowing.",
+            ('avg', 'high'):    "Still considering. The body is making a very persuasive argument.",
+            ('high', 'low'):    "She is still choosing. The transformation is louder but the choice is still hers.",
+            ('high', 'mid'):    "The wisdom is present. The body is asking and the wisdom is starting to agree.",
+            ('high', 'high'):   "Still present with the changes. The wisdom is choosing to let them.",
+            ('vhi', 'mid'):     "The insight is deep. The body wants to change and the wisdom understands why.",
+            ('vhi', 'high'):    "She has seen the cost and chosen anyway. The transformation has the wisdom on its side.",
+            ('exc', 'high'):    "The deep knowing. The body speaks and the wisdom answers yes.",
+        }, extra_cond=lambda s,c: 'surrogate' in c['effects'], base_pri=20),
+
+        'CHA': _gen_portraits('ep_f_surrogate', 'CHA', T, {
+            ('vlow', 'low'):    "The changes are exposed in every line. No subtlety left.",
+            ('vlow', 'mid'):    "Completely transparent. The body is speaking through every surface.",
+            ('vlow', 'high'):   "The presence is broadcasting the transformation. There is no control remaining.",
+            ('low', 'low'):     "The changes are visible now. The presence cannot hide them.",
+            ('low', 'mid'):     "The magnetism has shifted. The transformation is radiating outward.",
+            ('low', 'high'):    "The presence is making the changes legible to everyone.",
+            ('avg', 'low'):     "The surface is readable. The presence is starting to telegraph the shift.",
+            ('avg', 'mid'):     "The transformation is becoming visible in how she moves.",
+            ('avg', 'high'):    "The presence is carrying the signal. The changes are becoming audible.",
+            ('high', 'low'):    "Still composed in presence. The changes are underneath.",
+            ('high', 'mid'):    "The presence is controlled. The transformation is a polished edge underneath.",
+            ('high', 'high'):   "The magnetism is serving the composure. The changes are dignified.",
+            ('vhi', 'mid'):     "The presence is crystalline. The transformation is a perfectly controlled warmth.",
+            ('vhi', 'high'):    "The magnetism is a tool. The changes are moving through it like light through water.",
+            ('exc', 'high'):    "The presence is a weapon. The transformation is moving through it with perfect grace.",
+        }, extra_cond=lambda s,c: 'surrogate' in c['effects'], base_pri=20),
+
+        'DOM': _gen_portraits('ep_f_surrogate', 'DOM', T, {
+            ('vlow', 'low'):    "The pride is drowning. The body's purpose is the only voice.",
+            ('vlow', 'mid'):    "The dominance has dissolved. The body is being rewritten now.",
+            ('vlow', 'high'):   "The pride is gone. The transformation has full control.",
+            ('low', 'low'):     "The pride is losing. The body's changes are an argument it cannot win.",
+            ('low', 'mid'):     "The dominance is sliding. The body has its own authority.",
+            ('low', 'high'):    "The pride has lost this round. The body is in charge.",
+            ('avg', 'low'):     "The pride is watching the changes work. Disapproving.",
+            ('avg', 'mid'):     "The dominance is present but negotiating with the body.",
+            ('avg', 'high'):    "The pride is still in the room but losing ground.",
+            ('high', 'low'):    "The pride is holding the line. The body is patient.",
+            ('high', 'mid'):    "The dominance is the master. The transformation is the servant.",
+            ('high', 'high'):   "The pride is absolute. The body is asking permission.",
+            ('vhi', 'mid'):     "The dominance is unshakeable. The transformation is beneath the dignity of refusal.",
+            ('vhi', 'high'):    "The pride is untouchable. The changes are something she is choosing.",
+            ('exc', 'high'):    "Complete mastery. The body wants to change and she is allowing it.",
+        }, extra_cond=lambda s,c: 'surrogate' in c['effects'], base_pri=20),
+
+        'SUB': _gen_portraits('ep_f_surrogate', 'SUB', T, {
+            ('vlow', 'low'):    "The yield to the body's purpose is total. The self is dissolving.",
+            ('vlow', 'mid'):    "The submission is absolute. The transformation is what she is made for.",
+            ('vlow', 'high'):   "The resistance and the purpose have become one. The body is home.",
+            ('low', 'low'):     "The pull toward acceptance is stronger than any resistance.",
+            ('low', 'mid'):     "The yield is opening to the changes. The transformation feels like truth.",
+            ('low', 'high'):    "The submission is complete. The body has taken her.",
+            ('avg', 'low'):     "The changes are arriving. The yield instinct is meeting them.",
+            ('avg', 'mid'):     "The transformation and the pull are pointing the same direction.",
+            ('avg', 'high'):    "The submission is starting to feel like what she wants.",
+            ('high', 'low'):    "The yield is present. The changes are what she is choosing.",
+            ('high', 'mid'):    "The submission is there but it is her choice. The body is asking and the choice is yes.",
+            ('high', 'high'):   "The transformation is something she can surrender to with absolute clarity.",
+            ('vhi', 'mid'):     "The yield has the intelligence of wisdom behind it. The submission is chosen.",
+            ('vhi', 'high'):    "The changes are what the deepest part of her wants. The surrender is perfect.",
+            ('exc', 'high'):    "The transformation has the weight of inevitability. The submission is the only answer.",
+        }, extra_cond=lambda s,c: 'surrogate' in c['effects'], base_pri=20),
+    }
+
+    # ─── TRANS_MALE ───
+    surrogate['trans_male'] = surrogate['male'].copy()
+
+    # ─── TRANS_FEMALE ───
+    surrogate['trans_female'] = surrogate['female'].copy()
+
+    # ─── INTERSEX ───
+    surrogate['intersex'] = {
+        'CON': _gen_portraits('ep_x_surrogate', 'CON', T, {
+            ('vlow', 'low'):    "The body is transforming and they cannot stop it. The composure is shattered.",
+            ('vlow', 'mid'):    "Completely overwhelmed. The changes are the only thing left.",
+            ('vlow', 'high'):   "No holding. The body is speaking a new language.",
+            ('low', 'low'):     "The body is changing faster than they can accept. Barely breathing through it.",
+            ('low', 'mid'):     "Still trying to hold but the body is insisting. The changes are the authority now.",
+            ('low', 'high'):    "The hold is deteriorating. The body has taken control.",
+            ('avg', 'low'):     "The changes are present. They are noticing them.",
+            ('avg', 'mid'):     "The composure is becoming background. The transformation is moving in.",
+            ('avg', 'high'):    "The body is changing. They are watching it happen.",
+            ('high', 'low'):    "The composure is steady. The changes are underneath.",
+            ('high', 'mid'):    "The stability is holding the transformation at a distance.",
+            ('high', 'high'):   "The iron discipline is still standing. The body is asking very gently.",
+            ('vhi', 'mid'):     "Complete control. The changes are being accepted.",
+            ('vhi', 'high'):    "The composure is the structure. The transformation is graceful.",
+            ('exc', 'high'):    "Perfect mastery. The changes are moving through them with precision.",
+        }, extra_cond=lambda s,c: 'surrogate' in c['effects'], base_pri=20),
+
+        'INT': _gen_portraits('ep_x_surrogate', 'INT', T, {
+            ('vlow', 'low'):    "The thought has stopped. The body is the only thing that makes sense.",
+            ('vlow', 'mid'):    "They cannot narrate anymore. The body is speaking in a language they are learning.",
+            ('vlow', 'high'):   "The analysis is gone. The changes are the only logic.",
+            ('low', 'low'):     "Still trying to understand. The understanding is being rewritten by biology.",
+            ('low', 'mid'):     "They know what the body is doing. The knowing is not helping them accept it.",
+            ('low', 'high'):    "The clarity is dissolving. The body is the only certainty.",
+            ('bav', 'low'):     "They are narrating the changes to themselves. The narration is not stopping them.",
+            ('bav', 'mid'):     "Still aware of what is happening. The awareness is dissolving into biology.",
+            ('avg', 'low'):     "They are observing the transformation with perfect clarity. The clarity is not helping.",
+            ('avg', 'mid'):     "The thought is intact but the body is rewriting it. They are narrating the changes.",
+            ('avg', 'high'):    "The clarity shows every stage. The clarity cannot halt it.",
+            ('aav', 'low'):     "Sharp. They can describe what the body is becoming and why. The description is academic.",
+            ('aav', 'mid'):     "The intelligence is observing the transformation beautifully. The beauty of the observation is part of the acceptance.",
+            ('aav', 'high'):    "They are narrating themselves into the biological purpose. The words are the bridge.",
+            ('high', 'low'):    "Still perfectly articulate. The body is speaking languages they understand.",
+            ('high', 'mid'):    "The analysis is intact but it is now in service to the body. They are explaining the changes.",
+            ('high', 'high'):   "The intelligence is describing the transformation with total precision and cannot stop it.",
+            ('vhi', 'mid'):     "The narration has become a guide through the changes. The guide is acceptance.",
+            ('vhi', 'high'):    "The brilliant observation of their own transformation. The tragedy is they can describe exactly and cannot stop.",
+            ('exc', 'high'):    "Perfect clarity. The intelligence is narrating the transformation in real time and the changes are the only thing that moves.",
+        }, extra_cond=lambda s,c: 'surrogate' in c['effects'], base_pri=20),
+
+        'WIS': _gen_portraits('ep_x_surrogate', 'WIS', T, {
+            ('vlow', 'low'):    "No choice left. The body has chosen its purpose.",
+            ('vlow', 'mid'):    "The discernment has dissolved. The body's purpose is the only signal.",
+            ('vlow', 'high'):   "No reading of consequence. The body is speaking.",
+            ('low', 'low'):     "They have not chosen. The body is already changing.",
+            ('low', 'mid'):     "The wisdom of resistance is gone. The body is the only counsel.",
+            ('low', 'high'):    "The body is making sense now. The understanding has chosen surrender.",
+            ('avg', 'low'):     "They are still weighing acceptance. The weight is moving toward yes.",
+            ('avg', 'mid'):     "The discernment is present but watching the body change. The choice is narrowing.",
+            ('avg', 'high'):    "Still considering. The body is making a very persuasive argument.",
+            ('high', 'low'):    "They are still choosing. The transformation is louder but the choice is still theirs.",
+            ('high', 'mid'):    "The wisdom is present. The body is asking and the wisdom is starting to agree.",
+            ('high', 'high'):   "Still present with the changes. The wisdom is choosing to let them.",
+            ('vhi', 'mid'):     "The insight is deep. The body wants to change and the wisdom understands why.",
+            ('vhi', 'high'):    "They have seen the cost and chosen anyway. The transformation has the wisdom on its side.",
+            ('exc', 'high'):    "The deep knowing. The body speaks and the wisdom answers yes.",
+        }, extra_cond=lambda s,c: 'surrogate' in c['effects'], base_pri=20),
+
+        'CHA': _gen_portraits('ep_x_surrogate', 'CHA', T, {
+            ('vlow', 'low'):    "The changes are exposed in every line. No subtlety left.",
+            ('vlow', 'mid'):    "Completely transparent. The body is speaking through every surface.",
+            ('vlow', 'high'):   "The presence is broadcasting the transformation. There is no control remaining.",
+            ('low', 'low'):     "The changes are visible now. The presence cannot hide them.",
+            ('low', 'mid'):     "The magnetism has shifted. The transformation is radiating outward.",
+            ('low', 'high'):    "The presence is making the changes legible to everyone.",
+            ('avg', 'low'):     "The surface is readable. The presence is starting to telegraph the shift.",
+            ('avg', 'mid'):     "The transformation is becoming visible in how they move.",
+            ('avg', 'high'):    "The presence is carrying the signal. The changes are becoming audible.",
+            ('high', 'low'):    "Still composed in presence. The changes are underneath.",
+            ('high', 'mid'):    "The presence is controlled. The transformation is a polished edge underneath.",
+            ('high', 'high'):   "The magnetism is serving the composure. The changes are dignified.",
+            ('vhi', 'mid'):     "The presence is crystalline. The transformation is a perfectly controlled warmth.",
+            ('vhi', 'high'):    "The magnetism is a tool. The changes are moving through it like light through water.",
+            ('exc', 'high'):    "The presence is a weapon. The transformation is moving through it with perfect grace.",
+        }, extra_cond=lambda s,c: 'surrogate' in c['effects'], base_pri=20),
+
+        'DOM': _gen_portraits('ep_x_surrogate', 'DOM', T, {
+            ('vlow', 'low'):    "The pride is drowning. The body's purpose is the only voice.",
+            ('vlow', 'mid'):    "The dominance has dissolved. The body is being rewritten now.",
+            ('vlow', 'high'):   "The pride is gone. The transformation has full control.",
+            ('low', 'low'):     "The pride is losing. The body's changes are an argument it cannot win.",
+            ('low', 'mid'):     "The dominance is sliding. The body has its own authority.",
+            ('low', 'high'):    "The pride has lost this round. The body is in charge.",
+            ('avg', 'low'):     "The pride is watching the changes work. Disapproving.",
+            ('avg', 'mid'):     "The dominance is present but negotiating with the body.",
+            ('avg', 'high'):    "The pride is still in the room but losing ground.",
+            ('high', 'low'):    "The pride is holding the line. The body is patient.",
+            ('high', 'mid'):    "The dominance is the master. The transformation is the servant.",
+            ('high', 'high'):   "The pride is absolute. The body is asking permission.",
+            ('vhi', 'mid'):     "The dominance is unshakeable. The transformation is beneath the dignity of refusal.",
+            ('vhi', 'high'):    "The pride is untouchable. The changes are something they are choosing.",
+            ('exc', 'high'):    "Complete mastery. The body wants to change and they are allowing it.",
+        }, extra_cond=lambda s,c: 'surrogate' in c['effects'], base_pri=20),
+
+        'SUB': _gen_portraits('ep_x_surrogate', 'SUB', T, {
+            ('vlow', 'low'):    "The yield to the body's purpose is total. The self is dissolving.",
+            ('vlow', 'mid'):    "The submission is absolute. The transformation is what they are made for.",
+            ('vlow', 'high'):   "The resistance and the purpose have become one. The body is home.",
+            ('low', 'low'):     "The pull toward acceptance is stronger than any resistance.",
+            ('low', 'mid'):     "The yield is opening to the changes. The transformation feels like truth.",
+            ('low', 'high'):    "The submission is complete. The body has taken them.",
+            ('avg', 'low'):     "The changes are arriving. The yield instinct is meeting them.",
+            ('avg', 'mid'):     "The transformation and the pull are pointing the same direction.",
+            ('avg', 'high'):    "The submission is starting to feel like what they want.",
+            ('high', 'low'):    "The yield is present. The changes are what they are choosing.",
+            ('high', 'mid'):    "The submission is there but it is their choice. The body is asking and the choice is yes.",
+            ('high', 'high'):   "The transformation is something they can surrender to with absolute clarity.",
+            ('vhi', 'mid'):     "The yield has the intelligence of wisdom behind it. The submission is chosen.",
+            ('vhi', 'high'):    "The changes are what the deepest part of them wants. The surrender is perfect.",
+            ('exc', 'high'):    "The transformation has the weight of inevitability. The submission is the only answer.",
+        }, extra_cond=lambda s,c: 'surrogate' in c['effects'], base_pri=20),
+    }
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # SHOW_OFF PORTRAITS
+    # ═══════════════════════════════════════════════════════════════════════════
+    show_off = {}
+
+    # ─── MALE ───
+    show_off['male'] = {
+        'CON': _gen_portraits('ep_m_show_off', 'CON', T, {
+            ('vlow', 'low'):    "The body is demanding to be seen. The composure is shattered.",
+            ('vlow', 'mid'):    "Barely holding. The performance is the only thing keeping him here.",
+            ('vlow', 'high'):   "No walls. The body is speaking to everyone.",
+            ('low', 'low'):     "The edge is brittle. The exposure is wearing at him.",
+            ('low', 'mid'):     "Still breathing through it. The want to be seen is the authority.",
+            ('low', 'high'):    "The hold is deteriorating. The gaze of others has power.",
+            ('avg', 'low'):     "The desire to be seen is present. He is noticing it.",
+            ('avg', 'mid'):     "The composure is becoming background. The performance is moving in.",
+            ('avg', 'high'):    "The body is being displayed. He is watching how others watch.",
+            ('high', 'low'):    "The composure is steady. The desire to be seen is underneath.",
+            ('high', 'mid'):    "The stability is holding the exposure at a distance.",
+            ('high', 'high'):   "The iron discipline is still standing. The performance is asking very gently.",
+            ('vhi', 'mid'):     "Complete control. The exhibitionism is being chosen.",
+            ('vhi', 'high'):    "The composure is the structure. The display is graceful.",
+            ('exc', 'high'):    "Perfect mastery. The performance is moving through him with precision.",
+        }, extra_cond=lambda s,c: 'show_off' in c['effects'], base_pri=20),
+
+        'INT': _gen_portraits('ep_m_show_off', 'INT', T, {
+            ('vlow', 'low'):    "The thought has scattered. The performance is the only narration.",
+            ('vlow', 'mid'):    "He cannot narrate anymore. The desire to be seen is speaking.",
+            ('vlow', 'high'):   "The clarity is gone. The gaze of others is the only logic.",
+            ('low', 'low'):     "Still trying to narrate. The narration is dissolving into performance.",
+            ('low', 'mid'):     "He knows he is being watched. The knowing is not stopping the display.",
+            ('low', 'high'):    "The analysis has collapsed into the want to be seen.",
+            ('bav', 'low'):     "He is narrating the performance to himself. The narration is fueling it.",
+            ('bav', 'mid'):     "Still aware of what is happening. The awareness is dissolving into performance.",
+            ('avg', 'low'):     "He is observing how he is being watched with perfect clarity. The clarity is exciting.",
+            ('avg', 'mid'):     "The thought is intact but it is all focused on the gaze. He is narrating the display.",
+            ('avg', 'high'):    "The clarity shows exactly how he looks. The clarity is fuel.",
+            ('aav', 'low'):     "Sharp. He can describe how he looks and what he is doing. The description is craft.",
+            ('aav', 'mid'):     "The intelligence is narrating the performance beautifully. The beauty is deliberate.",
+            ('aav', 'high'):    "He is narrating himself into the performance with precision. The words are the show.",
+            ('high', 'low'):    "Still perfectly articulate. He knows exactly how he is being perceived.",
+            ('high', 'mid'):    "The analysis is intact but it is now in service to the performance. He is explaining the display.",
+            ('high', 'high'):   "The intelligence is describing the performance with total precision and it is flawless.",
+            ('vhi', 'mid'):     "The narration has become the performance itself. The mirror is the show.",
+            ('vhi', 'high'):    "The brilliant observation of his own performance. The observation is part of the craft.",
+            ('exc', 'high'):    "Perfect clarity. The intelligence is narrating the performance in real time and the performance is deliberate.",
+        }, extra_cond=lambda s,c: 'show_off' in c['effects'], base_pri=20),
+
+        'WIS': _gen_portraits('ep_m_show_off', 'WIS', T, {
+            ('vlow', 'low'):    "No choice left. The body has chosen to be seen.",
+            ('vlow', 'mid'):    "The discernment has dissolved. The gaze is the only signal.",
+            ('vlow', 'high'):   "No reading of consequence. The exposure is complete.",
+            ('low', 'low'):     "He has not chosen. The body is already performing.",
+            ('low', 'mid'):     "The wisdom of modesty is gone. The desire to be seen is the only counsel.",
+            ('low', 'high'):    "The exposure is making sense now. The understanding has chosen display.",
+            ('avg', 'low'):     "He is still weighing the performance. The weight is moving toward yes.",
+            ('avg', 'mid'):     "The discernment is present but watching the body perform. The choice is narrowing.",
+            ('avg', 'high'):    "Still considering. The gaze of others is making a very persuasive argument.",
+            ('high', 'low'):    "He is still choosing. The desire to be seen is louder but the choice is still his.",
+            ('high', 'mid'):    "The wisdom is present. The body is asking to be displayed and the wisdom is starting to agree.",
+            ('high', 'high'):   "Still present with the performance. The wisdom is choosing to let it.",
+            ('vhi', 'mid'):     "The insight is deep. The body wants to be seen and the wisdom understands why.",
+            ('vhi', 'high'):    "He has seen the cost and chosen anyway. The display has the wisdom on its side.",
+            ('exc', 'high'):    "The deep knowing. The body speaks and the wisdom answers yes.",
+        }, extra_cond=lambda s,c: 'show_off' in c['effects'], base_pri=20),
+
+        'CHA': _gen_portraits('ep_m_show_off', 'CHA', T, {
+            ('vlow', 'low'):    "The desire to be seen is exposed in every line. No subtlety left.",
+            ('vlow', 'mid'):    "Completely transparent. The body is speaking the desire to be watched.",
+            ('vlow', 'high'):   "The presence is broadcasting the need to be seen. There is no control remaining.",
+            ('low', 'low'):     "The performance is visible now. The presence cannot hide it.",
+            ('low', 'mid'):     "The magnetism has shifted. The display is radiating outward.",
+            ('low', 'high'):    "The presence is making the performance legible to everyone.",
+            ('avg', 'low'):     "The surface is readable. The presence is starting to telegraph the desire.",
+            ('avg', 'mid'):     "The performance is becoming visible in how he moves.",
+            ('avg', 'high'):    "The presence is carrying the signal. The display is becoming audible.",
+            ('high', 'low'):    "Still composed in presence. The desire to be seen is underneath.",
+            ('high', 'mid'):    "The presence is controlled. The performance is a polished edge underneath.",
+            ('high', 'high'):   "The magnetism is serving the composure. The display is dignified.",
+            ('vhi', 'mid'):     "The presence is crystalline. The performance is a perfectly controlled show.",
+            ('vhi', 'high'):    "The magnetism is a tool. The display is moving through it like light through water.",
+            ('exc', 'high'):    "The presence is a weapon. The performance is moving through it with perfect grace.",
+        }, extra_cond=lambda s,c: 'show_off' in c['effects'], base_pri=20),
+
+        'DOM': _gen_portraits('ep_m_show_off', 'DOM', T, {
+            ('vlow', 'low'):    "The pride is drowning. The desire to be seen is the only voice.",
+            ('vlow', 'mid'):    "The dominance has dissolved. The body is being displayed now.",
+            ('vlow', 'high'):   "The pride is gone. The performance has full control.",
+            ('low', 'low'):     "The pride is losing. The display is an argument it cannot win.",
+            ('low', 'mid'):     "The dominance is sliding. The body has chosen to be seen.",
+            ('low', 'high'):    "The pride has lost this round. The performance is in charge.",
+            ('avg', 'low'):     "The pride is watching the performance work. Disapproving.",
+            ('avg', 'mid'):     "The dominance is present but negotiating with the body.",
+            ('avg', 'high'):    "The pride is still in the room but losing ground.",
+            ('high', 'low'):    "The pride is holding the line. The body is patient.",
+            ('high', 'mid'):    "The dominance is the master. The display is the servant.",
+            ('high', 'high'):   "The pride is absolute. The body is asking permission.",
+            ('vhi', 'mid'):     "The dominance is unshakeable. The performance is beneath the dignity of refusal.",
+            ('vhi', 'high'):    "The pride is untouchable. The display is something he is choosing.",
+            ('exc', 'high'):    "Complete mastery. The body wants to be seen and he is allowing it.",
+        }, extra_cond=lambda s,c: 'show_off' in c['effects'], base_pri=20),
+
+        'SUB': _gen_portraits('ep_m_show_off', 'SUB', T, {
+            ('vlow', 'low'):    "The yield to being seen is total. The self is open.",
+            ('vlow', 'mid'):    "The submission is absolute. The display is what he is made for.",
+            ('vlow', 'high'):   "The resistance and the performance have become one. The exposure is home.",
+            ('low', 'low'):     "The pull toward being watched is stronger than any resistance.",
+            ('low', 'mid'):     "The yield is opening to the display. The performance feels like truth.",
+            ('low', 'high'):    "The submission is complete. The gaze has taken him.",
+            ('avg', 'low'):     "The performance is arriving. The yield instinct is meeting it.",
+            ('avg', 'mid'):     "The display and the pull are pointing the same direction.",
+            ('avg', 'high'):    "The submission is starting to feel like what he wants.",
+            ('high', 'low'):    "The yield is present. The performance is what he is choosing.",
+            ('high', 'mid'):    "The submission is there but it is his choice. The body is asking to be seen and the choice is yes.",
+            ('high', 'high'):   "The display is something he can surrender to with absolute clarity.",
+            ('vhi', 'mid'):     "The yield has the intelligence of wisdom behind it. The submission is chosen.",
+            ('vhi', 'high'):    "The performance is what the deepest part of him wants. The surrender is perfect.",
+            ('exc', 'high'):    "The display has the weight of inevitability. The submission is the only answer.",
+        }, extra_cond=lambda s,c: 'show_off' in c['effects'], base_pri=20),
+    }
+
+    # ─── FEMALE ───
+    show_off['female'] = {
+        'CON': _gen_portraits('ep_f_show_off', 'CON', T, {
+            ('vlow', 'low'):    "The body is demanding to be seen. The composure is shattered.",
+            ('vlow', 'mid'):    "Barely holding. The performance is the only thing keeping her here.",
+            ('vlow', 'high'):   "No walls. The body is speaking to everyone.",
+            ('low', 'low'):     "The edge is brittle. The exposure is wearing at her.",
+            ('low', 'mid'):     "Still breathing through it. The want to be seen is the authority.",
+            ('low', 'high'):    "The hold is deteriorating. The gaze of others has power.",
+            ('avg', 'low'):     "The desire to be seen is present. She is noticing it.",
+            ('avg', 'mid'):     "The composure is becoming background. The performance is moving in.",
+            ('avg', 'high'):    "The body is being displayed. She is watching how others watch.",
+            ('high', 'low'):    "The composure is steady. The desire to be seen is underneath.",
+            ('high', 'mid'):    "The stability is holding the exposure at a distance.",
+            ('high', 'high'):   "The iron discipline is still standing. The performance is asking very gently.",
+            ('vhi', 'mid'):     "Complete control. The exhibitionism is being chosen.",
+            ('vhi', 'high'):    "The composure is the structure. The display is graceful.",
+            ('exc', 'high'):    "Perfect mastery. The performance is moving through her with precision.",
+        }, extra_cond=lambda s,c: 'show_off' in c['effects'], base_pri=20),
+
+        'INT': _gen_portraits('ep_f_show_off', 'INT', T, {
+            ('vlow', 'low'):    "The thought has scattered. The performance is the only narration.",
+            ('vlow', 'mid'):    "She cannot narrate anymore. The desire to be seen is speaking.",
+            ('vlow', 'high'):   "The clarity is gone. The gaze of others is the only logic.",
+            ('low', 'low'):     "Still trying to narrate. The narration is dissolving into performance.",
+            ('low', 'mid'):     "She knows she is being watched. The knowing is not stopping the display.",
+            ('low', 'high'):    "The analysis has collapsed into the want to be seen.",
+            ('bav', 'low'):     "She is narrating the performance to herself. The narration is fueling it.",
+            ('bav', 'mid'):     "Still aware of what is happening. The awareness is dissolving into performance.",
+            ('avg', 'low'):     "She is observing how she is being watched with perfect clarity. The clarity is exciting.",
+            ('avg', 'mid'):     "The thought is intact but it is all focused on the gaze. She is narrating the display.",
+            ('avg', 'high'):    "The clarity shows exactly how she looks. The clarity is fuel.",
+            ('aav', 'low'):     "Sharp. She can describe how she looks and what she is doing. The description is craft.",
+            ('aav', 'mid'):     "The intelligence is narrating the performance beautifully. The beauty is deliberate.",
+            ('aav', 'high'):    "She is narrating herself into the performance with precision. The words are the show.",
+            ('high', 'low'):    "Still perfectly articulate. She knows exactly how she is being perceived.",
+            ('high', 'mid'):    "The analysis is intact but it is now in service to the performance. She is explaining the display.",
+            ('high', 'high'):   "The intelligence is describing the performance with total precision and it is flawless.",
+            ('vhi', 'mid'):     "The narration has become the performance itself. The mirror is the show.",
+            ('vhi', 'high'):    "The brilliant observation of her own performance. The observation is part of the craft.",
+            ('exc', 'high'):    "Perfect clarity. The intelligence is narrating the performance in real time and the performance is deliberate.",
+        }, extra_cond=lambda s,c: 'show_off' in c['effects'], base_pri=20),
+
+        'WIS': _gen_portraits('ep_f_show_off', 'WIS', T, {
+            ('vlow', 'low'):    "No choice left. The body has chosen to be seen.",
+            ('vlow', 'mid'):    "The discernment has dissolved. The gaze is the only signal.",
+            ('vlow', 'high'):   "No reading of consequence. The exposure is complete.",
+            ('low', 'low'):     "She has not chosen. The body is already performing.",
+            ('low', 'mid'):     "The wisdom of modesty is gone. The desire to be seen is the only counsel.",
+            ('low', 'high'):    "The exposure is making sense now. The understanding has chosen display.",
+            ('avg', 'low'):     "She is still weighing the performance. The weight is moving toward yes.",
+            ('avg', 'mid'):     "The discernment is present but watching the body perform. The choice is narrowing.",
+            ('avg', 'high'):    "Still considering. The gaze of others is making a very persuasive argument.",
+            ('high', 'low'):    "She is still choosing. The desire to be seen is louder but the choice is still hers.",
+            ('high', 'mid'):    "The wisdom is present. The body is asking to be displayed and the wisdom is starting to agree.",
+            ('high', 'high'):   "Still present with the performance. The wisdom is choosing to let it.",
+            ('vhi', 'mid'):     "The insight is deep. The body wants to be seen and the wisdom understands why.",
+            ('vhi', 'high'):    "She has seen the cost and chosen anyway. The display has the wisdom on its side.",
+            ('exc', 'high'):    "The deep knowing. The body speaks and the wisdom answers yes.",
+        }, extra_cond=lambda s,c: 'show_off' in c['effects'], base_pri=20),
+
+        'CHA': _gen_portraits('ep_f_show_off', 'CHA', T, {
+            ('vlow', 'low'):    "The desire to be seen is exposed in every line. No subtlety left.",
+            ('vlow', 'mid'):    "Completely transparent. The body is speaking the desire to be watched.",
+            ('vlow', 'high'):   "The presence is broadcasting the need to be seen. There is no control remaining.",
+            ('low', 'low'):     "The performance is visible now. The presence cannot hide it.",
+            ('low', 'mid'):     "The magnetism has shifted. The display is radiating outward.",
+            ('low', 'high'):    "The presence is making the performance legible to everyone.",
+            ('avg', 'low'):     "The surface is readable. The presence is starting to telegraph the desire.",
+            ('avg', 'mid'):     "The performance is becoming visible in how she moves.",
+            ('avg', 'high'):    "The presence is carrying the signal. The display is becoming audible.",
+            ('high', 'low'):    "Still composed in presence. The desire to be seen is underneath.",
+            ('high', 'mid'):    "The presence is controlled. The performance is a polished edge underneath.",
+            ('high', 'high'):   "The magnetism is serving the composure. The display is dignified.",
+            ('vhi', 'mid'):     "The presence is crystalline. The performance is a perfectly controlled show.",
+            ('vhi', 'high'):    "The magnetism is a tool. The display is moving through it like light through water.",
+            ('exc', 'high'):    "The presence is a weapon. The performance is moving through it with perfect grace.",
+        }, extra_cond=lambda s,c: 'show_off' in c['effects'], base_pri=20),
+
+        'DOM': _gen_portraits('ep_f_show_off', 'DOM', T, {
+            ('vlow', 'low'):    "The pride is drowning. The desire to be seen is the only voice.",
+            ('vlow', 'mid'):    "The dominance has dissolved. The body is being displayed now.",
+            ('vlow', 'high'):   "The pride is gone. The performance has full control.",
+            ('low', 'low'):     "The pride is losing. The display is an argument it cannot win.",
+            ('low', 'mid'):     "The dominance is sliding. The body has chosen to be seen.",
+            ('low', 'high'):    "The pride has lost this round. The performance is in charge.",
+            ('avg', 'low'):     "The pride is watching the performance work. Disapproving.",
+            ('avg', 'mid'):     "The dominance is present but negotiating with the body.",
+            ('avg', 'high'):    "The pride is still in the room but losing ground.",
+            ('high', 'low'):    "The pride is holding the line. The body is patient.",
+            ('high', 'mid'):    "The dominance is the master. The display is the servant.",
+            ('high', 'high'):   "The pride is absolute. The body is asking permission.",
+            ('vhi', 'mid'):     "The dominance is unshakeable. The performance is beneath the dignity of refusal.",
+            ('vhi', 'high'):    "The pride is untouchable. The display is something she is choosing.",
+            ('exc', 'high'):    "Complete mastery. The body wants to be seen and she is allowing it.",
+        }, extra_cond=lambda s,c: 'show_off' in c['effects'], base_pri=20),
+
+        'SUB': _gen_portraits('ep_f_show_off', 'SUB', T, {
+            ('vlow', 'low'):    "The yield to being seen is total. The self is open.",
+            ('vlow', 'mid'):    "The submission is absolute. The display is what she is made for.",
+            ('vlow', 'high'):   "The resistance and the performance have become one. The exposure is home.",
+            ('low', 'low'):     "The pull toward being watched is stronger than any resistance.",
+            ('low', 'mid'):     "The yield is opening to the display. The performance feels like truth.",
+            ('low', 'high'):    "The submission is complete. The gaze has taken her.",
+            ('avg', 'low'):     "The performance is arriving. The yield instinct is meeting it.",
+            ('avg', 'mid'):     "The display and the pull are pointing the same direction.",
+            ('avg', 'high'):    "The submission is starting to feel like what she wants.",
+            ('high', 'low'):    "The yield is present. The performance is what she is choosing.",
+            ('high', 'mid'):    "The submission is there but it is her choice. The body is asking to be seen and the choice is yes.",
+            ('high', 'high'):   "The display is something she can surrender to with absolute clarity.",
+            ('vhi', 'mid'):     "The yield has the intelligence of wisdom behind it. The submission is chosen.",
+            ('vhi', 'high'):    "The performance is what the deepest part of her wants. The surrender is perfect.",
+            ('exc', 'high'):    "The display has the weight of inevitability. The submission is the only answer.",
+        }, extra_cond=lambda s,c: 'show_off' in c['effects'], base_pri=20),
+    }
+
+    # ─── TRANS_MALE ───
+    show_off['trans_male'] = show_off['male'].copy()
+
+    # ─── TRANS_FEMALE ───
+    show_off['trans_female'] = show_off['female'].copy()
+
+    # ─── INTERSEX ───
+    show_off['intersex'] = {
+        'CON': _gen_portraits('ep_x_show_off', 'CON', T, {
+            ('vlow', 'low'):    "The body is demanding to be seen. The composure is shattered.",
+            ('vlow', 'mid'):    "Barely holding. The performance is the only thing keeping them here.",
+            ('vlow', 'high'):   "No walls. The body is speaking to everyone.",
+            ('low', 'low'):     "The edge is brittle. The exposure is wearing at them.",
+            ('low', 'mid'):     "Still breathing through it. The want to be seen is the authority.",
+            ('low', 'high'):    "The hold is deteriorating. The gaze of others has power.",
+            ('avg', 'low'):     "The desire to be seen is present. They are noticing it.",
+            ('avg', 'mid'):     "The composure is becoming background. The performance is moving in.",
+            ('avg', 'high'):    "The body is being displayed. They are watching how others watch.",
+            ('high', 'low'):    "The composure is steady. The desire to be seen is underneath.",
+            ('high', 'mid'):    "The stability is holding the exposure at a distance.",
+            ('high', 'high'):   "The iron discipline is still standing. The performance is asking very gently.",
+            ('vhi', 'mid'):     "Complete control. The exhibitionism is being chosen.",
+            ('vhi', 'high'):    "The composure is the structure. The display is graceful.",
+            ('exc', 'high'):    "Perfect mastery. The performance is moving through them with precision.",
+        }, extra_cond=lambda s,c: 'show_off' in c['effects'], base_pri=20),
+
+        'INT': _gen_portraits('ep_x_show_off', 'INT', T, {
+            ('vlow', 'low'):    "The thought has scattered. The performance is the only narration.",
+            ('vlow', 'mid'):    "They cannot narrate anymore. The desire to be seen is speaking.",
+            ('vlow', 'high'):   "The clarity is gone. The gaze of others is the only logic.",
+            ('low', 'low'):     "Still trying to narrate. The narration is dissolving into performance.",
+            ('low', 'mid'):     "They know they are being watched. The knowing is not stopping the display.",
+            ('low', 'high'):    "The analysis has collapsed into the want to be seen.",
+            ('bav', 'low'):     "They are narrating the performance to themselves. The narration is fueling it.",
+            ('bav', 'mid'):     "Still aware of what is happening. The awareness is dissolving into performance.",
+            ('avg', 'low'):     "They are observing how they are being watched with perfect clarity. The clarity is exciting.",
+            ('avg', 'mid'):     "The thought is intact but it is all focused on the gaze. They are narrating the display.",
+            ('avg', 'high'):    "The clarity shows exactly how they look. The clarity is fuel.",
+            ('aav', 'low'):     "Sharp. They can describe how they look and what they are doing. The description is craft.",
+            ('aav', 'mid'):     "The intelligence is narrating the performance beautifully. The beauty is deliberate.",
+            ('aav', 'high'):    "They are narrating themselves into the performance with precision. The words are the show.",
+            ('high', 'low'):    "Still perfectly articulate. They know exactly how they are being perceived.",
+            ('high', 'mid'):    "The analysis is intact but it is now in service to the performance. They are explaining the display.",
+            ('high', 'high'):   "The intelligence is describing the performance with total precision and it is flawless.",
+            ('vhi', 'mid'):     "The narration has become the performance itself. The mirror is the show.",
+            ('vhi', 'high'):    "The brilliant observation of their own performance. The observation is part of the craft.",
+            ('exc', 'high'):    "Perfect clarity. The intelligence is narrating the performance in real time and the performance is deliberate.",
+        }, extra_cond=lambda s,c: 'show_off' in c['effects'], base_pri=20),
+
+        'WIS': _gen_portraits('ep_x_show_off', 'WIS', T, {
+            ('vlow', 'low'):    "No choice left. The body has chosen to be seen.",
+            ('vlow', 'mid'):    "The discernment has dissolved. The gaze is the only signal.",
+            ('vlow', 'high'):   "No reading of consequence. The exposure is complete.",
+            ('low', 'low'):     "They have not chosen. The body is already performing.",
+            ('low', 'mid'):     "The wisdom of modesty is gone. The desire to be seen is the only counsel.",
+            ('low', 'high'):    "The exposure is making sense now. The understanding has chosen display.",
+            ('avg', 'low'):     "They are still weighing the performance. The weight is moving toward yes.",
+            ('avg', 'mid'):     "The discernment is present but watching the body perform. The choice is narrowing.",
+            ('avg', 'high'):    "Still considering. The gaze of others is making a very persuasive argument.",
+            ('high', 'low'):    "They are still choosing. The desire to be seen is louder but the choice is still theirs.",
+            ('high', 'mid'):    "The wisdom is present. The body is asking to be displayed and the wisdom is starting to agree.",
+            ('high', 'high'):   "Still present with the performance. The wisdom is choosing to let it.",
+            ('vhi', 'mid'):     "The insight is deep. The body wants to be seen and the wisdom understands why.",
+            ('vhi', 'high'):    "They have seen the cost and chosen anyway. The display has the wisdom on its side.",
+            ('exc', 'high'):    "The deep knowing. The body speaks and the wisdom answers yes.",
+        }, extra_cond=lambda s,c: 'show_off' in c['effects'], base_pri=20),
+
+        'CHA': _gen_portraits('ep_x_show_off', 'CHA', T, {
+            ('vlow', 'low'):    "The desire to be seen is exposed in every line. No subtlety left.",
+            ('vlow', 'mid'):    "Completely transparent. The body is speaking the desire to be watched.",
+            ('vlow', 'high'):   "The presence is broadcasting the need to be seen. There is no control remaining.",
+            ('low', 'low'):     "The performance is visible now. The presence cannot hide it.",
+            ('low', 'mid'):     "The magnetism has shifted. The display is radiating outward.",
+            ('low', 'high'):    "The presence is making the performance legible to everyone.",
+            ('avg', 'low'):     "The surface is readable. The presence is starting to telegraph the desire.",
+            ('avg', 'mid'):     "The performance is becoming visible in how they move.",
+            ('avg', 'high'):    "The presence is carrying the signal. The display is becoming audible.",
+            ('high', 'low'):    "Still composed in presence. The desire to be seen is underneath.",
+            ('high', 'mid'):    "The presence is controlled. The performance is a polished edge underneath.",
+            ('high', 'high'):   "The magnetism is serving the composure. The display is dignified.",
+            ('vhi', 'mid'):     "The presence is crystalline. The performance is a perfectly controlled show.",
+            ('vhi', 'high'):    "The magnetism is a tool. The display is moving through it like light through water.",
+            ('exc', 'high'):    "The presence is a weapon. The performance is moving through it with perfect grace.",
+        }, extra_cond=lambda s,c: 'show_off' in c['effects'], base_pri=20),
+
+        'DOM': _gen_portraits('ep_x_show_off', 'DOM', T, {
+            ('vlow', 'low'):    "The pride is drowning. The desire to be seen is the only voice.",
+            ('vlow', 'mid'):    "The dominance has dissolved. The body is being displayed now.",
+            ('vlow', 'high'):   "The pride is gone. The performance has full control.",
+            ('low', 'low'):     "The pride is losing. The display is an argument it cannot win.",
+            ('low', 'mid'):     "The dominance is sliding. The body has chosen to be seen.",
+            ('low', 'high'):    "The pride has lost this round. The performance is in charge.",
+            ('avg', 'low'):     "The pride is watching the performance work. Disapproving.",
+            ('avg', 'mid'):     "The dominance is present but negotiating with the body.",
+            ('avg', 'high'):    "The pride is still in the room but losing ground.",
+            ('high', 'low'):    "The pride is holding the line. The body is patient.",
+            ('high', 'mid'):    "The dominance is the master. The display is the servant.",
+            ('high', 'high'):   "The pride is absolute. The body is asking permission.",
+            ('vhi', 'mid'):     "The dominance is unshakeable. The performance is beneath the dignity of refusal.",
+            ('vhi', 'high'):    "The pride is untouchable. The display is something they are choosing.",
+            ('exc', 'high'):    "Complete mastery. The body wants to be seen and they are allowing it.",
+        }, extra_cond=lambda s,c: 'show_off' in c['effects'], base_pri=20),
+
+        'SUB': _gen_portraits('ep_x_show_off', 'SUB', T, {
+            ('vlow', 'low'):    "The yield to being seen is total. The self is open.",
+            ('vlow', 'mid'):    "The submission is absolute. The display is what they are made for.",
+            ('vlow', 'high'):   "The resistance and the performance have become one. The exposure is home.",
+            ('low', 'low'):     "The pull toward being watched is stronger than any resistance.",
+            ('low', 'mid'):     "The yield is opening to the display. The performance feels like truth.",
+            ('low', 'high'):    "The submission is complete. The gaze has taken them.",
+            ('avg', 'low'):     "The performance is arriving. The yield instinct is meeting it.",
+            ('avg', 'mid'):     "The display and the pull are pointing the same direction.",
+            ('avg', 'high'):    "The submission is starting to feel like what they want.",
+            ('high', 'low'):    "The yield is present. The performance is what they are choosing.",
+            ('high', 'mid'):    "The submission is there but it is their choice. The body is asking to be seen and the choice is yes.",
+            ('high', 'high'):   "The display is something they can surrender to with absolute clarity.",
+            ('vhi', 'mid'):     "The yield has the intelligence of wisdom behind it. The submission is chosen.",
+            ('vhi', 'high'):    "The performance is what the deepest part of them wants. The surrender is perfect.",
+            ('exc', 'high'):    "The display has the weight of inevitability. The submission is the only answer.",
+        }, extra_cond=lambda s,c: 'show_off' in c['effects'], base_pri=20),
+    }
+
+    # Append to existing effect tables
+    for effect_name, effect_data in [('breeder', breeder), ('denial', denial), ('bimbo', bimbo), ('bull', bull), ('compliant', compliant), ('submissive', submissive), ('psyche', psyche), ('surrogate', surrogate), ('show_off', show_off)]:
+        table_key = f'_T_{effect_name.upper()}'
+        # Get table from globals, or use effect_data directly if global doesn't exist yet
+        if table_key in globals():
+            table = globals()[table_key]
+            for sex in effect_data:
+                if sex not in table:
+                    table[sex] = {}
+                for stat in effect_data[sex]:
+                    if stat not in table[sex]:
+                        table[sex][stat] = []
+                    table[sex][stat].extend(effect_data[sex][stat])
+
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _build_transformation_portraits():
+    """Generate transformation-specific portrait fragments.
+
+    These are personality-lens phrases (dc=0) that fire during body transformation.
+    They're specialized by pill type and respond to specific stat modifiers.
+
+    Appends to: _T_TRANSFORMATION_PINK, _T_TRANSFORMATION_BLUE, _T_TRANSFORMATION_PURPLE
+    """
+    T = _PORTRAIT_TIERS
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # PINK (MTF TRANSFORMATION)
+    # ═══════════════════════════════════════════════════════════════════════════
+    pink = {}
+
+    # ─── TRANS_FEMALE (becoming female) ───
+    pink['trans_female'] = {
+        'CON': _gen_portraits('tr_tf_con', 'CON', T, {
+            ('vlow', 'low'):    "Every change is a jolt. The body is speaking in a language of sensation.",
+            ('vlow', 'mid'):    "The body is raw. Each shift is precision and pain intertwined.",
+            ('vlow', 'high'):   "Exquisite awareness. The softening is detailed and overwhelming.",
+            ('low', 'low'):     "The changes are registering everywhere. She is noticing every shift.",
+            ('low', 'mid'):     "The body is becoming legible in its change. Present with each adjustment.",
+            ('low', 'high'):    "The composure is breaking and reforming. The transformation is felt completely.",
+            ('avg', 'low'):     "The change is happening. She is aware and present.",
+            ('avg', 'mid'):     "Still composed. The body is asking and she is acknowledging.",
+            ('avg', 'high'):    "The shifts are clear. She is meeting each one.",
+            ('high', 'low'):    "The awareness is controlled. The softening is registered with precision.",
+            ('high', 'mid'):    "The composure is holding through the change. The body is asking very politely.",
+            ('high', 'high'):   "Complete presence. The body is being transformed and she is witnessing it.",
+            ('vhi', 'mid'):     "Total control of sensation. The softening is a tool she understands.",
+            ('vhi', 'high'):    "The body is changing and she is the stillness in the center of it.",
+            ('exc', 'high'):    "Perfect precision. The transformation is understood in every detail.",
+        }, extra_cond=lambda s,c: c['transforming'] and c['pill'] == 'pink', base_pri=20),
+
+        'INT': _gen_portraits('tr_tf_int', 'INT', T, {
+            ('vlow', 'low'):    "The analysis has stopped. The body is the narrative now.",
+            ('vlow', 'mid'):    "Thought is scattered across sensation. The changes are making a new language.",
+            ('vlow', 'high'):   "The mind cannot keep pace. The feminization is outrunning comprehension.",
+            ('low', 'low'):     "She is trying to track the changes. The tracking is overwhelmed by sensation.",
+            ('low', 'mid'):     "The analysis is collapsing into acceptance. The softening makes its own logic.",
+            ('low', 'high'):    "The intellectual distance closed. The body is rewriting what she knows.",
+            ('bav', 'low'):     "She is narrating the changes to herself. The narration is dissolving.",
+            ('bav', 'mid'):     "Still attempting clarity. The awareness is becoming embodied.",
+            ('avg', 'low'):     "She is observing the feminization academically. The distance is still there.",
+            ('avg', 'mid'):     "Thought and change are happening simultaneously. She is still documenting.",
+            ('avg', 'high'):    "The clarity is intact but the body is teaching something new.",
+            ('aav', 'low'):     "Sharp analysis of the softening. The description is precise.",
+            ('aav', 'mid'):     "The intelligence is narrating the change beautifully. The beauty is making it real.",
+            ('aav', 'high'):    "She is explaining the feminization to herself. The words are becoming belief.",
+            ('high', 'low'):    "Still articulate. The body is speaking a language she understands.",
+            ('high', 'mid'):    "The analysis is in service to acceptance now. She is understanding the feminization.",
+            ('high', 'high'):   "The intelligence is describing the change with precision and cannot resist it.",
+            ('vhi', 'mid'):     "The narration has become a mirror. The body is changing and the mind is watching.",
+            ('vhi', 'high'):    "Perfect clarity. The feminization is understood in real time and welcomed.",
+            ('exc', 'high'):    "Brilliant observation. The change is described and embraced simultaneously.",
+        }, extra_cond=lambda s,c: c['transforming'] and c['pill'] == 'pink', base_pri=20),
+
+        'WIS': _gen_portraits('tr_tf_wis', 'WIS', T, {
+            ('vlow', 'low'):    "No choice visible. The body is choosing.",
+            ('vlow', 'mid'):    "The discernment is gone. The softening is the only signal.",
+            ('vlow', 'high'):   "No reading of self. The feminization is complete and present.",
+            ('low', 'low'):     "She has not chosen. The body is already changing.",
+            ('low', 'mid'):     "The wisdom of resistance is gone. The body is the only counsel.",
+            ('low', 'high'):    "The softening is making sense. The understanding has shifted.",
+            ('avg', 'low'):     "She is considering the change. The weight is moving toward acceptance.",
+            ('avg', 'mid'):     "The discernment is present but it is watching the body shift. The choice is narrowing.",
+            ('avg', 'high'):    "Still weighing. The feminization is making a very persuasive argument.",
+            ('high', 'low'):    "She is still choosing. The change is louder but the choice is still hers.",
+            ('high', 'mid'):    "The wisdom is present. The body is becoming and the wisdom is beginning to agree.",
+            ('high', 'high'):   "Still present with the transformation. The wisdom is choosing to let it.",
+            ('vhi', 'mid'):     "The insight is deep. The softening is understood and the wisdom agrees.",
+            ('vhi', 'high'):    "She has seen the change and chosen anyway. The feminization has the wisdom's approval.",
+            ('exc', 'high'):    "The deep knowing. The body speaks and the wisdom answers yes.",
+        }, extra_cond=lambda s,c: c['transforming'] and c['pill'] == 'pink', base_pri=20),
+
+        'CHA': _gen_portraits('tr_tf_cha', 'CHA', T, {
+            ('vlow', 'low'):    "The softening is exposed in every line. The old presence is dissolving.",
+            ('vlow', 'mid'):    "Completely transparent. The feminization is radiating outward.",
+            ('vlow', 'high'):   "The presence is broadcasting the new form. The magnetism is shifting.",
+            ('low', 'low'):     "The softening is visible now. The presence is changing.",
+            ('low', 'mid'):     "The magnetism is shifting. The new femininity is emerging.",
+            ('low', 'high'):    "The presence is making the change legible to everyone.",
+            ('avg', 'low'):     "The body is becoming readable. The presence is starting to telegraph the new form.",
+            ('avg', 'mid'):     "The softening is visible in how she moves. The magnetism is adapting.",
+            ('avg', 'high'):    "The presence is carrying the signal. The feminization is becoming audible.",
+            ('high', 'low'):    "Still composed in presence. The softening is underneath.",
+            ('high', 'mid'):    "The presence is controlled. The new femininity is a polished edge underneath.",
+            ('high', 'high'):   "The magnetism is serving the new form. The softening is dignified.",
+            ('vhi', 'mid'):     "The presence is crystalline. The femininity is a perfectly controlled warmth.",
+            ('vhi', 'high'):    "The magnetism is a tool for the new self. The softening moves through it with grace.",
+            ('exc', 'high'):    "The presence is a weapon. The new femininity is moving through it with perfect control.",
+        }, extra_cond=lambda s,c: c['transforming'] and c['pill'] == 'pink', base_pri=20),
+
+        'DOM': _gen_portraits('tr_tf_dom', 'DOM', T, {
+            ('vlow', 'low'):    "The pride is dissolving. The feminization is the only authority.",
+            ('vlow', 'mid'):    "The dominance has collapsed. The softening is complete.",
+            ('vlow', 'high'):   "The pride is gone. The transformation is absolute.",
+            ('low', 'low'):     "The pride is losing. The softening is the inevitable argument.",
+            ('low', 'mid'):     "The dominance is sliding. The body has chosen what it is becoming.",
+            ('low', 'high'):    "The pride has yielded. The feminization is in charge.",
+            ('avg', 'low'):     "The pride is watching the softening. Aware but negotiating.",
+            ('avg', 'mid'):     "The dominance is present but it is accepting the change.",
+            ('avg', 'high'):    "The pride is present but the body is winning.",
+            ('high', 'low'):    "The pride is holding the line. The change is patient.",
+            ('high', 'mid'):    "The dominance is the master. The feminization is asking permission.",
+            ('high', 'high'):   "The pride is absolute. The body is softening and she is allowing it.",
+            ('vhi', 'mid'):     "The dominance is unshakeable. The softening is beneath the dignity of refusal.",
+            ('vhi', 'high'):    "The pride is untouchable. The feminization is something she is choosing.",
+            ('exc', 'high'):    "Complete mastery. The body is becoming female and she has already decided.",
+        }, extra_cond=lambda s,c: c['transforming'] and c['pill'] == 'pink', base_pri=20),
+
+        'SUB': _gen_portraits('tr_tf_sub', 'SUB', T, {
+            ('vlow', 'low'):    "The yield is total. The softening is what she is made for.",
+            ('vlow', 'mid'):    "The submission is absolute. The feminization is home.",
+            ('vlow', 'high'):   "The resistance and the softening have become one. The yielding is complete.",
+            ('low', 'low'):     "The pull toward femininity is stronger than any resistance.",
+            ('low', 'mid'):     "The yield is opening to the change. The softening feels like truth.",
+            ('low', 'high'):    "The submission is complete. The transformation has taken her.",
+            ('avg', 'low'):     "The change is arriving. The yield instinct is meeting it.",
+            ('avg', 'mid'):     "The softening and the pull are pointing the same direction.",
+            ('avg', 'high'):    "The submission is starting to feel like what she wants.",
+            ('high', 'low'):    "The yield is present. The feminization is what she is choosing.",
+            ('high', 'mid'):    "The submission is there but it is her choice. The body is becoming and the choice is yes.",
+            ('high', 'high'):   "The change is something she can surrender to with absolute clarity.",
+            ('vhi', 'mid'):     "The yield has wisdom behind it. The submission is chosen.",
+            ('vhi', 'high'):    "The feminization is what the deepest part of her wants. The surrender is perfect.",
+            ('exc', 'high'):    "The change has the weight of inevitability. The submission is the only answer.",
+        }, extra_cond=lambda s,c: c['transforming'] and c['pill'] == 'pink', base_pri=20),
+    }
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # BLUE (FTM TRANSFORMATION)
+    # ═══════════════════════════════════════════════════════════════════════════
+    blue = {}
+
+    # ─── TRANS_MALE (becoming male) ───
+    blue['trans_male'] = {
+        'CON': _gen_portraits('tr_tm_con', 'CON', T, {
+            ('vlow', 'low'):    "The testosterone is a surge. The body is responding with raw power.",
+            ('vlow', 'mid'):    "The change is flooding through. The composure is shattered.",
+            ('vlow', 'high'):   "The power is overwhelming. The body is a new instrument.",
+            ('low', 'low'):     "The surge is registering everywhere. He is feeling the change completely.",
+            ('low', 'mid'):     "The power is building. The body is becoming a new weight.",
+            ('low', 'high'):    "The composure is breaking under the strength. The change is flooding in.",
+            ('avg', 'low'):     "The power is arriving. He is aware and present.",
+            ('avg', 'mid'):     "Still composed. The body is asking and he is acknowledging.",
+            ('avg', 'high'):    "The strength is clear. He is meeting each surge.",
+            ('high', 'low'):    "The awareness is controlled. The power is registered with precision.",
+            ('high', 'mid'):    "The composure is holding through the change. The body is strong and asking.",
+            ('high', 'high'):   "Complete presence. The body is becoming male and he is witnessing it.",
+            ('vhi', 'mid'):     "Total control of the surge. The power is a tool he understands.",
+            ('vhi', 'high'):    "The body is changing and he is the stillness in the center of it.",
+            ('exc', 'high'):    "Perfect precision. The transformation is understood in every detail.",
+        }, extra_cond=lambda s,c: c['transforming'] and c['pill'] == 'blue', base_pri=20),
+
+        'INT': _gen_portraits('tr_tm_int', 'INT', T, {
+            ('vlow', 'low'):    "The analysis has stopped. The testosterone is the narrative now.",
+            ('vlow', 'mid'):    "Thought is scattered across sensation. The changes are overwhelming comprehension.",
+            ('vlow', 'high'):   "The mind cannot keep pace. The masculinization is outrunning analysis.",
+            ('low', 'low'):     "He is trying to track the surge. The tracking is overwhelmed by power.",
+            ('low', 'mid'):     "The analysis is collapsing into acceptance. The testosterone makes its own logic.",
+            ('low', 'high'):    "The intellectual distance closed. The body is rewriting what he knows.",
+            ('bav', 'low'):     "He is narrating the surge to himself. The narration is dissolving.",
+            ('bav', 'mid'):     "Still attempting clarity. The awareness is becoming embodied.",
+            ('avg', 'low'):     "He is observing the transformation academically. The distance is still there.",
+            ('avg', 'mid'):     "Thought and change are happening simultaneously. He is still documenting.",
+            ('avg', 'high'):    "The clarity is intact but the body is teaching something new.",
+            ('aav', 'low'):     "Sharp analysis of the power. The description is precise.",
+            ('aav', 'mid'):     "The intelligence is narrating the surge beautifully. The beauty is making it real.",
+            ('aav', 'high'):    "He is explaining the masculinization to himself. The words are becoming belief.",
+            ('high', 'low'):    "Still articulate. The body is speaking a language he understands.",
+            ('high', 'mid'):    "The analysis is in service to acceptance now. He is understanding the change.",
+            ('high', 'high'):   "The intelligence is describing the power with precision and cannot resist it.",
+            ('vhi', 'mid'):     "The narration has become a mirror. The body is surging and the mind is cataloging it.",
+            ('vhi', 'high'):    "Perfect clarity. The transformation is understood in real time and embraced.",
+            ('exc', 'high'):    "Brilliant observation. The surge is described and claimed simultaneously.",
+        }, extra_cond=lambda s,c: c['transforming'] and c['pill'] == 'blue', base_pri=20),
+
+        'WIS': _gen_portraits('tr_tm_wis', 'WIS', T, {
+            ('vlow', 'low'):    "No choice visible. The body is choosing.",
+            ('vlow', 'mid'):    "The discernment is gone. The surge is the only signal.",
+            ('vlow', 'high'):   "No reading of self. The power is complete and present.",
+            ('low', 'low'):     "He has not chosen. The body is already changing.",
+            ('low', 'mid'):     "The wisdom of hesitation is gone. The testosterone is the only counsel.",
+            ('low', 'high'):    "The power is making sense. The understanding has shifted.",
+            ('avg', 'low'):     "He is considering the change. The weight is moving toward acceptance.",
+            ('avg', 'mid'):     "The discernment is present but it is watching the surge. The choice is narrowing.",
+            ('avg', 'high'):    "Still weighing. The strength is making a very persuasive argument.",
+            ('high', 'low'):    "He is still choosing. The power is louder but the choice is still his.",
+            ('high', 'mid'):    "The wisdom is present. The body is surging and the wisdom is beginning to agree.",
+            ('high', 'high'):   "Still present with the transformation. The wisdom is choosing to let it.",
+            ('vhi', 'mid'):     "The insight is deep. The power is understood and the wisdom agrees.",
+            ('vhi', 'high'):    "He has seen the surge and chosen anyway. The masculinization has wisdom's approval.",
+            ('exc', 'high'):    "The deep knowing. The body speaks and the wisdom answers yes.",
+        }, extra_cond=lambda s,c: c['transforming'] and c['pill'] == 'blue', base_pri=20),
+
+        'CHA': _gen_portraits('tr_tm_cha', 'CHA', T, {
+            ('vlow', 'low'):    "The power is exposed in every line. The new presence is aggressive.",
+            ('vlow', 'mid'):    "Completely transformed. The masculinity is radiating outward.",
+            ('vlow', 'high'):   "The presence is broadcasting the change. The magnetism is shifting.",
+            ('low', 'low'):     "The power is visible now. The presence is changing.",
+            ('low', 'mid'):     "The magnetism is shifting. The new masculinity is emerging.",
+            ('low', 'high'):    "The presence is making the change legible to everyone.",
+            ('avg', 'low'):     "The body is becoming readable. The presence is starting to telegraph the new form.",
+            ('avg', 'mid'):     "The power is visible in how he moves. The magnetism is adapting.",
+            ('avg', 'high'):    "The presence is carrying the signal. The masculinization is becoming audible.",
+            ('high', 'low'):    "Still composed in presence. The power is underneath.",
+            ('high', 'mid'):    "The presence is controlled. The new masculinity is a polished edge underneath.",
+            ('high', 'high'):   "The magnetism is serving the new form. The power is dignified.",
+            ('vhi', 'mid'):     "The presence is crystalline. The masculinity is a perfectly controlled warmth.",
+            ('vhi', 'high'):    "The magnetism is a tool for the new self. The power moves through it with grace.",
+            ('exc', 'high'):    "The presence is a weapon. The new masculinity is moving through it with perfect control.",
+        }, extra_cond=lambda s,c: c['transforming'] and c['pill'] == 'blue', base_pri=20),
+
+        'DOM': _gen_portraits('tr_tm_dom', 'DOM', T, {
+            ('vlow', 'low'):    "The pride is flooding back. The power is confirmation.",
+            ('vlow', 'mid'):    "The dominance is surging. The masculinization is the voice.",
+            ('vlow', 'high'):   "The pride is complete. The testosterone has given it shape.",
+            ('low', 'low'):     "The pride is rising. The power is the proof.",
+            ('low', 'mid'):     "The dominance is flowing back. The body is claiming what it needs.",
+            ('low', 'high'):    "The pride is taking charge. The power is validation.",
+            ('avg', 'low'):     "The pride is returning. The surge is offering confirmation.",
+            ('avg', 'mid'):     "The dominance is present and the body is supporting it.",
+            ('avg', 'high'):    "The pride is growing. The power is becoming the anchor.",
+            ('high', 'low'):    "The pride was never gone. The power is simply arriving home.",
+            ('high', 'mid'):    "The dominance is the master. The surge is the servant bringing gifts.",
+            ('high', 'high'):   "The pride is absolute. The body is becoming what he always was.",
+            ('vhi', 'mid'):     "The dominance is unshakeable. The power is beneath the dignity of doubt.",
+            ('vhi', 'high'):    "The pride is untouchable. The masculinization is simply his nature returning.",
+            ('exc', 'high'):    "Complete mastery. The body is becoming male and he is the center of it.",
+        }, extra_cond=lambda s,c: c['transforming'] and c['pill'] == 'blue', base_pri=20),
+
+        'SUB': _gen_portraits('tr_tm_sub', 'SUB', T, {
+            ('vlow', 'low'):    "The yield is fragmenting. The masculine body is fighting the submission.",
+            ('vlow', 'mid'):    "The submission feels wrong. The power is pulling toward dominance.",
+            ('vlow', 'high'):   "The conflict is complete. The body wants to lead, not follow.",
+            ('low', 'low'):     "The pull toward submission is weaker now. The power is rising.",
+            ('low', 'mid'):     "The yield is struggling. The new body is teaching new things.",
+            ('low', 'high'):    "The submission is cracking. The testosterone is speaking a different language.",
+            ('avg', 'low'):     "The submission is present but it is changing shape.",
+            ('avg', 'mid'):     "The power and the yield are in conversation.",
+            ('avg', 'high'):    "The submission is adapting to the new form.",
+            ('high', 'low'):    "The yield is controlled. The power is beneath the choice.",
+            ('high', 'mid'):    "The submission is there but the body is becoming stronger about what it wants.",
+            ('high', 'high'):   "The submission is chosen but it is not his only option now.",
+            ('vhi', 'mid'):     "The yield has changed its foundation. The submission is deliberate.",
+            ('vhi', 'high'):    "The power is integrated. The submission is a choice made with strength.",
+            ('exc', 'high'):    "The masculinization has given new shape to what he surrenders to.",
+        }, extra_cond=lambda s,c: c['transforming'] and c['pill'] == 'blue', base_pri=20),
+    }
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # PURPLE (FEMALE BODY + PENIS GROWING)
+    # ═══════════════════════════════════════════════════════════════════════════
+    purple = {}
+
+    # ─── ALL SEXES (unique dual anatomy) ───
+    for sex in ['male', 'female', 'trans_male', 'trans_female', 'intersex']:
+        # Determine pronouns
+        pronouns = {
+            'male': ('he', 'him', 'his'),
+            'female': ('she', 'her', 'her'),
+            'trans_male': ('he', 'him', 'his'),
+            'trans_female': ('she', 'her', 'her'),
+            'intersex': ('they', 'them', 'their'),
+        }
+        pro_subj, pro_obj, pro_poss = pronouns[sex]
+
+        purple[sex] = {
+            'CON': _gen_portraits(f'tr_p_{sex[:2]}_con', 'CON', T, {
+                ('vlow', 'low'):    f"The body is unrecognizable. Both sets of sensation are raw and open. {pro_subj.capitalize()} is processing contradiction.",
+                ('vlow', 'mid'):    f"The composure is shattered. Female form and penis growing. The awareness is overwhelming.",
+                ('vlow', 'high'):   f"Exquisite sensitivity. The body is speaking in two languages at once.",
+                ('low', 'low'):     f"Both sensations are registering. {pro_subj.capitalize()} is noticing the duality.",
+                ('low', 'mid'):     f"The body is becoming legible in its uniqueness. Present with both sets.",
+                ('low', 'high'):    f"The composure is breaking. The dual anatomy is felt completely.",
+                ('avg', 'low'):     f"The change is happening on both sides. {pro_subj.capitalize()} is aware.",
+                ('avg', 'mid'):     f"Still composed. The body is asking from two places and {pro_subj} is acknowledging.",
+                ('avg', 'high'):    f"Both sets of shifts are clear. {pro_subj.capitalize()} is meeting each one.",
+                ('high', 'low'):    f"The awareness is controlled. Both anatomies are registered with precision.",
+                ('high', 'mid'):    f"The composure is holding. The dual form is asking very politely.",
+                ('high', 'high'):   f"Complete presence. The female and male are both being acknowledged.",
+                ('vhi', 'mid'):     f"Total control. Both sensations are tools {pro_subj} understands.",
+                ('vhi', 'high'):    f"The body is becoming unique and {pro_subj} is the stillness in the center.",
+                ('exc', 'high'):    f"Perfect precision. The duality is understood in every detail.",
+            }, extra_cond=lambda s,c: c['transforming'] and c['pill'] == 'purple', base_pri=20),
+
+            'INT': _gen_portraits(f'tr_p_{sex[:2]}_int', 'INT', T, {
+                ('vlow', 'low'):    f"The analysis has stopped. Both bodies are the narrative now.",
+                ('vlow', 'mid'):    f"Thought is scattered across dual sensation. The contradiction is overwhelming.",
+                ('vlow', 'high'):   f"The mind cannot hold both. The framework is breaking.",
+                ('low', 'low'):     f"{pro_subj.capitalize()} is trying to map the contradiction. The mapping is failing.",
+                ('low', 'mid'):     f"The analysis is collapsing. Female and penis. The body makes its own logic.",
+                ('low', 'high'):    f"The intellectual distance closed. Both anatomies are rewriting what {pro_subj} knows.",
+                ('bav', 'low'):     f"{pro_subj.capitalize()} is narrating both to {pro_obj}self. The narration is fragmenting.",
+                ('bav', 'mid'):     f"Still attempting to hold the contradiction. The awareness is becoming scattered.",
+                ('avg', 'low'):     f"{pro_subj.capitalize()} is observing the duality. The framework is straining.",
+                ('avg', 'mid'):     f"Both are happening at once. {pro_subj.capitalize()} is still trying to document.",
+                ('avg', 'high'):    f"The clarity is trying to hold. Both anatomies are teaching something new.",
+                ('aav', 'low'):     f"Sharp analysis of the contradiction. The description is precise but incomplete.",
+                ('aav', 'mid'):     f"The intelligence is narrating the duality. The beauty of the contradiction is becoming real.",
+                ('aav', 'high'):    f"{pro_subj.capitalize()} is explaining both to {pro_obj}self. The words are becoming acceptance.",
+                ('high', 'low'):    f"Still articulate. Both bodies are speaking languages {pro_subj} understands.",
+                ('high', 'mid'):    f"The analysis is in service to holding both now. {pro_subj.capitalize()} is understanding the duality.",
+                ('high', 'high'):   f"The intelligence is describing both with precision and cannot deny either.",
+                ('vhi', 'mid'):     f"The narration has become a mirror for both. The body is dual and the mind is accepting.",
+                ('vhi', 'high'):    f"Perfect clarity. The contradiction is understood in real time and integrated.",
+                ('exc', 'high'):    f"Brilliant observation. Both are described and claimed simultaneously.",
+            }, extra_cond=lambda s,c: c['transforming'] and c['pill'] == 'purple', base_pri=20),
+
+            'WIS': _gen_portraits(f'tr_p_{sex[:2]}_wis', 'WIS', T, {
+                ('vlow', 'low'):    f"No choice visible. The body is choosing both.",
+                ('vlow', 'mid'):    f"The discernment is gone. Both anatomies are the only signal.",
+                ('vlow', 'high'):   f"No reading of self. The duality is complete.",
+                ('low', 'low'):     f"{pro_subj.capitalize()} has not chosen. The body is already becoming both.",
+                ('low', 'mid'):     f"The wisdom of hesitation is gone. Both are the only counsel.",
+                ('low', 'high'):    f"The duality is making sense. The understanding has shifted to both.",
+                ('avg', 'low'):     f"{pro_subj.capitalize()} is considering the contradiction. The weight is moving toward acceptance.",
+                ('avg', 'mid'):     f"The discernment is present but it is watching both emerge. The choice is narrowing.",
+                ('avg', 'high'):    f"Still weighing. Both sides are making persuasive arguments.",
+                ('high', 'low'):    f"{pro_subj.capitalize()} is still choosing. Both are louder but the choice is still theirs.",
+                ('high', 'mid'):    f"The wisdom is present. Both are becoming and the wisdom is beginning to agree.",
+                ('high', 'high'):   f"Still present with the duality. The wisdom is choosing to hold both.",
+                ('vhi', 'mid'):     f"The insight is deep. Both are understood and the wisdom agrees.",
+                ('vhi', 'high'):    f"{pro_subj.capitalize()} has seen the contradiction and chosen anyway. Both have wisdom's approval.",
+                ('exc', 'high'):    f"The deep knowing. Both bodies speak and the wisdom answers yes.",
+            }, extra_cond=lambda s,c: c['transforming'] and c['pill'] == 'purple', base_pri=20),
+
+            'CHA': _gen_portraits(f'tr_p_{sex[:2]}_cha', 'CHA', T, {
+                ('vlow', 'low'):    f"The uniqueness is exposed in every line. The presence is unprecedented.",
+                ('vlow', 'mid'):    f"Completely unique. The duality is radiating outward.",
+                ('vlow', 'high'):   f"The presence is broadcasting the contradiction. The magnetism is unlike anything.",
+                ('low', 'low'):     f"The duality is visible now. The presence is utterly transformed.",
+                ('low', 'mid'):     f"The magnetism is shifting in ways that have no name. The uniqueness is emerging.",
+                ('low', 'high'):    f"The presence is making the contradiction legible to everyone.",
+                ('avg', 'low'):     f"The body is becoming readable in its uniqueness. The presence is starting to telegraph both.",
+                ('avg', 'mid'):     f"The duality is visible in how {pro_subj} moves. The magnetism is adapting to both.",
+                ('avg', 'high'):    f"The presence is carrying a signal no one has seen. The contradiction is becoming audible.",
+                ('high', 'low'):    f"Still composed in presence. The duality is underneath.",
+                ('high', 'mid'):    f"The presence is controlled. The contradiction is a polished edge underneath.",
+                ('high', 'high'):   f"The magnetism is serving the new form. The duality is dignified.",
+                ('vhi', 'mid'):     f"The presence is crystalline. The contradiction is a perfectly controlled uniqueness.",
+                ('vhi', 'high'):    f"The magnetism is a tool for both. The duality moves through it with grace.",
+                ('exc', 'high'):    f"The presence is a weapon. The contradiction is moving through it with perfect control.",
+            }, extra_cond=lambda s,c: c['transforming'] and c['pill'] == 'purple', base_pri=20),
+
+            'DOM': _gen_portraits(f'tr_p_{sex[:2]}_dom', 'DOM', T, {
+                ('vlow', 'low'):    f"The pride is fragmenting. Both anatomies are competing for dominance.",
+                ('vlow', 'mid'):    f"The dominance is confused. Female form and penis. The authority is unclear.",
+                ('vlow', 'high'):   f"The pride is lost. Both sides are claiming power.",
+                ('low', 'low'):     f"The pride is divided. Both anatomies are making claims.",
+                ('low', 'mid'):     f"The dominance is sliding. Both are wanting to lead.",
+                ('low', 'high'):    f"The pride has cracked. The duality is fighting for control.",
+                ('avg', 'low'):     f"The pride is watching both emerge. Trying to maintain authority.",
+                ('avg', 'mid'):     f"The dominance is present but both anatomies are negotiating.",
+                ('avg', 'high'):    f"The pride is present but both sides are making demands.",
+                ('high', 'low'):    f"The pride is holding the line. Both are patient.",
+                ('high', 'mid'):    f"The dominance is the master. Both are serving.",
+                ('high', 'high'):   f"The pride is absolute. Both are asking permission very politely.",
+                ('vhi', 'mid'):     f"The dominance is unshakeable. The power flows through both equally.",
+                ('vhi', 'high'):    f"The pride is untouchable. The duality is serving {pro_poss} authority.",
+                ('exc', 'high'):    f"Complete mastery. {pro_subj.capitalize()} is powerful through both anatomies.",
+            }, extra_cond=lambda s,c: c['transforming'] and c['pill'] == 'purple', base_pri=20),
+
+            'SUB': _gen_portraits(f'tr_p_{sex[:2]}_sub', 'SUB', T, {
+                ('vlow', 'low'):    f"The yield is total. The duality is what {pro_subj} is made for.",
+                ('vlow', 'mid'):    f"The submission is absolute. Both are sources of surrender.",
+                ('vlow', 'high'):   f"The resistance and the contradiction have become one. The yielding encompasses both.",
+                ('low', 'low'):     f"The pull toward duality is stronger than any resistance.",
+                ('low', 'mid'):     f"The yield is opening to both. The submission feels like truth.",
+                ('low', 'high'):    f"The submission is complete. The contradiction has taken {pro_obj}.",
+                ('avg', 'low'):     f"Both are arriving. The yield instinct is meeting them.",
+                ('avg', 'mid'):     f"The duality and the pull are pointing the same direction.",
+                ('avg', 'high'):    f"The submission is starting to feel like what {pro_subj} wants.",
+                ('high', 'low'):    f"The yield is present. The duality is what {pro_subj} is choosing.",
+                ('high', 'mid'):    f"The submission is there but it is chosen. Both are asking and the choice is yes.",
+                ('high', 'high'):   f"The contradiction is something {pro_subj} can surrender to with absolute clarity.",
+                ('vhi', 'mid'):     f"The yield has wisdom behind it. The submission to both is chosen.",
+                ('vhi', 'high'):    f"The duality is what the deepest part of {pro_obj} wants. The surrender encompasses both.",
+                ('exc', 'high'):    f"Both have the weight of inevitability. The submission is the only answer.",
+            }, extra_cond=lambda s,c: c['transforming'] and c['pill'] == 'purple', base_pri=20),
+        }
+
+    # Append to existing transformation tables
+    for pill_name, pill_data in [('pink', pink), ('blue', blue), ('purple', purple)]:
+        table_key = f'_T_TRANSFORMATION_{pill_name.upper()}'
+        if table_key in globals():
+            table = globals()[table_key]
+            for sex in pill_data:
+                if sex not in table:
+                    table[sex] = {}
+                for stat in pill_data[sex]:
+                    if stat not in table[sex]:
+                        table[sex][stat] = []
+                    table[sex][stat].extend(pill_data[sex][stat])
+
+# ─────────────────────────────────────────────────────────────────────────────
+# _T_BREEDER   breeder compulsion
+# born_female path: compulsion on familiar anatomy, no transformation
+# born_male path  : compulsion + transformation simultaneously
+# ─────────────────────────────────────────────────────────────────────────────
+
+_T_BREEDER = {
+
+# ═══════════════════════════════════════════════════
+# MALE  (born male, breeder active, pink pill path)
+# ═══════════════════════════════════════════════════
+'male': {
+
+'CON': [
+    {'id':'bm_con_mid','group':'effect_core','priority':7,'stats':['CON'],'dc':11,
+     'fires_if': lambda s,c: c['breeder_path']=='born_male' and 5<=c['tier']<=9,
+     'text_pass': "The compulsion has a physical component now. The body is registering what it wants.",
+     'text_fail':  "The compulsion is physical. The body has already accepted what the mind is still considering."},
+    {'id':'bm_con_high','group':'effect_core','priority':8,'stats':['CON'],'dc':13,
+     'fires_if': lambda s,c: c['breeder_path']=='born_male' and c['tier']>=10,
+     'text_pass': "The want is physical and specific. Still present underneath it.",
+     'text_fail':  "The want has the body entirely. The compulsion and the anatomy are the same thing now."},
+],
+'INT': [
+    {'id':'bm_int_early','group':'effect_core','priority':6,'stats':['INT'],'dc':11,
+     'fires_if': lambda s,c: c['breeder_path']=='born_male' and c['tier']<=4 and c['int_mod']>=1,
+     'text_pass': "He has noted the new want arriving with the transformation. Filed it. Complicated.",
+     'text_fail':  "He noticed the new want. The noticing did not produce a useful framework for it."},
+    {'id':'bm_int_mid','group':'effect_core','priority':7,'stats':['INT'],'dc':12,
+     'fires_if': lambda s,c: c['breeder_path']=='born_male' and 5<=c['tier']<=10 and c['int_mod']>=1,
+     'text_pass': "He knows what the compulsion wants. He is choosing deliberately what to do with that.",
+     'text_fail':  "He knows what the compulsion wants. The knowing has not given him control over it."},
+    {'id':'bm_int_high','group':'effect_core','priority':8,'stats':['INT'],'dc':13,
+     'fires_if': lambda s,c: c['breeder_path']=='born_male' and c['tier']>=11,
+     'text_pass': "The analysis is stripped down. He knows what he needs. That is all that is left of the narration.",
+     'text_fail':  "The analysis has stopped. Only the want and the anatomy it has found."},
+],
+'WIS': [
+    {'id':'bm_wis_early','group':'effect_core','priority':6,'stats':['WIS'],'dc':10,
+     'fires_if': lambda s,c: c['breeder_path']=='born_male' and c['tier']<=4,
+     'text_pass': "The new want is present. He has not decided what he is doing with it yet.",
+     'text_fail':  "The new want arrived before he could decide anything about it."},
+    {'id':'bm_wis_mid','group':'effect_core','priority':7,'stats':['WIS'],'dc':12,
+     'fires_if': lambda s,c: c['breeder_path']=='born_male' and 5<=c['tier']<=10 and c['wis_mod']>=1,
+     'text_pass': "He is still choosing. The compulsion is louder than it was but the choice is still his.",
+     'text_fail':  "The choice is not live anymore. The compulsion has the argument."},
+    {'id':'bm_wis_high','group':'effect_core','priority':8,'stats':['WIS'],'dc':14,
+     'fires_if': lambda s,c: c['breeder_path']=='born_male' and c['tier']>=11 and c['wis_mod']>=2,
+     'text_pass': "Still present. The compulsion is winning most arguments. He is watching himself let it.",
+     'text_fail':  "The compulsion won. He is not watching anymore."},
+],
+'CHA': [
+    {'id':'bm_cha_mid','group':'effect_core','priority':6,'stats':['CHA'],'dc':12,
+     'fires_if': lambda s,c: c['breeder_path']=='born_male' and 5<=c['tier']<=9 and c['cha_mod']>=1,
+     'text_pass': "The want is legible on the surface now. The compulsion is visible in how he moves. Everyone can see what the body wants.",
+     'text_fail':  "The presence has made the want obvious. The body is broadcasting what it needs and he cannot hide it."},
+    {'id':'bm_cha_high','group':'effect_core','priority':8,'stats':['CHA'],'dc':13,
+     'fires_if': lambda s,c: c['breeder_path']=='born_male' and c['tier']>=10 and c['cha_mod']>=1,
+     'text_pass': "The presence has made the compulsion legible to everyone. He is broadcasting the want completely. Still present with it.",
+     'text_fail':  "The want is written in every movement. The compulsion is the only thing visible now. He has stopped trying to hide it."},
+],
+'DOM': [
+    {'id':'bm_dom_early','group':'effect_core','priority':7,'stats':['DOM'],'dc':11,
+     'fires_if': lambda s,c: c['breeder_path']=='born_male' and c['tier']<=4 and c['dom_mod']>=1,
+     'text_pass': "There is a new want arriving with the transformation. His pride has clocked it.",
+     'text_fail':  "The new want arrived before he was ready. The transformation brought something with it."},
+    {'id':'bm_dom_mid','group':'effect_escalation','priority':8,'stats':['DOM'],'dc':13,
+     'fires_if': lambda s,c: c['breeder_path']=='born_male' and 5<=c['tier']<=10 and c['dom_mod']>=2,
+     'text_pass': "The pride is still in the room watching the compulsion work. Disapproving. Present.",
+     'text_fail':  "The pride lost the argument. The compulsion has full access."},
+    {'id':'bm_dom_peak','group':'effect_escalation','priority':9,'stats':['DOM'],'dc':14,
+     'fires_if': lambda s,c: c['breeder_path']=='born_male' and c['tier']>=15 and c['dom_mod']>=1,
+     'text_pass': "The pride is watching from a distance. It cannot stop it. The compulsion has won.",
+     'text_fail':  "The pride is not watching anymore. The want is the only thing in the room."},
+],
+'SUB': [
+    {'id':'bm_sub_early','group':'effect_core','priority':7,'stats':['SUB'],'dc':10,
+     'fires_if': lambda s,c: c['breeder_path']=='born_male' and c['tier']<=4 and c['sub_mod']>=1,
+     'text_pass': "Something is pulling in the new anatomy. The yield instinct has already made room for it.",
+     'text_fail':  "The pull arrived and the submission response accepted it immediately."},
+    {'id':'bm_sub_mid','group':'effect_core','priority':7,'stats':['SUB'],'dc':11,
+     'fires_if': lambda s,c: c['breeder_path']=='born_male' and 5<=c['tier']<=10 and c['sub_mod']>=1,
+     'text_pass': "The compulsion and the pull want are pointing the same direction. Neither is fighting the other.",
+     'text_fail':  "The compulsion and the yield want merged. They are one thing now."},
+    {'id':'bm_sub_peak','group':'effect_escalation','priority':9,'stats':['SUB'],'dc':12,
+     'fires_if': lambda s,c: c['breeder_path']=='born_male' and c['tier']>=15 and c['sub_mod']>=2,
+     'text_pass': "The want is total. The transformation brought him here and the compulsion is what he does with that.",
+     'text_fail':  "The want won completely. A body built for this and the body knows it."},
+],
+}, # end male breeder
+
+# ═══════════════════════════════════════════════════
+# FEMALE  (born female, breeder active, green pill path)
+# Compulsion on familiar anatomy — no transformation
+# ═══════════════════════════════════════════════════
+'female': {
+
+'CON': [
+    {'id':'bf_con_mid','group':'effect_core','priority':7,'stats':['CON'],'dc':11,
+     'fires_if': lambda s,c: c['breeder_path']=='born_female' and 5<=c['tier']<=9,
+     'text_pass': "The compulsion has a physical register now. The body has noted what it wants.",
+     'text_fail':  "The compulsion is physical. The body has accepted what the mind is still orienting to."},
+    {'id':'bf_con_high','group':'effect_core','priority':8,'stats':['CON'],'dc':13,
+     'fires_if': lambda s,c: c['breeder_path']=='born_female' and c['tier']>=10,
+     'text_pass': "The want is physical and specific. She is still present underneath it.",
+     'text_fail':  "The want has the body. The compulsion and the anatomy are the same thing now."},
+],
+'INT': [
+    {'id':'bf_int_early','group':'effect_core','priority':6,'stats':['INT'],'dc':11,
+     'fires_if': lambda s,c: c['breeder_path']=='born_female' and c['tier']<=4 and c['int_mod']>=1,
+     'text_pass': "She has noted the new want. Interesting rather than alarming. Not yet named.",
+     'text_fail':  "She noticed. Could not produce a framework for it. Filed under interesting."},
+    {'id':'bf_int_mid','group':'effect_core','priority':7,'stats':['INT'],'dc':12,
+     'fires_if': lambda s,c: c['breeder_path']=='born_female' and 5<=c['tier']<=10 and c['int_mod']>=1,
+     'text_pass': "The compulsion is becoming identifiable. She knows what it is pointing at.",
+     'text_fail':  "The compulsion named itself before she was ready. She knows what she wants now."},
+    {'id':'bf_int_high','group':'effect_core','priority':8,'stats':['INT'],'dc':13,
+     'fires_if': lambda s,c: c['breeder_path']=='born_female' and c['tier']>=11,
+     'text_pass': "The analysis is stripped down. She knows what she needs. That is all that is left of the narration.",
+     'text_fail':  "The analysis has stopped. Only the want and the anatomy it knows exactly how to use."},
+],
+'WIS': [
+    {'id':'bf_wis_early','group':'effect_core','priority':6,'stats':['WIS'],'dc':10,
+     'fires_if': lambda s,c: c['breeder_path']=='born_female' and c['tier']<=4,
+     'text_pass': "Foreign sensation. Not unwelcome. Just unrecognized.",
+     'text_fail':  "Foreign and already insistent. The body has accepted something the mind has not agreed to yet."},
+    {'id':'bf_wis_mid','group':'effect_core','priority':8,'stats':['WIS'],'dc':12,
+     'fires_if': lambda s,c: c['breeder_path']=='born_female' and 5<=c['tier']<=8 and c['wis_mod']>=1,
+     'text_pass': "She is still choosing. The compulsion is specific but she has not surrendered to it yet.",
+     'text_fail':  "The choice is not live anymore. The compulsion has the argument and she knows it."},
+    {'id':'bf_wis_high','group':'effect_core','priority':8,'stats':['WIS'],'dc':14,
+     'fires_if': lambda s,c: c['breeder_path']=='born_female' and c['tier']>=11 and c['wis_mod']>=2,
+     'text_pass': "Still present. The compulsion is winning most arguments. She is watching herself let it.",
+     'text_fail':  "The compulsion won. She is not watching anymore."},
+],
+'CHA': [
+    {'id':'bf_cha_mid','group':'effect_core','priority':6,'stats':['CHA'],'dc':12,
+     'fires_if': lambda s,c: c['breeder_path']=='born_female' and 5<=c['tier']<=9 and c['cha_mod']>=1,
+     'text_pass': "The presence is amplifying what the compulsion wants. The want is visible in the way she carries herself. Everyone can see.",
+     'text_fail':  "The presence has made the visibility unavoidable. The compulsion is written on the surface. She cannot hide what the body wants."},
+    {'id':'bf_cha_high','group':'effect_core','priority':8,'stats':['CHA'],'dc':13,
+     'fires_if': lambda s,c: c['breeder_path']=='born_female' and c['tier']>=10 and c['cha_mod']>=1,
+     'text_pass': "The presence broadcasts the compulsion completely. The want is in every gesture, every word. Still herself underneath it.",
+     'text_fail':  "The presence has made the want the only visible thing. The compulsion is broadcasting and she has stopped trying to contain it."},
+],
+'DOM': [
+    {'id':'bf_dom_mid','group':'effect_escalation','priority':8,'stats':['DOM'],'dc':13,
+     'fires_if': lambda s,c: c['breeder_path']=='born_female' and 9<=c['tier']<=12 and c['dom_mod']>=1,
+     'text_pass': "The compulsion is specific now. Her pride is still in the room, watching it want that.",
+     'text_fail':  "The compulsion got through the pride. The want has a target and the pride lost the argument."},
+    {'id':'bf_dom_peak','group':'effect_escalation','priority':9,'stats':['DOM'],'dc':14,
+     'fires_if': lambda s,c: c['breeder_path']=='born_female' and c['tier']>=15 and c['dom_mod']>=1,
+     'text_pass': "The pride is watching from a distance. It cannot stop it but it is still there.",
+     'text_fail':  "The pride is not watching anymore. The want is the only thing in the room."},
+],
+'SUB': [
+    {'id':'bf_sub_early','group':'effect_core','priority':6,'stats':['SUB'],'dc':10,
+     'fires_if': lambda s,c: c['breeder_path']=='born_female' and c['tier']<=4 and c['sub_mod']>=1,
+     'text_pass': "Something new. Unfamiliar want, different from baseline. Interesting rather than alarming.",
+     'text_fail':  "The unfamiliar want arrived with more urgency than expected. It already has a direction."},
+    {'id':'bf_sub_mid','group':'effect_core','priority':8,'stats':['SUB'],'dc':11,
+     'fires_if': lambda s,c: c['breeder_path']=='born_female' and 5<=c['tier']<=8 and c['sub_mod']>=1,
+     'text_pass': "The pull is there. No clarity to examine it. It just is.",
+     'text_fail':  "The pull is pulling. No framework. Just direction."},
+    {'id':'bf_sub_esc','group':'effect_escalation','priority':8,'stats':['SUB'],'dc':11,
+     'fires_if': lambda s,c: c['breeder_path']=='born_female' and 9<=c['tier']<=12 and c['sub_mod']>=2,
+     'text_pass': "The want has found what it was looking for. The compulsion and the baseline are pointing the same direction.",
+     'text_fail':  "The compulsion and the yield want merged. They are one thing now."},
+    {'id':'bf_sub_peak','group':'effect_core','priority':10,'stats':['WIS','CON'],'dc':15,
+     'fires_if': lambda s,c: c['breeder_path']=='born_female' and c['tier']>=15,
+     'text_pass': "The only want is specific and complete. She is still herself. She knows exactly what she needs.",
+     'text_fail':  "The want is the only thing. She is inside it completely. Just need."},
+],
+}, # end female breeder
+
+# ═══════════════════════════════════════════════════
+# TRANS FEMALE  (born male, identifies female, pink pill, breeder)
+# Transformation is arrival. Compulsion reads as fulfillment.
+# ═══════════════════════════════════════════════════
+'trans_female': {
+
+'CON': [
+    {'id':'btf_con_mid','group':'effect_core','priority':7,'stats':['CON'],'dc':11,
+     'fires_if': lambda s,c: c['breeder_path']=='born_male' and 5<=c['tier']<=9,
+     'text_pass': "The compulsion has a physical register. The body is noting what it wants.",
+     'text_fail':  "The compulsion is physical. The body has accepted it."},
+    {'id':'btf_con_high','group':'effect_core','priority':8,'stats':['CON'],'dc':13,
+     'fires_if': lambda s,c: c['breeder_path']=='born_male' and c['tier']>=10,
+     'text_pass': "The want is physical and specific. Still present underneath it.",
+     'text_fail':  "The want has the body. Just the want."},
+],
+'INT': [
+    {'id':'btf_int_early','group':'effect_core','priority':6,'stats':['INT'],'dc':10,
+     'fires_if': lambda s,c: c['breeder_path']=='born_male' and c['tier']<=4,
+     'text_pass': "Something is arriving. She has been oriented toward this for longer than the pill has been active.",
+     'text_fail':  "The want arrived and she recognized it immediately. This is what the change was moving toward."},
+    {'id':'btf_int_mid','group':'effect_core','priority':7,'stats':['INT'],'dc':11,
+     'fires_if': lambda s,c: c['breeder_path']=='born_male' and 5<=c['tier']<=10,
+     'text_pass': "The compulsion and the transformation are pointing the same direction. She is not fighting either.",
+     'text_fail':  "The compulsion arrived completely. The body and the want are the same thing now."},
+    {'id':'btf_int_high','group':'effect_core','priority':8,'stats':['INT'],'dc':13,
+     'fires_if': lambda s,c: c['breeder_path']=='born_male' and c['tier']>=11,
+     'text_pass': "The analysis has stripped to one thing. She knows what she needs. That is the whole narration.",
+     'text_fail':  "The narration has stopped. Only the want and the body that knows exactly what to do with it."},
+],
+'WIS': [
+    {'id':'btf_wis_early','group':'effect_core','priority':6,'stats':['WIS'],'dc':10,
+     'fires_if': lambda s,c: c['breeder_path']=='born_male' and c['tier']<=4,
+     'text_pass': "The compulsion is arriving and she recognizes it immediately. This is what she was becoming.",
+     'text_fail':  "The want arrived and she knew what it meant before she could decide about it."},
+    {'id':'btf_wis_mid','group':'effect_core','priority':7,'stats':['WIS'],'dc':11,
+     'fires_if': lambda s,c: c['breeder_path']=='born_male' and 4<=c['tier']<=9 and c['wis_mod']>=1,
+     'text_pass': "She is still choosing. The want is specific and she is letting herself want it.",
+     'text_fail':  "The choice is not live. The compulsion has it."},
+    {'id':'btf_wis_high','group':'effect_core','priority':8,'stats':['WIS'],'dc':14,
+     'fires_if': lambda s,c: c['breeder_path']=='born_male' and c['tier']>=10 and c['wis_mod']>=2,
+     'text_pass': "Still present. Watching herself want this completely. Present with that.",
+     'text_fail':  "The compulsion won. She is inside it."},
+],
+'CHA': [
+    {'id':'btf_cha_mid','group':'effect_core','priority':6,'stats':['CHA'],'dc':12,
+     'fires_if': lambda s,c: c['breeder_path']=='born_male' and 5<=c['tier']<=9 and c['cha_mod']>=1,
+     'text_pass': "The want is legible on the surface. The transformation and the compulsion are reading the same. Everyone can see she is arriving.",
+     'text_fail':  "The presence is broadcasting the arrival. The transformation and the want are the only visible things. She cannot hide either."},
+    {'id':'btf_cha_high','group':'effect_core','priority':8,'stats':['CHA'],'dc':13,
+     'fires_if': lambda s,c: c['breeder_path']=='born_male' and c['tier']>=10 and c['cha_mod']>=1,
+     'text_pass': "The presence is broadcasting the want completely. She is the transformation and the compulsion together. Still herself and entirely visible.",
+     'text_fail':  "The want is written in every movement. The transformation is the only visible thing now. She has stopped trying to hide what is happening."},
+],
+'DOM': [
+    {'id':'btf_dom_early','group':'effect_core','priority':6,'stats':['DOM'],'dc':10,
+     'fires_if': lambda s,c: c['breeder_path']=='born_male' and c['tier']<=3 and c['dom_mod']>=1,
+     'text_pass': "Her pride is noting the new want arriving with the transformation. Acknowledging.",
+     'text_fail':  "The new want arrived before the pride could name it."},
+    {'id':'btf_dom_mid','group':'effect_escalation','priority':7,'stats':['DOM'],'dc':12,
+     'fires_if': lambda s,c: c['breeder_path']=='born_male' and 5<=c['tier']<=10 and c['dom_mod']>=1,
+     'text_pass': "The want is present. Her sense of herself is still intact alongside it.",
+     'text_fail':  "The want got through. The self-possession gave."},
+    {'id':'btf_dom_peak','group':'effect_escalation','priority':9,'stats':['DOM'],'dc':14,
+     'fires_if': lambda s,c: c['breeder_path']=='born_male' and c['tier']>=15 and c['dom_mod']>=1,
+     'text_pass': "Her pride is watching from a distance. It cannot stop it. The compulsion has won.",
+     'text_fail':  "The pride is not watching anymore. The want is the only thing in the room."},
+],
+'SUB': [
+    {'id':'btf_sub_early','group':'effect_core','priority':6,'stats':['SUB'],'dc':10,
+     'fires_if': lambda s,c: c['breeder_path']=='born_male' and c['tier']<=4 and c['sub_mod']>=1,
+     'text_pass': "The pull is arriving in the new anatomy and it feels like it belongs. Like the transformation was moving toward this.",
+     'text_fail':  "The pull arrived and the submission response accepted it immediately."},
+    {'id':'btf_sub_mid','group':'effect_core','priority':7,'stats':['SUB'],'dc':11,
+     'fires_if': lambda s,c: c['breeder_path']=='born_male' and 5<=c['tier']<=10 and c['sub_mod']>=1,
+     'text_pass': "The yield and the compulsion are pointing the same direction. Neither is fighting the other.",
+     'text_fail':  "The compulsion and the yield want merged. They are one thing now."},
+    {'id':'btf_sub_esc','group':'effect_escalation','priority':8,'stats':['SUB'],'dc':11,
+     'fires_if': lambda s,c: c['breeder_path']=='born_male' and 11<=c['tier']<=14,
+     'text_pass': "The want is complete. The transformation brought her here and the compulsion is what she does with that.",
+     'text_fail':  "The want won completely. She has stopped distinguishing between what she wants and what the compulsion wants."},
+    {'id':'btf_sub_peak','group':'effect_core','priority':10,'stats':['CON'],'dc':14,
+     'fires_if': lambda s,c: c['breeder_path']=='born_male' and c['tier']>=15,
+     'text_pass': "She is entirely in it. Present, aware, and completely lost in the want.",
+     'text_fail':  "There is nothing left but the want. She is inside it."},
+],
+}, # end trans_female breeder
+
+# ═══════════════════════════════════════════════════
+# TRANS MALE  (born female, identifies male, green pill, breeder)
+# Male lens on female anatomy receiving compulsion.
+# ═══════════════════════════════════════════════════
+'trans_male': {
+
+'CON': [
+    {'id':'btm_con_mid','group':'effect_core','priority':7,'stats':['CON'],'dc':11,
+     'fires_if': lambda s,c: c['breeder_path']=='born_female' and 5<=c['tier']<=9,
+     'text_pass': "The compulsion is physical. The body is registering what it wants. The anatomy question is quieter than usual.",
+     'text_fail':  "The compulsion has the body. He has stopped negotiating about which parts of it he claims."},
+    {'id':'btm_con_high','group':'effect_core','priority':8,'stats':['CON'],'dc':13,
+     'fires_if': lambda s,c: c['breeder_path']=='born_female' and c['tier']>=10,
+     'text_pass': "The want is physical and specific. The anatomy question is not a live conversation at this tier.",
+     'text_fail':  "The want has the body entirely. The compulsion is using anatomy he normally keeps separate from himself."},
+],
+'INT': [
+    {'id':'btm_int_early','group':'effect_core','priority':6,'stats':['INT'],'dc':11,
+     'fires_if': lambda s,c: c['breeder_path']=='born_female' and c['tier']<=4 and c['int_mod']>=1,
+     'text_pass': "Something is arriving in anatomy he does not fully claim. He has filed that observation without resolving it.",
+     'text_fail':  "The want arrived in anatomy he does not fully claim. He noticed and immediately stopped examining that."},
+    {'id':'btm_int_mid','group':'effect_core','priority':7,'stats':['INT'],'dc':12,
+     'fires_if': lambda s,c: c['breeder_path']=='born_female' and 5<=c['tier']<=10,
+     'text_pass': "He knows what the compulsion is doing. He is deciding whether to let it. The anatomy question is present but secondary.",
+     'text_fail':  "The compulsion is using anatomy he has complicated feelings about. He has stopped examining that."},
+    {'id':'btm_int_high','group':'effect_core','priority':8,'stats':['INT'],'dc':13,
+     'fires_if': lambda s,c: c['breeder_path']=='born_female' and c['tier']>=11,
+     'text_pass': "The analysis has stripped down. He knows what he needs. The anatomy question is not part of the narration right now.",
+     'text_fail':  "The analysis has stopped. Only the want. The complicated relationship with the anatomy has gone quiet."},
+],
+'WIS': [
+    {'id':'btm_wis_early','group':'effect_core','priority':6,'stats':['WIS'],'dc':10,
+     'fires_if': lambda s,c: c['breeder_path']=='born_female' and c['tier']<=4,
+     'text_pass': "Foreign want arriving in anatomy he has complicated feelings about. He has not decided what to do with that yet.",
+     'text_fail':  "The want arrived before he could decide anything about it arriving there."},
+    {'id':'btm_wis_mid','group':'effect_core','priority':8,'stats':['WIS'],'dc':12,
+     'fires_if': lambda s,c: c['breeder_path']=='born_female' and 5<=c['tier']<=10 and c['wis_mod']>=1,
+     'text_pass': "He knows what the compulsion is doing. He is deciding whether to let it.",
+     'text_fail':  "The choice is not live. The compulsion has the argument."},
+    {'id':'btm_wis_high','group':'effect_core','priority':8,'stats':['WIS'],'dc':14,
+     'fires_if': lambda s,c: c['breeder_path']=='born_female' and c['tier']>=11 and c['wis_mod']>=2,
+     'text_pass': "Still present. The compulsion is winning most arguments. He is watching himself let it happen in anatomy he does not fully claim.",
+     'text_fail':  "The compulsion won. He is not watching anymore."},
+],
+'CHA': [
+    {'id':'btm_cha_mid','group':'effect_core','priority':6,'stats':['CHA'],'dc':12,
+     'fires_if': lambda s,c: c['breeder_path']=='born_female' and 5<=c['tier']<=9 and c['cha_mod']>=1,
+     'text_pass': "The presence is amplifying the compulsion. The want is visible in how he moves. Everyone can see what the body wants, even in anatomy he complicates.",
+     'text_fail':  "The presence has made the want obvious. The compulsion is broadcasting and he has stopped trying to separate it from his identity."},
+    {'id':'btm_cha_high','group':'effect_core','priority':8,'stats':['CHA'],'dc':13,
+     'fires_if': lambda s,c: c['breeder_path']=='born_female' and c['tier']>=10 and c['cha_mod']>=1,
+     'text_pass': "The presence broadcasts the compulsion completely. He is the want in every gesture. The anatomy question has gone quiet in his presentation.",
+     'text_fail':  "The want is written in every movement. The identity and the compulsion are reading the same thing now. He has stopped hiding."},
+],
+'DOM': [
+    {'id':'btm_dom_early','group':'effect_core','priority':7,'stats':['DOM'],'dc':11,
+     'fires_if': lambda s,c: c['breeder_path']=='born_female' and c['tier']<=4 and c['dom_mod']>=1,
+     'text_pass': "Something is arriving in the anatomy. His pride has noted it with suspicion.",
+     'text_fail':  "The want arrived in anatomy he does not fully claim. That is a complicated place for it to land."},
+    {'id':'btm_dom_mid','group':'effect_escalation','priority':8,'stats':['DOM'],'dc':13,
+     'fires_if': lambda s,c: c['breeder_path']=='born_female' and 5<=c['tier']<=10 and c['dom_mod']>=1,
+     'text_pass': "The pride is still in the room watching the compulsion work in anatomy he does not fully claim. Present and disapproving.",
+     'text_fail':  "The pride lost the argument. The compulsion has full access."},
+    {'id':'btm_dom_peak','group':'effect_escalation','priority':9,'stats':['DOM'],'dc':14,
+     'fires_if': lambda s,c: c['breeder_path']=='born_female' and c['tier']>=15 and c['dom_mod']>=1,
+     'text_pass': "The want is specific and total. The anatomy question has stopped mattering.",
+     'text_fail':  "The compulsion has the body completely. The identity question is not a live conversation anymore."},
+],
+'SUB': [
+    {'id':'btm_sub_early','group':'effect_core','priority':6,'stats':['SUB'],'dc':10,
+     'fires_if': lambda s,c: c['breeder_path']=='born_female' and c['tier']<=4 and c['sub_mod']>=1,
+     'text_pass': "The pull arrived. He is not sure what to do with it arriving where it did.",
+     'text_fail':  "The pull arrived and the yield instinct accepted it before he could weigh in."},
+    {'id':'btm_sub_mid','group':'effect_core','priority':7,'stats':['SUB'],'dc':11,
+     'fires_if': lambda s,c: c['breeder_path']=='born_female' and 5<=c['tier']<=10 and c['sub_mod']>=1,
+     'text_pass': "The yield instinct and the compulsion are pointing the same direction. The anatomy question is quieter than usual.",
+     'text_fail':  "The yield want and the compulsion merged. He has stopped asking which parts of the anatomy that applies to."},
+    {'id':'btm_sub_peak','group':'effect_escalation','priority':9,'stats':['SUB'],'dc':12,
+     'fires_if': lambda s,c: c['breeder_path']=='born_female' and c['tier']>=15 and c['sub_mod']>=2,
+     'text_pass': "The want has won completely. The anatomy question has stopped mattering.",
+     'text_fail':  "The want is the only thing. He is inside it completely. Just the compulsion in anatomy he has stopped examining."},
+],
+}, # end trans_male breeder
+
+# ═══════════════════════════════════════════════════
+# INTERSEX  (born male, female body + male genitals, pink pill adds vagina)
+# Pink pill transformation adds anatomy. Breeder activates on new anatomy.
+# ═══════════════════════════════════════════════════
+'intersex': {
+
+'CON': [
+    {'id':'bi_con_mid','group':'effect_core','priority':7,'stats':['CON'],'dc':11,
+     'fires_if': lambda s,c: c['breeder_path']=='born_male' and 5<=c['tier']<=9,
+     'text_pass': "The compulsion has found the new anatomy. The body has accepted the introduction.",
+     'text_fail':  "The compulsion and the new anatomy have reached an agreement she was not consulted on."},
+    {'id':'bi_con_high','group':'effect_core','priority':8,'stats':['CON'],'dc':13,
+     'fires_if': lambda s,c: c['breeder_path']=='born_male' and c['tier']>=10,
+     'text_pass': "The want is physical and specific. The body knows exactly what it needs.",
+     'text_fail':  "The compulsion has the body entirely. Just the want."},
+],
+'INT': [
+    {'id':'bi_int_early','group':'effect_core','priority':6,'stats':['INT'],'dc':10,
+     'fires_if': lambda s,c: c['breeder_path']=='born_male' and c['tier']<=4,
+     'text_pass': "Something new is arriving in anatomy that just changed. She is orienting to both simultaneously.",
+     'text_fail':  "The want arrived before she finished orienting to the new anatomy. Two things at once."},
+    {'id':'bi_int_mid','group':'effect_core','priority':7,'stats':['INT'],'dc':11,
+     'fires_if': lambda s,c: c['breeder_path']=='born_male' and 5<=c['tier']<=10,
+     'text_pass': "The compulsion has introduced itself to the new anatomy and she has finished the introduction. She knows what this wants.",
+     'text_fail':  "The introduction is complete. The compulsion and the new anatomy are already on familiar terms."},
+    {'id':'bi_int_high','group':'effect_core','priority':8,'stats':['INT'],'dc':13,
+     'fires_if': lambda s,c: c['breeder_path']=='born_male' and c['tier']>=11,
+     'text_pass': "The narration is stripped down to one thing. She knows what she needs. That is all that is left.",
+     'text_fail':  "The narration has stopped. Only the want and the new anatomy it has found."},
+],
+'WIS': [
+    {'id':'bi_wis_early','group':'effect_core','priority':6,'stats':['WIS'],'dc':10,
+     'fires_if': lambda s,c: c['breeder_path']=='born_male' and c['tier']<=4,
+     'text_pass': "She knows something is arriving in the new anatomy. Arriving faster than she expected.",
+     'text_fail':  "The want arrived before she finished orienting to the new anatomy."},
+    {'id':'bi_wis_mid','group':'effect_core','priority':7,'stats':['WIS'],'dc':11,
+     'fires_if': lambda s,c: c['breeder_path']=='born_male' and 4<=c['tier']<=9 and c['wis_mod']>=1,
+     'text_pass': "She knows what is happening. She is deciding whether to let it.",
+     'text_fail':  "The choice closed. The compulsion has it."},
+    {'id':'bi_wis_high','group':'effect_core','priority':8,'stats':['WIS'],'dc':14,
+     'fires_if': lambda s,c: c['breeder_path']=='born_male' and c['tier']>=10 and c['wis_mod']>=2,
+     'text_pass': "Still present. The knowing has stopped being useful. The compulsion is winning the arguments.",
+     'text_fail':  "The compulsion won. She is inside it."},
+],
+'CHA': [
+    {'id':'bi_cha_mid','group':'effect_core','priority':6,'stats':['CHA'],'dc':12,
+     'fires_if': lambda s,c: c['breeder_path']=='born_male' and 5<=c['tier']<=9 and c['cha_mod']>=1,
+     'text_pass': "The want is legible on the surface. The new anatomy and the compulsion have introduced themselves. Everyone can see she is adding.",
+     'text_fail':  "The presence is broadcasting the addition. The compulsion and the new anatomy are the only visible things. She cannot hide the introduction."},
+    {'id':'bi_cha_high','group':'effect_core','priority':8,'stats':['CHA'],'dc':13,
+     'fires_if': lambda s,c: c['breeder_path']=='born_male' and c['tier']>=10 and c['cha_mod']>=1,
+     'text_pass': "The presence broadcasts the want completely. She is the addition and the compulsion together. Still herself and entirely visible.",
+     'text_fail':  "The want is written in every movement. The new anatomy is the only visible thing now. She has stopped trying to hide what is happening."},
+],
+'DOM': [
+    {'id':'bi_dom_early','group':'effect_core','priority':6,'stats':['DOM'],'dc':10,
+     'fires_if': lambda s,c: c['breeder_path']=='born_male' and c['tier']<=4 and c['dom_mod']>=2,
+     'text_pass': "Her pride is noting the want arriving in the new anatomy. Acknowledging.",
+     'text_fail':  "The new want arrived in the new anatomy before the pride could name it."},
+    {'id':'bi_dom_mid','group':'effect_escalation','priority':8,'stats':['DOM'],'dc':13,
+     'fires_if': lambda s,c: c['breeder_path']=='born_male' and 9<=c['tier']<=12 and c['dom_mod']>=1,
+     'text_pass': "The compulsion is specific. Her sense of herself is watching it. Noting.",
+     'text_fail':  "The compulsion got through. The self-possession gave on this one."},
+    {'id':'bi_dom_peak','group':'effect_escalation','priority':9,'stats':['DOM'],'dc':14,
+     'fires_if': lambda s,c: c['breeder_path']=='born_male' and c['tier']>=15 and c['dom_mod']>=1,
+     'text_pass': "Her pride is watching from a distance. It cannot stop it. The compulsion has won.",
+     'text_fail':  "The pride is not watching anymore. The want is the only thing in the room."},
+],
+'SUB': [
+    {'id':'bi_sub_early','group':'effect_core','priority':6,'stats':['SUB'],'dc':10,
+     'fires_if': lambda s,c: c['breeder_path']=='born_male' and c['tier']<=4 and c['sub_mod']>=1,
+     'text_pass': "The pull is arriving in the new anatomy. It feels like the anatomy was made for this.",
+     'text_fail':  "The pull arrived and the submission response accepted it immediately in the new anatomy."},
+    {'id':'bi_sub_mid','group':'effect_core','priority':8,'stats':['SUB'],'dc':11,
+     'fires_if': lambda s,c: c['breeder_path']=='born_male' and 5<=c['tier']<=10,
+     'text_pass': "The compulsion has found the new anatomy and the body has accepted the introduction.",
+     'text_fail':  "The compulsion and the new anatomy have come to an agreement she was not consulted on."},
+    {'id':'bi_sub_peak','group':'effect_core','priority':10,'stats':['CON'],'dc':14,
+     'fires_if': lambda s,c: c['breeder_path']=='born_male' and c['tier']>=15,
+     'text_pass': "The want is specific and complete. The body knows exactly what it needs.",
+     'text_fail':  "The compulsion has the body entirely. Just the want."},
+],
+}, # end intersex breeder
+
+} # end _T_BREEDER
+
+# ─────────────────────────────────────────────────────────────────────────────
+# _T_TRANSFORMATION_PINK   pink-pill body change (anatomy == in_progress)
+# Only fires for sex types that use the penis pill track.
+# female / trans_male have empty tables (not on pink pill path).
+# ─────────────────────────────────────────────────────────────────────────────
+
+_T_TRANSFORMATION_PINK = {
+
+# ═══════════════════════════════════════════════════
+# MALE  (resistance / loss framing)
+# ═══════════════════════════════════════════════════
+'male': {
+
+'CON': [
+    {'id':'tm_con_late','group':'transformation','priority':10,'stats':['CON'],'dc':12,
+     'fires_if': lambda s,c: c['transforming'] and c['tier']>=11,
+     'text_pass': "The transformation is nearly complete. The body is almost entirely remade. He is still him.",
+     'text_fail':  "The transformation has the body. Whatever he was physically is not what this is."},
+],
+'INT': [
+    {'id':'tm_int_mid','group':'transformation','priority':7,'stats':['INT'],'dc':12,
+     'fires_if': lambda s,c: c['transforming'] and 5<=c['tier']<=10 and c['int_mod']>=1,
+     'text_pass': "He is mapping the changes. Clinical about it in the way that costs something to maintain.",
+     'text_fail':  "The clinical distance closed. The changes are personal now."},
+    {'id':'tm_int_high','group':'transformation','priority':8,'stats':['INT'],'dc':13,
+     'fires_if': lambda s,c: c['transforming'] and c['tier']>=11 and c['int_mod']>=1,
+     'text_pass': "He is still narrating the transformation. The narration is getting harder to maintain.",
+     'text_fail':  "The narration has stopped. He is just in the change now."},
+],
+'WIS': [
+    {'id':'tm_wis_mid','group':'transformation','priority':7,'stats':['WIS'],'dc':12,
+     'fires_if': lambda s,c: c['transforming'] and 5<=c['tier']<=9 and c['wis_mod']>=1,
+     'text_pass': "He knows what the pill is doing. He is choosing deliberately what he does with that knowledge.",
+     'text_fail':  "He knows what the pill is doing. The knowing has not given him control over what the body does with it."},
+],
+'CHA': [
+    {'id':'si_cha_mid','group':'physical_tell','priority':5,'stats':['CHA'],'dc':12,
+     'fires_if': lambda s,c: 'submissive' in c['effects'] and c['tier']>=6 and c['cha_mod']>=2,
+     'text_pass': "The compliance is visible. The willingness shows in her presence.",
+     'text_fail': "The submission is obvious. Everyone can see how much the reward is affecting her."},
+],
+'DOM': [
+    {'id':'tm_dom_early','group':'transformation','priority':8,'once':True,'stats':['DOM'],'dc':11,
+     'fires_if': lambda s,c: c['transforming'] and c['tier']<=4 and c['dom_mod']>=1,
+     'text_pass': "The body is changing. His pride has noted it. Neither has decided what to do with that yet.",
+     'text_fail':  "The body changed faster than expected. The pride response arrived late."},
+    {'id':'tm_dom_mid','group':'transformation','priority':9,'stats':['DOM'],'dc':13,
+     'fires_if': lambda s,c: c['transforming'] and 5<=c['tier']<=10 and c['dom_mod']>=2,
+     'text_pass': "The transformation is proceeding. His resistance to it is real and costing him.",
+     'text_fail':  "The resistance cracked. The body accepted a change the pride did not authorize."},
+    {'id':'tm_dom_peak','group':'transformation','priority':10,'stats':['DOM'],'dc':14,
+     'fires_if': lambda s,c: c['transforming'] and c['tier']>=11 and c['dom_mod']>=2,
+     'text_pass': "The transformation is nearly complete. His pride is watching the body become something it did not agree to.",
+     'text_fail':  "The pride has stopped watching. The body is what it is."},
+],
+'SUB': [
+    {'id':'tm_sub_early','group':'transformation','priority':7,'once':True,'stats':['SUB'],'dc':10,
+     'fires_if': lambda s,c: c['transforming'] and c['tier']<=4 and c['sub_mod']>=1,
+     'text_pass': "The body is changing and something in the change is interesting rather than alarming.",
+     'text_fail':  "The body changed and the response to it was not resistance."},
+    {'id':'tm_sub_mid','group':'transformation','priority':7,'stats':['SUB'],'dc':11,
+     'fires_if': lambda s,c: c['transforming'] and 5<=c['tier']<=10 and c['sub_mod']>=1,
+     'text_pass': "The yield instinct has accepted the transformation. He is not fighting what the body is becoming.",
+     'text_fail':  "The yield instinct not only accepted the transformation, it welcomed it."},
+],
+}, # end male transformation
+
+# ═══════════════════════════════════════════════════
+# FEMALE  — not on pink pill track, no transformation pool
+# ═══════════════════════════════════════════════════
+'female': {'CON':[],'INT':[],'WIS':[],'CHA':[],'DOM':[],'SUB':[]},
+
+# ═══════════════════════════════════════════════════
+# TRANS FEMALE  (arrival / fulfillment framing)
+# ═══════════════════════════════════════════════════
+'trans_female': {
+
+'CON': [
+    {'id':'ttf_con_late','group':'transformation','priority':10,'stats':['CON'],'dc':11,
+     'fires_if': lambda s,c: c['transforming'] and c['tier']>=11,
+     'text_pass': "Nearly complete. The body is becoming what it was always supposed to be. She is still herself — more herself.",
+     'text_fail':  "The transformation has the body entirely. She is inside the becoming of it."},
+],
+'INT': [
+    {'id':'ttf_int_mid','group':'transformation','priority':8,'stats':['INT'],'dc':11,
+     'fires_if': lambda s,c: c['transforming'] and 5<=c['tier']<=10,
+     'text_pass': "The transformation is proceeding. She is mapping it, noting each change as arrival.",
+     'text_fail':  "The transformation is moving faster than the mapping. She has stopped distinguishing each change."},
+    {'id':'ttf_int_high','group':'transformation','priority':9,'stats':['INT'],'dc':12,
+     'fires_if': lambda s,c: c['transforming'] and c['tier']>=11 and c['int_mod']>=1,
+     'text_pass': "Nearly there. She is still narrating the arrival. The narration is almost complete.",
+     'text_fail':  "The narration has dissolved. She is just becoming now."},
+],
+'WIS': [
+    {'id':'ttf_wis_mid','group':'transformation','priority':7,'stats':['WIS'],'dc':11,
+     'fires_if': lambda s,c: c['transforming'] and 4<=c['tier']<=9 and c['wis_mod']>=1,
+     'text_pass': "She knows what the pill is doing. She is letting it. Deliberately.",
+     'text_fail':  "She knows what the pill is doing. She stopped making deliberate choices about it a few tiers back."},
+    {'id':'ttf_wis_late','group':'transformation','priority':8,'stats':['WIS'],'dc':11,
+     'fires_if': lambda s,c: c['transforming'] and c['tier']>=10 and c['wis_mod']>=1,
+     'text_pass': "She knows exactly what is happening. She chose this arrival.",
+     'text_fail':  "She chose the pill. The pill is choosing for her now."},
+],
+'CHA': [
+    {'id':'si_cha_mid','group':'physical_tell','priority':5,'stats':['CHA'],'dc':12,
+     'fires_if': lambda s,c: 'submissive' in c['effects'] and c['tier']>=6 and c['cha_mod']>=2,
+     'text_pass': "The compliance is visible. The willingness shows in her presence.",
+     'text_fail': "The submission is obvious. Everyone can see how much the reward is affecting her."},
+],
+'DOM': [
+    {'id':'ttf_dom_mid','group':'transformation','priority':6,'stats':['DOM'],'dc':11,
+     'fires_if': lambda s,c: c['transforming'] and 5<=c['tier']<=10 and c['dom_mod']>=1,
+     'text_pass': "The transformation is proceeding. Her sense of herself is not threatened by it.",
+     'text_fail':  "The transformation got through the self-possession. She is in it rather than directing it."},
+    {'id':'ttf_dom_late','group':'transformation','priority':7,'stats':['DOM'],'dc':10,
+     'fires_if': lambda s,c: c['transforming'] and c['tier']>=11 and c['dom_mod']>=1,
+     'text_pass': "Nearly complete. Her sense of self is intact through the arrival.",
+     'text_fail':  "Nearly complete and she has dissolved into it."},
+],
+'SUB': [
+    {'id':'ttf_sub_early','group':'transformation','priority':8,'once':True,'stats':['SUB'],'dc':10,
+     'fires_if': lambda s,c: c['transforming'] and c['tier']<=4,
+     'text_pass': "The body is changing. This is what she has been waiting for. She is present with all of it.",
+     'text_fail':  "The body is changing faster than she can track. She is in it before she is ready."},
+    {'id':'ttf_sub_late','group':'transformation','priority':9,'stats':['SUB'],'dc':10,
+     'fires_if': lambda s,c: c['transforming'] and c['tier']>=11,
+     'text_pass': "Nearly done. The body is what she always knew it should be. The transformation is fulfillment.",
+     'text_fail':  "The transformation is complete and she is entirely inside the completion of it."},
+],
+}, # end trans_female transformation
+
+# ═══════════════════════════════════════════════════
+# TRANS MALE  — born female, not on pink pill track
+# ═══════════════════════════════════════════════════
+'trans_male': {'CON':[],'INT':[],'WIS':[],'CHA':[],'DOM':[],'SUB':[]},
+
+# ═══════════════════════════════════════════════════
+# INTERSEX  (additive framing — body gaining, not losing)
+# ═══════════════════════════════════════════════════
+'intersex': {
+
+'CON': [
+    {'id':'ti_con_mid','group':'transformation','priority':8,'stats':['CON'],'dc':11,
+     'fires_if': lambda s,c: c['transforming'] and 5<=c['tier']<=8,
+     'text_pass': "The body is amplifying what was already there. The addition feels familiar.",
+     'text_fail':  "The addition is more intense than expected. The body is asking more than she anticipated."},
+    {'id':'ti_con_late','group':'transformation','priority':10,'stats':['CON'],'dc':12,
+     'fires_if': lambda s,c: c['transforming'] and c['tier']>=9,
+     'text_pass': "The transformation is completing. The body is becoming more of what it already was.",
+     'text_fail':  "The transformation is doing something she is still processing."},
+],
+'INT': [
+    {'id':'ti_int_mid','group':'transformation','priority':7,'stats':['INT'],'dc':11,
+     'fires_if': lambda s,c: c['transforming'] and c['tier']>=5,
+     'text_pass': "The transformation is completing. She has mapped it. The body is adding something she already had half of.",
+     'text_fail':  "The transformation is moving faster than the mapping."},
+    {'id':'ti_int_high','group':'transformation','priority':9,'stats':['INT'],'dc':12,
+     'fires_if': lambda s,c: c['transforming'] and c['tier']>=11 and c['int_mod']>=1,
+     'text_pass': "Nearly there. She still understands. The addition is integrated into the whole.",
+     'text_fail':  "Nearly there and she has stopped trying to make sense of it."},
+],
+'WIS': [
+    {'id':'ti_wis_early','group':'transformation','priority':7,'once':True,'stats':['WIS'],'dc':10,
+     'fires_if': lambda s,c: c['transforming'] and c['tier']<=4,
+     'text_pass': "The body is adding something. She is orienting to what that means.",
+     'text_fail':  "Something new is arriving in the anatomy. She has not finished deciding how she feels about that."},
+    {'id':'ti_wis_mid','group':'transformation','priority':7,'stats':['WIS'],'dc':11,
+     'fires_if': lambda s,c: c['transforming'] and 5<=c['tier']<=9 and c['wis_mod']>=1,
+     'text_pass': "She knows what is being added. The addition makes sense in the context of what was already there.",
+     'text_fail':  "She knows what is being added. The knowing has not resolved the strangeness of it."},
+],
+'CHA': [
+    {'id':'si_cha_mid','group':'physical_tell','priority':5,'stats':['CHA'],'dc':12,
+     'fires_if': lambda s,c: 'submissive' in c['effects'] and c['tier']>=6 and c['cha_mod']>=2,
+     'text_pass': "The compliance is visible. The willingness shows in her presence.",
+     'text_fail': "The submission is obvious. Everyone can see how much the reward is affecting her."},
+],
+'DOM': [
+    {'id':'ti_dom_mid','group':'transformation','priority':6,'stats':['DOM'],'dc':11,
+     'fires_if': lambda s,c: c['transforming'] and 5<=c['tier']<=10 and c['dom_mod']>=1,
+     'text_pass': "The body is adding anatomy. Her sense of herself has noted it and not been threatened by it.",
+     'text_fail':  "The body added anatomy and her sense of herself is still orienting to that."},
+    {'id':'ti_dom_late','group':'transformation','priority':7,'stats':['DOM'],'dc':10,
+     'fires_if': lambda s,c: c['transforming'] and c['tier']>=11 and c['dom_mod']>=1,
+     'text_pass': "Nearly complete. Her sense of self encompasses the addition.",
+     'text_fail':  "Nearly complete and the addition has consumed her attention."},
+],
+'SUB': [
+    {'id':'ti_sub_mid','group':'transformation','priority':6,'stats':['SUB'],'dc':10,
+     'fires_if': lambda s,c: c['transforming'] and 5<=c['tier']<=10 and c['sub_mod']>=1,
+     'text_pass': "The yield instinct has accepted the new anatomy. This feels like completion.",
+     'text_fail':  "The yield instinct accepted the new anatomy before the rest of her caught up."},
+],
+}, # end intersex transformation
+
+} # end _T_TRANSFORMATION_PINK
+
+# ─────────────────────────────────────────────────────────────────────────────
+# HELPER — empty sex table generator
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _empty_sex_table():
+    return {sex: {stat: [] for stat in STAT_KEYS} for sex in SEX_KEYS}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# _T_DENIAL   orgasm hard-blocked, frustration builds
+# All sex types.  CON = composure, INT = understanding, WIS = acceptance
+# ─────────────────────────────────────────────────────────────────────────────
+
+_T_DENIAL = {
+
+# ═══════════════════════════════════════════════════
+# MALE
+# ═══════════════════════════════════════════════════
+'male': {
+'CON': [
+    {'id':'dm_con_low','group':'effect_core','priority':6,'stats':['CON'],'dc':10,
+     'fires_if': lambda s,c: 'denial' in c['effects'] and c['tier']<=3,
+     'text_pass': "The block is present. The body has noted it. Still manageable.",
+     'text_fail': "The block arrived and the body is already pushing against it."},
+    {'id':'dm_con_mid','group':'effect_core','priority':7,'stats':['CON'],'dc':12,
+     'fires_if': lambda s,c: 'denial' in c['effects'] and 4<=c['tier']<=8,
+     'text_pass': "The pressure is building behind the block. He is holding.",
+     'text_fail': "The pressure found the block and is pressing against it. The body wants release it cannot have."},
+    {'id':'dm_con_high','group':'effect_core','priority':8,'stats':['CON'],'dc':13,
+     'fires_if': lambda s,c: 'denial' in c['effects'] and 9<=c['tier']<=12,
+     'text_pass': "The denial is physical now. Every nerve is at the edge. He is still holding the line.",
+     'text_fail': "The body has reached the edge and the block will not let it cross. The frustration is total."},
+    {'id':'dm_con_peak','group':'effect_escalation','priority':9,'stats':['CON'],'dc':14,
+     'fires_if': lambda s,c: 'denial' in c['effects'] and c['tier']>=15,
+     'text_pass': "Everything is at the wall. The denial is the only thing in the room. He is still present behind it.",
+     'text_fail': "The wall will not break. The body is screaming against it. There is nothing but the denial and the want."},
+],
+'INT': [
+    {'id':'dm_int_low','group':'mental_state','priority':5,'stats':['INT'],'dc':10,
+     'fires_if': lambda s,c: 'denial' in c['effects'] and c['tier']<=4,
+     'text_pass': "He understands what the pill is doing. The block is mechanical. Knowing that helps.",
+     'text_fail': "He knows something is wrong. The release should be available and it is not."},
+    {'id':'dm_int_mid','group':'mental_state','priority':7,'stats':['INT'],'dc':12,
+     'fires_if': lambda s,c: 'denial' in c['effects'] and 5<=c['tier']<=10,
+     'text_pass': "The analysis is still running. He knows the block is chemical. The knowing does not reduce the pressure.",
+     'text_fail': "The analysis has collapsed under the pressure. He cannot think past the want."},
+    {'id':'dm_int_high','group':'mental_state','priority':8,'stats':['INT'],'dc':13,
+     'fires_if': lambda s,c: 'denial' in c['effects'] and c['tier']>=11,
+     'text_pass': "Still narrating. The denial is total but the narration continues. Clinical observation of his own desperation.",
+     'text_fail': "The narration stopped. Only the wall and the body pressed against it."},
+],
+'WIS': [
+    {'id':'dm_wis_mid','group':'mental_state','priority':6,'stats':['WIS'],'dc':12,
+     'fires_if': lambda s,c: 'denial' in c['effects'] and 4<=c['tier']<=9 and c['wis_mod']>=1,
+     'text_pass': "He knows this will not end the way his body wants. He is choosing what to do with that.",
+     'text_fail': "The knowing has not helped. The body does not care what he understands."},
+],
+'CHA': [
+    {'id':'dm_cha_mid','group':'physical_tell','priority':5,'stats':['CHA'],'dc':12,
+     'fires_if': lambda s,c: 'denial' in c['effects'] and c['tier']>=6 and c['cha_mod']>=2,
+     'text_pass': "The frustration is visible. The denial has made every reaction louder.",
+     'text_fail': "The frustration is impossible to hide. Everyone can see what the block is doing to him."},
+],
+'DOM': [
+    {'id':'dm_dom_mid','group':'dom_response','priority':7,'stats':['DOM'],'dc':12,
+     'fires_if': lambda s,c: 'denial' in c['effects'] and 4<=c['tier']<=9 and c['dom_mod']>=1,
+     'text_pass': "His pride is fighting the denial. The block is an insult. He is enduring it.",
+     'text_fail': "The pride cracked against the block. The denial does not care about his dignity."},
+    {'id':'dm_dom_high','group':'dom_response','priority':8,'stats':['DOM'],'dc':13,
+     'fires_if': lambda s,c: 'denial' in c['effects'] and c['tier']>=10 and c['dom_mod']>=1,
+     'text_pass': "The pride is the last thing holding. The denial has taken everything else.",
+     'text_fail': "The pride is gone. The denial won. He would beg if he thought it would help."},
+],
+'SUB': [
+    {'id':'dm_sub_mid','group':'sub_response','priority':6,'stats':['SUB'],'dc':11,
+     'fires_if': lambda s,c: 'denial' in c['effects'] and 4<=c['tier']<=9 and c['sub_mod']>=1,
+     'text_pass': "The denial and the yield instinct are creating something unbearable. He wants to give in but there is nothing to give in to.",
+     'text_fail': "The yield instinct has nowhere to go. The denial has closed every exit. The frustration is doubling back on itself."},
+    {'id':'dm_sub_high','group':'sub_response','priority':8,'stats':['SUB'],'dc':12,
+     'fires_if': lambda s,c: 'denial' in c['effects'] and c['tier']>=10 and c['sub_mod']>=1,
+     'text_pass': "The submission has accepted the denial. He is inside the frustration. It is what he has.",
+     'text_fail': "The submission and the denial have merged into one thing. The wanting with no release is all there is."},
+],
+}, # end male denial
+
+# ═══════════════════════════════════════════════════
+# FEMALE
+# ═══════════════════════════════════════════════════
+'female': {
+'CON': [
+    {'id':'df_con_low','group':'effect_core','priority':6,'stats':['CON'],'dc':10,
+     'fires_if': lambda s,c: 'denial' in c['effects'] and c['tier']<=3,
+     'text_pass': "The block is there. She has noted it. The body is still quiet enough to manage.",
+     'text_fail': "The block arrived before she was ready. The body is already testing it."},
+    {'id':'df_con_mid','group':'effect_core','priority':7,'stats':['CON'],'dc':12,
+     'fires_if': lambda s,c: 'denial' in c['effects'] and 4<=c['tier']<=8,
+     'text_pass': "The pressure is real. The block is holding. She is holding behind it.",
+     'text_fail': "The pressure found the wall and is building. The body wants what it cannot have."},
+    {'id':'df_con_high','group':'effect_core','priority':8,'stats':['CON'],'dc':13,
+     'fires_if': lambda s,c: 'denial' in c['effects'] and 9<=c['tier']<=12,
+     'text_pass': "Everything is at the edge. The denial is absolute. She is still present.",
+     'text_fail': "The edge is right there and the block will not let her cross. The frustration has the body."},
+    {'id':'df_con_peak','group':'effect_escalation','priority':9,'stats':['CON'],'dc':14,
+     'fires_if': lambda s,c: 'denial' in c['effects'] and c['tier']>=15,
+     'text_pass': "The wall will not break. She knows that now. She is learning to exist inside the pressure.",
+     'text_fail': "The wall will not break. The body does not accept that. Nothing but the denial and the desperate want."},
+],
+'INT': [
+    {'id':'df_int_low','group':'mental_state','priority':5,'stats':['INT'],'dc':10,
+     'fires_if': lambda s,c: 'denial' in c['effects'] and c['tier']<=4,
+     'text_pass': "She has identified the block. Chemical. Mechanical. Understanding it is a small anchor.",
+     'text_fail': "Something is wrong. The release should be there and it is not. She cannot find the framework for that."},
+    {'id':'df_int_mid','group':'mental_state','priority':7,'stats':['INT'],'dc':12,
+     'fires_if': lambda s,c: 'denial' in c['effects'] and 5<=c['tier']<=10,
+     'text_pass': "Still analyzing. The block is impersonal. She is watching her own frustration with clinical distance.",
+     'text_fail': "The analysis crumbled. The frustration is not something she can think her way through."},
+],
+'WIS': [
+    {'id':'df_wis_mid','group':'mental_state','priority':6,'stats':['WIS'],'dc':12,
+     'fires_if': lambda s,c: 'denial' in c['effects'] and 4<=c['tier']<=9 and c['wis_mod']>=1,
+     'text_pass': "She knows the release is not coming. She is deciding what to do with that knowledge.",
+     'text_fail': "The knowing did not help. The body does not listen to what she understands."},
+],
+'CHA': [
+    {'id':'df_cha_mid','group':'physical_tell','priority':5,'stats':['CHA'],'dc':12,
+     'fires_if': lambda s,c: 'denial' in c['effects'] and c['tier']>=6 and c['cha_mod']>=2,
+     'text_pass': "The denied state is visible. The frustration has made her presence sharper.",
+     'text_fail': "The denial is written on her. Every movement communicates the frustration she cannot resolve."},
+],
+'DOM': [
+    {'id':'df_dom_mid','group':'dom_response','priority':7,'stats':['DOM'],'dc':12,
+     'fires_if': lambda s,c: 'denial' in c['effects'] and 4<=c['tier']<=9 and c['dom_mod']>=1,
+     'text_pass': "Her composure is fighting the block. The denial is an imposition. She is enduring it on her terms.",
+     'text_fail': "The composure cracked. The denial does not care about her terms."},
+],
+'SUB': [
+    {'id':'df_sub_mid','group':'sub_response','priority':6,'stats':['SUB'],'dc':11,
+     'fires_if': lambda s,c: 'denial' in c['effects'] and 4<=c['tier']<=9 and c['sub_mod']>=1,
+     'text_pass': "The yield instinct wants to surrender but the denial has sealed every exit. Nowhere to go with it.",
+     'text_fail': "The submission has nowhere to land. The frustration is folding back on itself. She would give anything for release."},
+],
+}, # end female denial
+
+# ═══════════════════════════════════════════════════
+# TRANS FEMALE
+# ═══════════════════════════════════════════════════
+'trans_female': {
+'CON': [
+    {'id':'dtf_con_low','group':'effect_core','priority':6,'stats':['CON'],'dc':10,
+     'fires_if': lambda s,c: 'denial' in c['effects'] and c['tier']<=3,
+     'text_pass': "The block is there. She has noted it. Still managed.",
+     'text_fail': "The block arrived and the body is already pressing against it."},
+    {'id':'dtf_con_mid','group':'effect_core','priority':7,'stats':['CON'],'dc':12,
+     'fires_if': lambda s,c: 'denial' in c['effects'] and 4<=c['tier']<=8,
+     'text_pass': "The pressure is building. The block holds. She is still herself behind it.",
+     'text_fail': "The pressure found the wall. The body wants what it cannot have."},
+    {'id':'dtf_con_high','group':'effect_core','priority':8,'stats':['CON'],'dc':13,
+     'fires_if': lambda s,c: 'denial' in c['effects'] and 9<=c['tier']<=12,
+     'text_pass': "Everything at the edge. The denial is absolute. Still present.",
+     'text_fail': "The edge is there and the block will not yield. The frustration has the body entirely."},
+    {'id':'dtf_con_peak','group':'effect_escalation','priority':9,'stats':['CON'],'dc':14,
+     'fires_if': lambda s,c: 'denial' in c['effects'] and c['tier']>=15,
+     'text_pass': "The wall holds. She is learning to exist inside the pressure. Still herself.",
+     'text_fail': "The wall holds. The body does not accept it. Nothing but denial and desperation."},
+],
+'INT': [
+    {'id':'dtf_int_low','group':'mental_state','priority':5,'stats':['INT'],'dc':10,
+     'fires_if': lambda s,c: 'denial' in c['effects'] and c['tier']<=4,
+     'text_pass': "She has identified the block. Understanding it gives her a handhold.",
+     'text_fail': "She knows something is sealed. The framework for it has not arrived."},
+    {'id':'dtf_int_mid','group':'mental_state','priority':7,'stats':['INT'],'dc':12,
+     'fires_if': lambda s,c: 'denial' in c['effects'] and 5<=c['tier']<=10,
+     'text_pass': "Still narrating. The block is chemical. She is watching her own frustration build.",
+     'text_fail': "The narration collapsed. Only the wall and the want pressed against it."},
+    {'id':'dtf_int_high','group':'mental_state','priority':8,'stats':['INT'],'dc':13,
+     'fires_if': lambda s,c: 'denial' in c['effects'] and c['tier']>=11,
+     'text_pass': "Still analyzing the block even as the pressure mounts. The clinical distance is the only thing holding.",
+     'text_fail': "The analysis shattered. She cannot think past the want anymore."},
+],
+'WIS': [
+    {'id':'dtf_wis_mid','group':'mental_state','priority':6,'stats':['WIS'],'dc':12,
+     'fires_if': lambda s,c: 'denial' in c['effects'] and 4<=c['tier']<=9 and c['wis_mod']>=1,
+     'text_pass': "She knows the release is not coming. Deciding what to do with that.",
+     'text_fail': "Knowing did not help. The body does not care what she understands."},
+],
+'CHA': [
+    {'id':'dtf_cha_mid','group':'physical_tell','priority':5,'stats':['CHA'],'dc':12,
+     'fires_if': lambda s,c: 'denial' in c['effects'] and c['tier']>=6 and c['cha_mod']>=2,
+     'text_pass': "The frustration is visible in how she carries herself. The denial is written on her presence.",
+     'text_fail': "The denial is impossible to hide. Her presence communicates the pressure behind the block."},
+],
+'DOM': [
+    {'id':'dtf_dom_mid','group':'dom_response','priority':7,'stats':['DOM'],'dc':12,
+     'fires_if': lambda s,c: 'denial' in c['effects'] and 4<=c['tier']<=9 and c['dom_mod']>=1,
+     'text_pass': "Her sense of self is fighting the denial. The block is beneath her. She is enduring.",
+     'text_fail': "The self-possession cracked against the block. The denial does not care who she is."},
+    {'id':'dtf_dom_high','group':'dom_response','priority':8,'stats':['DOM'],'dc':13,
+     'fires_if': lambda s,c: 'denial' in c['effects'] and c['tier']>=10 and c['dom_mod']>=1,
+     'text_pass': "The pride is the last bulwark. The denial has stripped everything else. She is still standing behind it.",
+     'text_fail': "The pride collapsed. The denial won. She would beg if she thought it would matter."},
+],
+'SUB': [
+    {'id':'dtf_sub_mid','group':'sub_response','priority':6,'stats':['SUB'],'dc':11,
+     'fires_if': lambda s,c: 'denial' in c['effects'] and 4<=c['tier']<=9 and c['sub_mod']>=1,
+     'text_pass': "The yield instinct wants to give but there is nowhere to give to. The frustration is recursive.",
+     'text_fail': "Submission with no exit. The denial has sealed her inside the want."},
+    {'id':'dtf_sub_high','group':'sub_response','priority':8,'stats':['SUB'],'dc':12,
+     'fires_if': lambda s,c: 'denial' in c['effects'] and c['tier']>=10 and c['sub_mod']>=1,
+     'text_pass': "The submission has accepted the denial. She is inside the frustration. It is what she has.",
+     'text_fail': "The submission and the denial have merged. The wanting with no release is all there is."},
+],
+}, # end trans_female denial
+
+# ═══════════════════════════════════════════════════
+# TRANS MALE
+# ═══════════════════════════════════════════════════
+'trans_male': {
+'CON': [
+    {'id':'dtm_con_low','group':'effect_core','priority':6,'stats':['CON'],'dc':10,
+     'fires_if': lambda s,c: 'denial' in c['effects'] and c['tier']<=3,
+     'text_pass': "The block is present. He has noted it. Still manageable.",
+     'text_fail': "The block arrived and the body is already pushing against it."},
+    {'id':'dtm_con_mid','group':'effect_core','priority':7,'stats':['CON'],'dc':12,
+     'fires_if': lambda s,c: 'denial' in c['effects'] and 4<=c['tier']<=8,
+     'text_pass': "The pressure is building behind the block. He is holding.",
+     'text_fail': "The pressure found the wall. The body wants release it cannot have."},
+    {'id':'dtm_con_high','group':'effect_core','priority':8,'stats':['CON'],'dc':13,
+     'fires_if': lambda s,c: 'denial' in c['effects'] and 9<=c['tier']<=12,
+     'text_pass': "Everything at the edge. The denial is absolute. Still him underneath it.",
+     'text_fail': "The edge is there and the block will not move. The frustration has the body."},
+    {'id':'dtm_con_peak','group':'effect_escalation','priority':9,'stats':['CON'],'dc':14,
+     'fires_if': lambda s,c: 'denial' in c['effects'] and c['tier']>=15,
+     'text_pass': "The wall holds. He is still present behind it. The endurance is real.",
+     'text_fail': "The wall holds. The body does not accept it. Nothing but the denial and the want."},
+],
+'INT': [
+    {'id':'dtm_int_low','group':'mental_state','priority':5,'stats':['INT'],'dc':10,
+     'fires_if': lambda s,c: 'denial' in c['effects'] and c['tier']<=4,
+     'text_pass': "He understands what the block is. Chemical. The knowing is a small anchor.",
+     'text_fail': "He knows something is sealed. Cannot find the framework for it."},
+    {'id':'dtm_int_mid','group':'mental_state','priority':7,'stats':['INT'],'dc':12,
+     'fires_if': lambda s,c: 'denial' in c['effects'] and 5<=c['tier']<=10,
+     'text_pass': "Still analyzing. The block is mechanical. He is watching his own frustration with distance.",
+     'text_fail': "The analysis collapsed. He cannot think past the want."},
+    {'id':'dtm_int_high','group':'mental_state','priority':8,'stats':['INT'],'dc':13,
+     'fires_if': lambda s,c: 'denial' in c['effects'] and c['tier']>=11,
+     'text_pass': "Still narrating his own desperation. The clinical observation persists even at the edge.",
+     'text_fail': "The narration stopped. Only the wall and his body pressed against it."},
+],
+'WIS': [
+    {'id':'dtm_wis_mid','group':'mental_state','priority':6,'stats':['WIS'],'dc':12,
+     'fires_if': lambda s,c: 'denial' in c['effects'] and 4<=c['tier']<=9 and c['wis_mod']>=1,
+     'text_pass': "He knows the release is not coming. He is choosing what to do with that.",
+     'text_fail': "The knowing did not help. The body does not listen to reason."},
+],
+'CHA': [
+    {'id':'dtm_cha_mid','group':'physical_tell','priority':5,'stats':['CHA'],'dc':12,
+     'fires_if': lambda s,c: 'denial' in c['effects'] and c['tier']>=6 and c['cha_mod']>=2,
+     'text_pass': "The frustration shows in his posture. The denial is visible to anyone paying attention.",
+     'text_fail': "The frustration is impossible to hide. Everyone can see what the block is doing to him."},
+],
+'DOM': [
+    {'id':'dtm_dom_mid','group':'dom_response','priority':7,'stats':['DOM'],'dc':12,
+     'fires_if': lambda s,c: 'denial' in c['effects'] and 4<=c['tier']<=9 and c['dom_mod']>=1,
+     'text_pass': "His pride is fighting the block. The denial is an insult. He is enduring it.",
+     'text_fail': "The pride cracked against the block. The denial does not care about his dignity."},
+    {'id':'dtm_dom_high','group':'dom_response','priority':8,'stats':['DOM'],'dc':13,
+     'fires_if': lambda s,c: 'denial' in c['effects'] and c['tier']>=10 and c['dom_mod']>=1,
+     'text_pass': "The pride is the last thing holding. The denial has taken everything else.",
+     'text_fail': "The pride is gone. The denial won. He would beg if he thought it would help."},
+],
+'SUB': [
+    {'id':'dtm_sub_mid','group':'sub_response','priority':6,'stats':['SUB'],'dc':11,
+     'fires_if': lambda s,c: 'denial' in c['effects'] and 4<=c['tier']<=9 and c['sub_mod']>=1,
+     'text_pass': "The yield instinct wants to surrender but the block has sealed every exit.",
+     'text_fail': "Submission with nowhere to land. The frustration is doubling back."},
+    {'id':'dtm_sub_high','group':'sub_response','priority':8,'stats':['SUB'],'dc':12,
+     'fires_if': lambda s,c: 'denial' in c['effects'] and c['tier']>=10 and c['sub_mod']>=1,
+     'text_pass': "The submission has accepted the denial. He is inside the frustration. It is what he has.",
+     'text_fail': "The submission and the denial have merged. The wanting with no release is all there is."},
+],
+}, # end trans_male denial
+
+# ═══════════════════════════════════════════════════
+# INTERSEX
+# ═══════════════════════════════════════════════════
+'intersex': {
+'CON': [
+    {'id':'di_con_low','group':'effect_core','priority':6,'stats':['CON'],'dc':10,
+     'fires_if': lambda s,c: 'denial' in c['effects'] and c['tier']<=3,
+     'text_pass': "The block is there. She has noted it. Still manageable.",
+     'text_fail': "The block arrived and the body is already testing it."},
+    {'id':'di_con_mid','group':'effect_core','priority':7,'stats':['CON'],'dc':12,
+     'fires_if': lambda s,c: 'denial' in c['effects'] and 4<=c['tier']<=8,
+     'text_pass': "The pressure is real. The block holds. She is holding behind it.",
+     'text_fail': "The pressure found the wall. The body wants what it cannot have."},
+    {'id':'di_con_high','group':'effect_core','priority':8,'stats':['CON'],'dc':13,
+     'fires_if': lambda s,c: 'denial' in c['effects'] and 9<=c['tier']<=12,
+     'text_pass': "Everything at the edge. The denial is absolute. Still present.",
+     'text_fail': "The edge is there and the block will not let her cross."},
+    {'id':'di_con_peak','group':'effect_escalation','priority':9,'stats':['CON'],'dc':14,
+     'fires_if': lambda s,c: 'denial' in c['effects'] and c['tier']>=15,
+     'text_pass': "The wall holds. She is learning to exist inside the pressure.",
+     'text_fail': "The wall holds. Nothing but the denial and the want."},
+],
+'INT': [
+    {'id':'di_int_low','group':'mental_state','priority':5,'stats':['INT'],'dc':10,
+     'fires_if': lambda s,c: 'denial' in c['effects'] and c['tier']<=4,
+     'text_pass': "She has identified the block. Chemical. Understanding is a small anchor.",
+     'text_fail': "She knows something is sealed. The framework has not arrived."},
+    {'id':'di_int_mid','group':'mental_state','priority':7,'stats':['INT'],'dc':12,
+     'fires_if': lambda s,c: 'denial' in c['effects'] and 5<=c['tier']<=10,
+     'text_pass': "Still analyzing. The block is impersonal. She is watching her own frustration.",
+     'text_fail': "The analysis crumbled. The frustration is not something she can think through."},
+    {'id':'di_int_high','group':'mental_state','priority':8,'stats':['INT'],'dc':13,
+     'fires_if': lambda s,c: 'denial' in c['effects'] and c['tier']>=11,
+     'text_pass': "Still narrating the denial from inside it. The observation persists even as the pressure mounts.",
+     'text_fail': "The narration stopped. Only the wall and the want."},
+],
+'WIS': [
+    {'id':'di_wis_mid','group':'mental_state','priority':6,'stats':['WIS'],'dc':12,
+     'fires_if': lambda s,c: 'denial' in c['effects'] and 4<=c['tier']<=9 and c['wis_mod']>=1,
+     'text_pass': "She knows the release is not coming. Deciding what to do with that.",
+     'text_fail': "The knowing did not help. The body does not listen."},
+],
+'CHA': [
+    {'id':'di_cha_mid','group':'physical_tell','priority':5,'stats':['CHA'],'dc':12,
+     'fires_if': lambda s,c: 'denial' in c['effects'] and c['tier']>=6 and c['cha_mod']>=2,
+     'text_pass': "The denial is visible in her presence. The frustration has made her more legible.",
+     'text_fail': "The denial is written on her. Every movement communicates the block."},
+],
+'DOM': [
+    {'id':'di_dom_mid','group':'dom_response','priority':7,'stats':['DOM'],'dc':12,
+     'fires_if': lambda s,c: 'denial' in c['effects'] and 4<=c['tier']<=9 and c['dom_mod']>=1,
+     'text_pass': "Her composure is fighting the denial. She is enduring it on her terms.",
+     'text_fail': "The composure cracked. The denial does not care about her terms."},
+    {'id':'di_dom_high','group':'dom_response','priority':8,'stats':['DOM'],'dc':13,
+     'fires_if': lambda s,c: 'denial' in c['effects'] and c['tier']>=10 and c['dom_mod']>=1,
+     'text_pass': "The composure is the last bulwark. The denial has stripped away everything else.",
+     'text_fail': "The composure gave. The denial won. She has nothing left but the want."},
+],
+'SUB': [
+    {'id':'di_sub_mid','group':'sub_response','priority':6,'stats':['SUB'],'dc':11,
+     'fires_if': lambda s,c: 'denial' in c['effects'] and 4<=c['tier']<=9 and c['sub_mod']>=1,
+     'text_pass': "The yield instinct wants to give but there is nowhere. The frustration is recursive.",
+     'text_fail': "Submission with no exit. The denial has sealed her inside the want."},
+    {'id':'di_sub_high','group':'sub_response','priority':8,'stats':['SUB'],'dc':12,
+     'fires_if': lambda s,c: 'denial' in c['effects'] and c['tier']>=10 and c['sub_mod']>=1,
+     'text_pass': "The submission has accepted the denial. She is inside the frustration. It is what she has.",
+     'text_fail': "The submission and the denial have merged. The wanting with no release is all there is."},
+],
+}, # end intersex denial
+
+} # end _T_DENIAL
+
+# ─────────────────────────────────────────────────────────────────────────────
+# PLACEHOLDER TABLES — will be filled in subsequent passes
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ─────────────────────────────────────────────────────────────────────────────
+# _T_SUBMISSIVE   rewards compliance, fights the pleasure of yielding
+# Roll: WIS (resistance) offset by CHA (presence).  DC 12, +2/pass.
+# All sex types.
+# ─────────────────────────────────────────────────────────────────────────────
+
+_T_SUBMISSIVE = {
+
+'male': {
+'CON': [
+    {'id':'sm_con_mid','group':'physical_tell','priority':6,'stats':['CON'],'dc':11,
+     'fires_if': lambda s,c: 'submissive' in c['effects'] and 4<=c['tier']<=8,
+     'text_pass': "The body is responding to the compliance. He has noted the warmth. Still managed.",
+     'text_fail': "The reward hit the body before he could brace. The compliance felt good and the body knows it."},
+    {'id':'sm_con_high','group':'physical_tell','priority':8,'stats':['CON'],'dc':13,
+     'fires_if': lambda s,c: 'submissive' in c['effects'] and c['tier']>=9,
+     'text_pass': "The reward is physical now. He is enduring the pleasure of obedience without surrendering to it.",
+     'text_fail': "The reward has the body. Every act of compliance sends warmth through him. He has stopped resisting that."},
+],
+'INT': [
+    {'id':'sm_int_low','group':'mental_state','priority':5,'stats':['INT'],'dc':10,
+     'fires_if': lambda s,c: 'submissive' in c['effects'] and c['tier']<=4,
+     'text_pass': "He has noted the reward mechanism. Compliance produces pleasure. He is examining that rather than yielding to it.",
+     'text_fail': "He noticed the reward but the noticing did not produce distance from it."},
+    {'id':'sm_int_mid','group':'mental_state','priority':7,'stats':['INT'],'dc':12,
+     'fires_if': lambda s,c: 'submissive' in c['effects'] and 5<=c['tier']<=10,
+     'text_pass': "Still analyzing. The reward loop is identifiable. He is choosing to engage with it on his terms.",
+     'text_fail': "The analysis lost the argument. The reward is louder than the framework."},
+],
+'WIS': [
+    {'id':'sm_wis_mid','group':'mental_state','priority':6,'stats':['WIS'],'dc':12,
+     'fires_if': lambda s,c: 'submissive' in c['effects'] and 4<=c['tier']<=9 and c['wis_mod']>=1,
+     'text_pass': "He knows what the pill is doing. Rewarding compliance. He is choosing deliberately.",
+     'text_fail': "He knows what the pill is doing. The knowing has not stopped him from wanting the reward."},
+],
+'CHA': [
+    {'id':'sm_cha_mid','group':'physical_tell','priority':5,'stats':['CHA'],'dc':12,
+     'fires_if': lambda s,c: 'submissive' in c['effects'] and c['tier']>=6 and c['cha_mod']>=2,
+     'text_pass': "The submission is visible. The willingness is harder to hide when presence is this legible.",
+     'text_fail': "The submission is obvious. Everyone can see how much the compliance is affecting him."},
+],
+'DOM': [
+    {'id':'sm_dom_mid','group':'dom_response','priority':7,'stats':['DOM'],'dc':12,
+     'fires_if': lambda s,c: 'submissive' in c['effects'] and 4<=c['tier']<=9 and c['dom_mod']>=1,
+     'text_pass': "His pride is fighting the reward. Compliance should not feel this good. He is resisting the pleasure, not the act.",
+     'text_fail': "The pride lost the argument. The reward of compliance is better than the cost of resistance."},
+    {'id':'sm_dom_high','group':'dom_response','priority':8,'stats':['DOM'],'dc':13,
+     'fires_if': lambda s,c: 'submissive' in c['effects'] and c['tier']>=10 and c['dom_mod']>=1,
+     'text_pass': "The pride is watching him yield. It has not broken. It is watching.",
+     'text_fail': "The pride gave. The reward won. He is not fighting the pleasure anymore."},
+],
+'SUB': [
+    {'id':'sm_sub_early','group':'sub_response','priority':6,'stats':['SUB'],'dc':10,
+     'fires_if': lambda s,c: 'submissive' in c['effects'] and 2<=c['tier']<=5 and c['sub_mod']>=1,
+     'text_pass': "The pull toward compliance is there. Familiar territory. The reward makes it warmer.",
+     'text_fail': "The pull arrived and the reward amplified it immediately. The compliance feels natural."},
+    {'id':'sm_sub_mid','group':'sub_response','priority':7,'stats':['SUB'],'dc':11,
+     'fires_if': lambda s,c: 'submissive' in c['effects'] and 6<=c['tier']<=10 and c['sub_mod']>=1,
+     'text_pass': "The yield instinct and the reward are the same direction. He is not fighting the compliance.",
+     'text_fail': "The yield instinct and the reward merged. Compliance is not a choice. It is what feels good."},
+    {'id':'sm_sub_high','group':'effect_escalation','priority':8,'stats':['SUB'],'dc':12,
+     'fires_if': lambda s,c: 'submissive' in c['effects'] and c['tier']>=11 and c['sub_mod']>=2,
+     'text_pass': "The submission is total but deliberate. He is choosing to obey because the reward is worth it.",
+     'text_fail': "The submission is total. The reward is the only thing that matters. He obeys because it feels right."},
+],
+}, # end male submissive
+
+'female': {
+'CON': [
+    {'id':'sf_con_mid','group':'physical_tell','priority':6,'stats':['CON'],'dc':11,
+     'fires_if': lambda s,c: 'submissive' in c['effects'] and 4<=c['tier']<=8,
+     'text_pass': "The body is warming to compliance. She has noted it. Still managed.",
+     'text_fail': "The warmth arrived with compliance. The body has accepted the reward before she decided to."},
+    {'id':'sf_con_high','group':'physical_tell','priority':8,'stats':['CON'],'dc':13,
+     'fires_if': lambda s,c: 'submissive' in c['effects'] and c['tier']>=9,
+     'text_pass': "The reward is physical. She is enduring the pleasure without surrendering to it.",
+     'text_fail': "The reward has the body. Every act of compliance sends warmth through her."},
+],
+'INT': [
+    {'id':'sf_int_low','group':'mental_state','priority':5,'stats':['INT'],'dc':10,
+     'fires_if': lambda s,c: 'submissive' in c['effects'] and c['tier']<=4,
+     'text_pass': "She has identified the mechanism. Compliance equals pleasure. She is examining that.",
+     'text_fail': "She noticed the reward loop. The noticing did not produce distance."},
+    {'id':'sf_int_mid','group':'mental_state','priority':7,'stats':['INT'],'dc':12,
+     'fires_if': lambda s,c: 'submissive' in c['effects'] and 5<=c['tier']<=10,
+     'text_pass': "Still analyzing. The reward is identifiable. She is engaging on her terms.",
+     'text_fail': "The analysis lost the argument. The reward is louder than the framework."},
+],
+'WIS': [
+    {'id':'sf_wis_mid','group':'mental_state','priority':6,'stats':['WIS'],'dc':12,
+     'fires_if': lambda s,c: 'submissive' in c['effects'] and 4<=c['tier']<=9 and c['wis_mod']>=1,
+     'text_pass': "She knows what the pill is doing. Choosing deliberately.",
+     'text_fail': "She knows. The knowing has not stopped her from wanting the reward."},
+],
+'CHA': [
+    {'id':'si_cha_mid','group':'physical_tell','priority':5,'stats':['CHA'],'dc':12,
+     'fires_if': lambda s,c: 'submissive' in c['effects'] and c['tier']>=6 and c['cha_mod']>=2,
+     'text_pass': "The compliance is visible. The willingness shows in her presence.",
+     'text_fail': "The submission is obvious. Everyone can see how much the reward is affecting her."},
+],
+'DOM': [
+    {'id':'sf_dom_mid','group':'dom_response','priority':7,'stats':['DOM'],'dc':12,
+     'fires_if': lambda s,c: 'submissive' in c['effects'] and 4<=c['tier']<=9 and c['dom_mod']>=1,
+     'text_pass': "Her composure is fighting the reward. Compliance should not feel this good.",
+     'text_fail': "The composure lost. The reward of compliance won the argument."},
+],
+'SUB': [
+    {'id':'sf_sub_early','group':'sub_response','priority':6,'stats':['SUB'],'dc':10,
+     'fires_if': lambda s,c: 'submissive' in c['effects'] and 2<=c['tier']<=5 and c['sub_mod']>=1,
+     'text_pass': "The pull toward compliance is there. The reward makes it warmer than usual.",
+     'text_fail': "The pull arrived amplified. The compliance feels natural and warm."},
+    {'id':'sf_sub_mid','group':'sub_response','priority':7,'stats':['SUB'],'dc':11,
+     'fires_if': lambda s,c: 'submissive' in c['effects'] and 6<=c['tier']<=10 and c['sub_mod']>=1,
+     'text_pass': "The yield and the reward point the same direction. She is not fighting compliance.",
+     'text_fail': "The yield and the reward merged. Compliance is what feels good."},
+    {'id':'sf_sub_high','group':'effect_escalation','priority':8,'stats':['SUB'],'dc':12,
+     'fires_if': lambda s,c: 'submissive' in c['effects'] and c['tier']>=11 and c['sub_mod']>=2,
+     'text_pass': "The submission is total but deliberate. She obeys because the reward is worth it.",
+     'text_fail': "The submission is total. She obeys because it feels right."},
+],
+}, # end female submissive
+
+'trans_female': {
+'CON': [
+    {'id':'stf_con_mid','group':'physical_tell','priority':6,'stats':['CON'],'dc':11,
+     'fires_if': lambda s,c: 'submissive' in c['effects'] and 4<=c['tier']<=8,
+     'text_pass': "The body is warming to compliance. Still managed.",
+     'text_fail': "The warmth arrived with compliance. The body accepted it."},
+    {'id':'stf_con_high','group':'physical_tell','priority':8,'stats':['CON'],'dc':13,
+     'fires_if': lambda s,c: 'submissive' in c['effects'] and c['tier']>=9,
+     'text_pass': "The reward is physical. She is enduring it without surrendering.",
+     'text_fail': "The reward has the body. Compliance sends warmth through her."},
+],
+'INT': [
+    {'id':'stf_int_low','group':'mental_state','priority':5,'stats':['INT'],'dc':10,
+     'fires_if': lambda s,c: 'submissive' in c['effects'] and c['tier']<=4,
+     'text_pass': "She has identified the mechanism. Examining it.",
+     'text_fail': "She noticed the reward. The noticing did not create distance."},
+    {'id':'stf_int_mid','group':'mental_state','priority':7,'stats':['INT'],'dc':12,
+     'fires_if': lambda s,c: 'submissive' in c['effects'] and 5<=c['tier']<=10,
+     'text_pass': "Still analyzing. The reward loop is identifiable. She is choosing to engage with it on her terms.",
+     'text_fail': "The analysis lost the argument. The reward is louder than the framework."},
+    {'id':'stf_int_high','group':'mental_state','priority':8,'stats':['INT'],'dc':13,
+     'fires_if': lambda s,c: 'submissive' in c['effects'] and c['tier']>=11,
+     'text_pass': "The reward mechanism is understood but compelling. She is narrating her own surrender.",
+     'text_fail': "The narration has become part of the reward. The analysis surrendered with her."},
+],
+'WIS': [
+    {'id':'stf_wis_mid','group':'mental_state','priority':6,'stats':['WIS'],'dc':12,
+     'fires_if': lambda s,c: 'submissive' in c['effects'] and 4<=c['tier']<=9 and c['wis_mod']>=1,
+     'text_pass': "She knows the pill is rewarding compliance. Choosing deliberately.",
+     'text_fail': "She knows. The knowing has not reduced the wanting."},
+],
+'CHA': [
+    {'id':'stf_cha_mid','group':'physical_tell','priority':5,'stats':['CHA'],'dc':12,
+     'fires_if': lambda s,c: 'submissive' in c['effects'] and c['tier']>=6 and c['cha_mod']>=2,
+     'text_pass': "The compliance is visible. The willingness shows in her presence.",
+     'text_fail': "The submission is obvious. Everyone can see how much the reward is affecting her."},
+],
+'DOM': [
+    {'id':'stf_dom_mid','group':'dom_response','priority':7,'stats':['DOM'],'dc':12,
+     'fires_if': lambda s,c: 'submissive' in c['effects'] and 4<=c['tier']<=9 and c['dom_mod']>=1,
+     'text_pass': "Her sense of self is fighting the reward. She is enduring.",
+     'text_fail': "The self-possession lost. The reward won."},
+],
+'SUB': [
+    {'id':'stf_sub_early','group':'sub_response','priority':6,'stats':['SUB'],'dc':10,
+     'fires_if': lambda s,c: 'submissive' in c['effects'] and 2<=c['tier']<=5 and c['sub_mod']>=1,
+     'text_pass': "The pull toward compliance is there. The reward amplifies it.",
+     'text_fail': "The pull arrived amplified. Compliance feels like arriving."},
+    {'id':'stf_sub_mid','group':'sub_response','priority':7,'stats':['SUB'],'dc':11,
+     'fires_if': lambda s,c: 'submissive' in c['effects'] and 6<=c['tier']<=10 and c['sub_mod']>=1,
+     'text_pass': "The yield and the reward merged. She is not fighting compliance.",
+     'text_fail': "Compliance is what feels good. The yield is total."},
+    {'id':'stf_sub_high','group':'effect_escalation','priority':8,'stats':['SUB'],'dc':12,
+     'fires_if': lambda s,c: 'submissive' in c['effects'] and c['tier']>=11 and c['sub_mod']>=2,
+     'text_pass': "The submission is total but deliberate. She is choosing to obey because the reward feels like home.",
+     'text_fail': "The submission is complete. The reward is everything. She obeys because it feels right."},
+],
+}, # end trans_female submissive
+
+'trans_male': {
+'CON': [
+    {'id':'stm_con_mid','group':'physical_tell','priority':6,'stats':['CON'],'dc':11,
+     'fires_if': lambda s,c: 'submissive' in c['effects'] and 4<=c['tier']<=8,
+     'text_pass': "The body is responding to compliance. He has noted the warmth. Still managed.",
+     'text_fail': "The reward hit before he could brace. Compliance felt good."},
+    {'id':'stm_con_high','group':'physical_tell','priority':8,'stats':['CON'],'dc':13,
+     'fires_if': lambda s,c: 'submissive' in c['effects'] and c['tier']>=9,
+     'text_pass': "The reward is physical. He is enduring it.",
+     'text_fail': "The reward has the body. He has stopped resisting that."},
+],
+'INT': [
+    {'id':'stm_int_low','group':'mental_state','priority':5,'stats':['INT'],'dc':10,
+     'fires_if': lambda s,c: 'submissive' in c['effects'] and c['tier']<=4,
+     'text_pass': "He has identified the mechanism. Examining it rather than yielding.",
+     'text_fail': "He noticed the reward loop. The noticing did not create distance."},
+    {'id':'stm_int_mid','group':'mental_state','priority':7,'stats':['INT'],'dc':12,
+     'fires_if': lambda s,c: 'submissive' in c['effects'] and 5<=c['tier']<=10,
+     'text_pass': "Still analyzing. The reward loop is identifiable. He is choosing to engage with it on his terms.",
+     'text_fail': "The analysis lost the argument. The reward is louder than the framework."},
+    {'id':'stm_int_high','group':'mental_state','priority':8,'stats':['INT'],'dc':13,
+     'fires_if': lambda s,c: 'submissive' in c['effects'] and c['tier']>=11,
+     'text_pass': "The reward mechanism is understood but compelling. He is narrating his own surrender.",
+     'text_fail': "The narration has become part of the reward. The analysis surrendered with him."},
+],
+'WIS': [
+    {'id':'stm_wis_mid','group':'mental_state','priority':6,'stats':['WIS'],'dc':12,
+     'fires_if': lambda s,c: 'submissive' in c['effects'] and 4<=c['tier']<=9 and c['wis_mod']>=1,
+     'text_pass': "He knows the pill is rewarding compliance. Choosing deliberately.",
+     'text_fail': "He knows. The knowing has not stopped him from wanting the reward."},
+],
+'CHA': [
+    {'id':'stm_cha_mid','group':'physical_tell','priority':5,'stats':['CHA'],'dc':12,
+     'fires_if': lambda s,c: 'submissive' in c['effects'] and c['tier']>=6 and c['cha_mod']>=2,
+     'text_pass': "The compliance is visible. The willingness is harder to hide when presence is this legible.",
+     'text_fail': "The submission is obvious. Everyone can see how much the reward is affecting him."},
+],
+'DOM': [
+    {'id':'stm_dom_mid','group':'dom_response','priority':7,'stats':['DOM'],'dc':12,
+     'fires_if': lambda s,c: 'submissive' in c['effects'] and 4<=c['tier']<=9 and c['dom_mod']>=1,
+     'text_pass': "His pride is fighting the reward. Compliance should not feel this good.",
+     'text_fail': "The pride lost. The reward of compliance won."},
+],
+'SUB': [
+    {'id':'stm_sub_early','group':'sub_response','priority':6,'stats':['SUB'],'dc':10,
+     'fires_if': lambda s,c: 'submissive' in c['effects'] and 2<=c['tier']<=5 and c['sub_mod']>=1,
+     'text_pass': "The pull is there. The reward makes it warmer.",
+     'text_fail': "The pull arrived amplified. Compliance feels natural."},
+    {'id':'stm_sub_mid','group':'sub_response','priority':7,'stats':['SUB'],'dc':11,
+     'fires_if': lambda s,c: 'submissive' in c['effects'] and 6<=c['tier']<=10 and c['sub_mod']>=1,
+     'text_pass': "The yield and the reward merged. He is not fighting compliance.",
+     'text_fail': "Compliance is what feels good. The yield is total."},
+    {'id':'stm_sub_high','group':'effect_escalation','priority':8,'stats':['SUB'],'dc':12,
+     'fires_if': lambda s,c: 'submissive' in c['effects'] and c['tier']>=11 and c['sub_mod']>=2,
+     'text_pass': "The submission is total but deliberate. He is choosing to obey because the reward is worth it.",
+     'text_fail': "The submission is complete. The reward is everything. He obeys because it feels right."},
+],
+}, # end trans_male submissive
+
+'intersex': {
+'CON': [
+    {'id':'si_con_mid','group':'physical_tell','priority':6,'stats':['CON'],'dc':11,
+     'fires_if': lambda s,c: 'submissive' in c['effects'] and 4<=c['tier']<=8,
+     'text_pass': "The body is warming to compliance. Still managed.",
+     'text_fail': "The warmth arrived with compliance. The body accepted it."},
+    {'id':'si_con_high','group':'physical_tell','priority':8,'stats':['CON'],'dc':13,
+     'fires_if': lambda s,c: 'submissive' in c['effects'] and c['tier']>=9,
+     'text_pass': "The reward is physical. She is enduring it.",
+     'text_fail': "The reward has the body. Compliance sends warmth through her."},
+],
+'INT': [
+    {'id':'si_int_low','group':'mental_state','priority':5,'stats':['INT'],'dc':10,
+     'fires_if': lambda s,c: 'submissive' in c['effects'] and c['tier']<=4,
+     'text_pass': "She has identified the mechanism. Examining it.",
+     'text_fail': "She noticed the reward. The noticing did not create distance."},
+    {'id':'si_int_mid','group':'mental_state','priority':7,'stats':['INT'],'dc':12,
+     'fires_if': lambda s,c: 'submissive' in c['effects'] and 5<=c['tier']<=10,
+     'text_pass': "Still analyzing. The reward loop is identifiable. She is choosing to engage with it on her terms.",
+     'text_fail': "The analysis lost the argument. The reward is louder than the framework."},
+    {'id':'si_int_high','group':'mental_state','priority':8,'stats':['INT'],'dc':13,
+     'fires_if': lambda s,c: 'submissive' in c['effects'] and c['tier']>=11,
+     'text_pass': "The reward mechanism is understood but compelling. She is narrating her own surrender.",
+     'text_fail': "The narration has become part of the reward. The analysis surrendered with her."},
+],
+'WIS': [
+    {'id':'si_wis_mid','group':'mental_state','priority':6,'stats':['WIS'],'dc':12,
+     'fires_if': lambda s,c: 'submissive' in c['effects'] and 4<=c['tier']<=9 and c['wis_mod']>=1,
+     'text_pass': "She knows. Choosing deliberately.",
+     'text_fail': "She knows. The knowing has not stopped the wanting."},
+],
+'CHA': [
+    {'id':'si_cha_mid','group':'physical_tell','priority':5,'stats':['CHA'],'dc':12,
+     'fires_if': lambda s,c: 'submissive' in c['effects'] and c['tier']>=6 and c['cha_mod']>=2,
+     'text_pass': "The compliance is visible. The willingness shows in her presence.",
+     'text_fail': "The submission is obvious. Everyone can see how much the reward is affecting her."},
+],
+'DOM': [
+    {'id':'si_dom_mid','group':'dom_response','priority':7,'stats':['DOM'],'dc':12,
+     'fires_if': lambda s,c: 'submissive' in c['effects'] and 4<=c['tier']<=9 and c['dom_mod']>=1,
+     'text_pass': "Her composure is fighting the reward. She is enduring.",
+     'text_fail': "The composure lost. The reward won."},
+],
+'SUB': [
+    {'id':'si_sub_early','group':'sub_response','priority':6,'stats':['SUB'],'dc':10,
+     'fires_if': lambda s,c: 'submissive' in c['effects'] and 2<=c['tier']<=5 and c['sub_mod']>=1,
+     'text_pass': "The pull is there. The reward amplifies it.",
+     'text_fail': "The pull arrived amplified. Compliance feels natural."},
+    {'id':'si_sub_mid','group':'sub_response','priority':7,'stats':['SUB'],'dc':11,
+     'fires_if': lambda s,c: 'submissive' in c['effects'] and 6<=c['tier']<=10 and c['sub_mod']>=1,
+     'text_pass': "The yield and the reward merged. She is not fighting compliance.",
+     'text_fail': "Compliance is what feels good."},
+    {'id':'si_sub_high','group':'effect_escalation','priority':8,'stats':['SUB'],'dc':12,
+     'fires_if': lambda s,c: 'submissive' in c['effects'] and c['tier']>=11 and c['sub_mod']>=2,
+     'text_pass': "The submission is total but deliberate. She is choosing to obey because the reward is worth it.",
+     'text_fail': "The submission is complete. The reward is everything. She obeys because it feels right."},
+],
+}, # end intersex submissive
+
+} # end _T_SUBMISSIVE
+
+# ─────────────────────────────────────────────────────────────────────────────
+# _T_SHOW_OFF   exhibitionism, revealing clothing, lowered inhibitions
+# CHA = exhibitionist impulse, WIS = social caution.  All sex types.
+# ─────────────────────────────────────────────────────────────────────────────
+
+_T_SHOW_OFF = {
+
+'male': {
+'CON': [
+    {'id':'som_con_low','group':'physical_tell','priority':5,'stats':['CON'],'dc':10,
+     'fires_if': lambda s,c: 'show_off' in c['effects'] and c['tier']<=3,
+     'text_pass': "The impulse to display is there. He is managing it.",
+     'text_fail': "The impulse arrived before he could manage it. Something shifted in posture."},
+    {'id':'som_con_mid','group':'physical_tell','priority':6,'stats':['CON'],'dc':11,
+     'fires_if': lambda s,c: 'show_off' in c['effects'] and 4<=c['tier']<=8,
+     'text_pass': "The body wants to be seen. He is managing that impulse. Still clothed on his terms.",
+     'text_fail': "The impulse to display arrived before he could manage it. Something shifted in posture."},
+    {'id':'som_con_high','group':'physical_tell','priority':8,'stats':['CON'],'dc':13,
+     'fires_if': lambda s,c: 'show_off' in c['effects'] and c['tier']>=9,
+     'text_pass': "The exhibitionist impulse is strong. He is containing it. Barely.",
+     'text_fail': "The impulse won. The body is arranging itself to be looked at."},
+],
+'INT': [
+    {'id':'som_int_low','group':'mental_state','priority':5,'stats':['INT'],'dc':10,
+     'fires_if': lambda s,c: 'show_off' in c['effects'] and c['tier']<=4,
+     'text_pass': "He has noted the impulse to display. Interesting. Filed without acting on it.",
+     'text_fail': "The impulse arrived and the reasoning to resist it did not form quickly enough."},
+],
+'WIS': [
+    {'id':'som_wis_mid','group':'mental_state','priority':6,'stats':['WIS'],'dc':12,
+     'fires_if': lambda s,c: 'show_off' in c['effects'] and 4<=c['tier']<=9 and c['wis_mod']>=1,
+     'text_pass': "He knows the impulse is chemical. The social consequences are still in the calculation.",
+     'text_fail': "The social calculation dropped out. The impulse to display is winning."},
+],
+'CHA': [
+    {'id':'som_cha_mid','group':'effect_core','priority':7,'stats':['CHA'],'dc':11,
+     'fires_if': lambda s,c: 'show_off' in c['effects'] and c['tier']>=5 and c['cha_mod']>=1,
+     'text_pass': "The presence is louder than usual. The exhibitionist impulse is making everything more visible.",
+     'text_fail': "The presence has become the display. He is performing without deciding to."},
+],
+'DOM': [
+    {'id':'som_dom_mid','group':'dom_response','priority':6,'stats':['DOM'],'dc':12,
+     'fires_if': lambda s,c: 'show_off' in c['effects'] and 4<=c['tier']<=9 and c['dom_mod']>=1,
+     'text_pass': "The display impulse and the pride are working together. Showing off on his terms.",
+     'text_fail': "The pride turned exhibitionist. The display is not controlled anymore."},
+    {'id':'som_dom_high','group':'dom_response','priority':8,'stats':['DOM'],'dc':13,
+     'fires_if': lambda s,c: 'show_off' in c['effects'] and c['tier']>=10 and c['dom_mod']>=1,
+     'text_pass': "The display is total and deliberate. He is choosing what to reveal. Still in control of the performance.",
+     'text_fail': "The performance has taken over. The masculine display is total. He is not choosing anymore."},
+],
+'SUB': [
+    {'id':'som_sub_mid','group':'sub_response','priority':6,'stats':['SUB'],'dc':11,
+     'fires_if': lambda s,c: 'show_off' in c['effects'] and 4<=c['tier']<=9 and c['sub_mod']>=1,
+     'text_pass': "The desire to be watched is present. The submission makes the vulnerability part of the display.",
+     'text_fail': "The desire to be seen and the desire to yield merged. He is displaying because it feels like surrender."},
+],
+}, # end male show_off
+
+'female': {
+'CON': [
+    {'id':'sof_con_mid','group':'physical_tell','priority':6,'stats':['CON'],'dc':11,
+     'fires_if': lambda s,c: 'show_off' in c['effects'] and 4<=c['tier']<=8,
+     'text_pass': "The body wants to be seen. She is managing the impulse. Clothing stays where she put it.",
+     'text_fail': "The impulse to display arrived. Something about the posture changed. Less covered than she intended."},
+    {'id':'sof_con_high','group':'physical_tell','priority':8,'stats':['CON'],'dc':13,
+     'fires_if': lambda s,c: 'show_off' in c['effects'] and c['tier']>=9,
+     'text_pass': "The exhibitionist impulse is strong. She is containing it. Barely.",
+     'text_fail': "The impulse won. The body is arranging itself to be looked at. The clothing has become a suggestion."},
+],
+'INT': [
+    {'id':'sof_int_low','group':'mental_state','priority':5,'stats':['INT'],'dc':10,
+     'fires_if': lambda s,c: 'show_off' in c['effects'] and c['tier']<=4,
+     'text_pass': "She has noted the impulse. The inhibitions feel lighter. She is examining that.",
+     'text_fail': "The inhibitions dropped before she could examine why. The impulse to display is just there."},
+],
+'WIS': [
+    {'id':'sof_wis_mid','group':'mental_state','priority':6,'stats':['WIS'],'dc':12,
+     'fires_if': lambda s,c: 'show_off' in c['effects'] and 4<=c['tier']<=9 and c['wis_mod']>=1,
+     'text_pass': "She knows the inhibition drop is chemical. Social consequences still in the calculation.",
+     'text_fail': "The social calculation dropped out. The feminine display impulse is winning."},
+],
+'CHA': [
+    {'id':'sof_cha_mid','group':'effect_core','priority':7,'stats':['CHA'],'dc':11,
+     'fires_if': lambda s,c: 'show_off' in c['effects'] and c['tier']>=5 and c['cha_mod']>=1,
+     'text_pass': "The presence is amplified. The display impulse and the natural attention-draw are feeding each other.",
+     'text_fail': "The presence has become the performance. She is drawing every eye without deciding to."},
+    {'id':'sof_cha_high','group':'effect_escalation','priority':8,'stats':['CHA'],'dc':13,
+     'fires_if': lambda s,c: 'show_off' in c['effects'] and c['tier']>=10 and c['cha_mod']>=2,
+     'text_pass': "The feminine display is deliberate. She is choosing what to reveal. Still in control of the performance.",
+     'text_fail': "The performance has taken over. The feminine display is total. She is not choosing anymore."},
+],
+'DOM': [
+    {'id':'sof_dom_mid','group':'dom_response','priority':6,'stats':['DOM'],'dc':12,
+     'fires_if': lambda s,c: 'show_off' in c['effects'] and 4<=c['tier']<=9 and c['dom_mod']>=1,
+     'text_pass': "The display and the composure are working together. Showing off on her terms.",
+     'text_fail': "The composure turned exhibitionist. The display is not controlled anymore."},
+],
+'SUB': [
+    {'id':'sof_sub_mid','group':'sub_response','priority':6,'stats':['SUB'],'dc':11,
+     'fires_if': lambda s,c: 'show_off' in c['effects'] and 4<=c['tier']<=9 and c['sub_mod']>=1,
+     'text_pass': "The desire to be watched is present. The vulnerability of the display feels like yielding.",
+     'text_fail': "The desire to be seen and the desire to yield merged. Displaying because it feels like surrender."},
+],
+}, # end female show_off
+
+'trans_female': {
+'CON': [
+    {'id':'sotf_con_low','group':'physical_tell','priority':5,'stats':['CON'],'dc':10,
+     'fires_if': lambda s,c: 'show_off' in c['effects'] and c['tier']<=3,
+     'text_pass': "The body wants to be seen. She is managing it.",
+     'text_fail': "The impulse to display arrived. Something shifted in posture."},
+    {'id':'sotf_con_mid','group':'physical_tell','priority':6,'stats':['CON'],'dc':11,
+     'fires_if': lambda s,c: 'show_off' in c['effects'] and 4<=c['tier']<=8,
+     'text_pass': "The body wants to be seen. She is managing the impulse.",
+     'text_fail': "The impulse to display arrived. Posture shifted. More visible than intended."},
+    {'id':'sotf_con_high','group':'physical_tell','priority':8,'stats':['CON'],'dc':13,
+     'fires_if': lambda s,c: 'show_off' in c['effects'] and c['tier']>=9,
+     'text_pass': "The exhibitionist impulse is strong. She is containing it.",
+     'text_fail': "The impulse won. The body is presenting itself to be looked at."},
+],
+'INT': [
+    {'id':'sotf_int_low','group':'mental_state','priority':5,'stats':['INT'],'dc':10,
+     'fires_if': lambda s,c: 'show_off' in c['effects'] and c['tier']<=4,
+     'text_pass': "She has noted the impulse. The inhibitions feel lighter than usual.",
+     'text_fail': "The inhibitions dropped. The impulse to display is just there."},
+],
+'WIS': [
+    {'id':'sotf_wis_mid','group':'mental_state','priority':6,'stats':['WIS'],'dc':12,
+     'fires_if': lambda s,c: 'show_off' in c['effects'] and 4<=c['tier']<=9 and c['wis_mod']>=1,
+     'text_pass': "She knows the impulse is chemical. Still calculating consequences.",
+     'text_fail': "The calculation dropped. The display impulse is winning."},
+],
+'CHA': [
+    {'id':'sotf_cha_mid','group':'effect_core','priority':7,'stats':['CHA'],'dc':11,
+     'fires_if': lambda s,c: 'show_off' in c['effects'] and c['tier']>=5 and c['cha_mod']>=1,
+     'text_pass': "The feminine display impulse feels like arrival. She is showing what was always meant to be seen.",
+     'text_fail': "The display has become the point. She is performing femininity with total commitment."},
+],
+'DOM': [
+    {'id':'sotf_dom_mid','group':'dom_response','priority':6,'stats':['DOM'],'dc':12,
+     'fires_if': lambda s,c: 'show_off' in c['effects'] and 4<=c['tier']<=9 and c['dom_mod']>=1,
+     'text_pass': "The display is deliberate. She is showing off on her terms.",
+     'text_fail': "The display is no longer on her terms. The impulse is directing."},
+    {'id':'sotf_dom_high','group':'dom_response','priority':8,'stats':['DOM'],'dc':13,
+     'fires_if': lambda s,c: 'show_off' in c['effects'] and c['tier']>=10 and c['dom_mod']>=1,
+     'text_pass': "The display is total and deliberate. She is performing femininity on her own terms.",
+     'text_fail': "The display has overwhelmed control. The impulse is directing everything."},
+],
+'SUB': [
+    {'id':'sotf_sub_mid','group':'sub_response','priority':6,'stats':['SUB'],'dc':11,
+     'fires_if': lambda s,c: 'show_off' in c['effects'] and 4<=c['tier']<=9 and c['sub_mod']>=1,
+     'text_pass': "The desire to be watched and the vulnerability feel like yielding.",
+     'text_fail': "Displaying because it feels like surrender. The yield and the display are one thing."},
+],
+}, # end trans_female show_off
+
+'trans_male': {
+'CON': [
+    {'id':'sotm_con_low','group':'physical_tell','priority':5,'stats':['CON'],'dc':10,
+     'fires_if': lambda s,c: 'show_off' in c['effects'] and c['tier']<=3,
+     'text_pass': "The body wants to be seen. He is managing it.",
+     'text_fail': "The impulse to display arrived. Posture shifted. More visible than intended."},
+    {'id':'sotm_con_mid','group':'physical_tell','priority':6,'stats':['CON'],'dc':11,
+     'fires_if': lambda s,c: 'show_off' in c['effects'] and 4<=c['tier']<=8,
+     'text_pass': "The impulse to display is there. He is managing it.",
+     'text_fail': "The impulse arrived. Posture shifted. More visible than intended."},
+    {'id':'sotm_con_high','group':'physical_tell','priority':8,'stats':['CON'],'dc':13,
+     'fires_if': lambda s,c: 'show_off' in c['effects'] and c['tier']>=9,
+     'text_pass': "The exhibitionist impulse is strong. He is containing it.",
+     'text_fail': "The impulse won. The body is presenting itself."},
+],
+'INT': [
+    {'id':'sotm_int_low','group':'mental_state','priority':5,'stats':['INT'],'dc':10,
+     'fires_if': lambda s,c: 'show_off' in c['effects'] and c['tier']<=4,
+     'text_pass': "He has noted the impulse. The inhibitions feel lighter.",
+     'text_fail': "The inhibitions dropped. The display impulse is just there."},
+],
+'WIS': [
+    {'id':'sotm_wis_mid','group':'mental_state','priority':6,'stats':['WIS'],'dc':12,
+     'fires_if': lambda s,c: 'show_off' in c['effects'] and 4<=c['tier']<=9 and c['wis_mod']>=1,
+     'text_pass': "He knows the impulse is chemical. Still calculating.",
+     'text_fail': "The calculation dropped. The display is winning."},
+],
+'CHA': [
+    {'id':'sotm_cha_mid','group':'effect_core','priority':7,'stats':['CHA'],'dc':11,
+     'fires_if': lambda s,c: 'show_off' in c['effects'] and c['tier']>=5 and c['cha_mod']>=1,
+     'text_pass': "The presence is amplified. The display impulse is making everything louder.",
+     'text_fail': "The presence has become the performance. Drawing attention without deciding to."},
+],
+'DOM': [
+    {'id':'sotm_dom_mid','group':'dom_response','priority':6,'stats':['DOM'],'dc':12,
+     'fires_if': lambda s,c: 'show_off' in c['effects'] and 4<=c['tier']<=9 and c['dom_mod']>=1,
+     'text_pass': "The display and the pride are working together. Showing off on his terms.",
+     'text_fail': "The pride turned exhibitionist. The display is not controlled."},
+    {'id':'sotm_dom_high','group':'dom_response','priority':8,'stats':['DOM'],'dc':13,
+     'fires_if': lambda s,c: 'show_off' in c['effects'] and c['tier']>=10 and c['dom_mod']>=1,
+     'text_pass': "The display is total and deliberate. He is performing masculinity on his own terms.",
+     'text_fail': "The display has overwhelmed control. The impulse is directing everything."},
+],
+'SUB': [
+    {'id':'sotm_sub_mid','group':'sub_response','priority':6,'stats':['SUB'],'dc':11,
+     'fires_if': lambda s,c: 'show_off' in c['effects'] and 4<=c['tier']<=9 and c['sub_mod']>=1,
+     'text_pass': "The desire to be watched is present. The vulnerability feels like yielding.",
+     'text_fail': "Displaying because it feels like surrender."},
+],
+}, # end trans_male show_off
+
+'intersex': {
+'CON': [
+    {'id':'soi_con_low','group':'physical_tell','priority':5,'stats':['CON'],'dc':10,
+     'fires_if': lambda s,c: 'show_off' in c['effects'] and c['tier']<=3,
+     'text_pass': "The body wants to be seen. She is managing it.",
+     'text_fail': "The impulse to display arrived. Something shifted. More visible than intended."},
+    {'id':'soi_con_mid','group':'physical_tell','priority':6,'stats':['CON'],'dc':11,
+     'fires_if': lambda s,c: 'show_off' in c['effects'] and 4<=c['tier']<=8,
+     'text_pass': "The body wants to be seen. She is managing the impulse.",
+     'text_fail': "The impulse arrived. Something shifted. More visible than intended."},
+    {'id':'soi_con_high','group':'physical_tell','priority':8,'stats':['CON'],'dc':13,
+     'fires_if': lambda s,c: 'show_off' in c['effects'] and c['tier']>=9,
+     'text_pass': "The exhibitionist impulse is strong. She is containing it.",
+     'text_fail': "The impulse won. The body is presenting itself."},
+],
+'INT': [
+    {'id':'soi_int_low','group':'mental_state','priority':5,'stats':['INT'],'dc':10,
+     'fires_if': lambda s,c: 'show_off' in c['effects'] and c['tier']<=4,
+     'text_pass': "She has noted the impulse. The inhibitions are lighter.",
+     'text_fail': "The inhibitions dropped. The display impulse is present."},
+],
+'WIS': [
+    {'id':'soi_wis_mid','group':'mental_state','priority':6,'stats':['WIS'],'dc':12,
+     'fires_if': lambda s,c: 'show_off' in c['effects'] and 4<=c['tier']<=9 and c['wis_mod']>=1,
+     'text_pass': "She knows the impulse is chemical. Still calculating.",
+     'text_fail': "The calculation dropped. The display is winning."},
+],
+'CHA': [
+    {'id':'soi_cha_mid','group':'effect_core','priority':7,'stats':['CHA'],'dc':11,
+     'fires_if': lambda s,c: 'show_off' in c['effects'] and c['tier']>=5 and c['cha_mod']>=1,
+     'text_pass': "The presence is amplified. The display impulse is making everything louder.",
+     'text_fail': "The presence has become the performance. Drawing every eye."},
+],
+'DOM': [
+    {'id':'soi_dom_mid','group':'dom_response','priority':6,'stats':['DOM'],'dc':12,
+     'fires_if': lambda s,c: 'show_off' in c['effects'] and 4<=c['tier']<=9 and c['dom_mod']>=1,
+     'text_pass': "The display is deliberate. Showing off on her terms.",
+     'text_fail': "The display is not controlled anymore."},
+    {'id':'soi_dom_high','group':'dom_response','priority':8,'stats':['DOM'],'dc':13,
+     'fires_if': lambda s,c: 'show_off' in c['effects'] and c['tier']>=10 and c['dom_mod']>=1,
+     'text_pass': "The display is total and deliberate. She is performing on her own terms.",
+     'text_fail': "The display has overwhelmed control. The impulse is directing everything."},
+],
+'SUB': [
+    {'id':'soi_sub_mid','group':'sub_response','priority':6,'stats':['SUB'],'dc':11,
+     'fires_if': lambda s,c: 'show_off' in c['effects'] and 4<=c['tier']<=9 and c['sub_mod']>=1,
+     'text_pass': "The desire to be watched and the vulnerability feel like yielding.",
+     'text_fail': "Displaying because it feels like surrender."},
+],
+}, # end intersex show_off
+
+} # end _T_SHOW_OFF
+
+# ─────────────────────────────────────────────────────────────────────────────
+# PLACEHOLDER TABLES — will be filled in subsequent passes
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ─────────────────────────────────────────────────────────────────────────────
+# _T_PSYCHE   personality drift, staged (1→2→3=permanent)
+# Roll: WIS.  DC 14, +2/fail.  One check per session.
+# All sex types.
+# ─────────────────────────────────────────────────────────────────────────────
+
+_T_PSYCHE = {
+
+'male': {
+'CON': [
+    {'id':'pm_con_mid','group':'physical_tell','priority':6,'stats':['CON'],'dc':11,
+     'fires_if': lambda s,c: 'psyche' in c['effects'] and c['psyche_stage']>=1 and 4<=c['tier']<=8,
+     'text_pass': "The body still responds the way he expects. The drift has not reached here yet.",
+     'text_fail': "Something in the body's responses has shifted. Reactions that were not his a week ago."},
+    {'id':'pm_con_high','group':'physical_tell','priority':8,'stats':['CON'],'dc':13,
+     'fires_if': lambda s,c: 'psyche' in c['effects'] and c['psyche_stage']>=2 and c['tier']>=9,
+     'text_pass': "The body is still his even if the personality inside it has shifted. He knows who he is.",
+     'text_fail': "The body's responses belong to whoever he is becoming. The old reactions are fading."},
+],
+'INT': [
+    {'id':'pm_int_low','group':'mental_state','priority':6,'stats':['INT'],'dc':11,
+     'fires_if': lambda s,c: 'psyche' in c['effects'] and c['psyche_stage']>=1 and c['tier']<=5,
+     'text_pass': "He has noticed the drift. Something is different in how he processes things. He can still name it.",
+     'text_fail': "Something has changed in how he thinks. He noticed too late to stop it."},
+    {'id':'pm_int_mid','group':'mental_state','priority':7,'stats':['INT'],'dc':12,
+     'fires_if': lambda s,c: 'psyche' in c['effects'] and c['psyche_stage']>=2 and 5<=c['tier']<=10,
+     'text_pass': "The personality drift is identifiable. He knows which parts of him are shifting. The analysis is an anchor.",
+     'text_fail': "The drift has reached the analysis itself. He is thinking differently about thinking differently."},
+    {'id':'pm_int_perm','group':'mental_state','priority':9,'stats':['INT'],'dc':15,
+     'fires_if': lambda s,c: 'psyche' in c['effects'] and c['psyche_stage']>=3,
+     'text_pass': "The drift is permanent. He knows that. He is still narrating from inside it.",
+     'text_fail': "The drift is permanent and the narration has adjusted. This is who he is now."},
+],
+'WIS': [
+    {'id':'pm_wis_low','group':'mental_state','priority':6,'stats':['WIS'],'dc':12,
+     'fires_if': lambda s,c: 'psyche' in c['effects'] and c['psyche_stage']>=1 and c['tier']<=6,
+     'text_pass': "He is aware something is shifting. The self-knowledge is still intact.",
+     'text_fail': "Something shifted and the awareness arrived after the change was already in place."},
+    {'id':'pm_wis_mid','group':'mental_state','priority':7,'stats':['WIS'],'dc':14,
+     'fires_if': lambda s,c: 'psyche' in c['effects'] and c['psyche_stage']>=2 and c['wis_mod']>=1,
+     'text_pass': "He can feel who he is becoming. The self-knowledge has adapted to include the drift.",
+     'text_fail': "The self-knowledge is drifting with the personality. He cannot get outside it to observe."},
+],
+'CHA': [
+    {'id':'si_cha_mid','group':'physical_tell','priority':5,'stats':['CHA'],'dc':12,
+     'fires_if': lambda s,c: 'submissive' in c['effects'] and c['tier']>=6 and c['cha_mod']>=2,
+     'text_pass': "The compliance is visible. The willingness shows in her presence.",
+     'text_fail': "The submission is obvious. Everyone can see how much the reward is affecting her."},
+],
+'DOM': [
+    {'id':'pm_dom_mid','group':'dom_response','priority':7,'stats':['DOM'],'dc':12,
+     'fires_if': lambda s,c: 'psyche' in c['effects'] and c['psyche_stage']>=1 and c['dom_mod']>=1,
+     'text_pass': "His sense of authority is intact. The drift has not reached his core self-image.",
+     'text_fail': "Something in the authority has shifted. Not less dominant. Dominant differently."},
+],
+'SUB': [
+    {'id':'pm_sub_mid','group':'sub_response','priority':6,'stats':['SUB'],'dc':11,
+     'fires_if': lambda s,c: 'psyche' in c['effects'] and c['psyche_stage']>=1 and c['sub_mod']>=1,
+     'text_pass': "The yield instinct is present. It has a slightly different character than before. He has noted that.",
+     'text_fail': "The yield instinct has shifted. What he wants to yield to has changed without his permission."},
+],
+}, # end male psyche
+
+'female': {
+'CON': [
+    {'id':'pf_con_mid','group':'physical_tell','priority':6,'stats':['CON'],'dc':11,
+     'fires_if': lambda s,c: 'psyche' in c['effects'] and c['psyche_stage']>=1 and 4<=c['tier']<=8,
+     'text_pass': "The body still responds the way she expects. The drift has not reached here.",
+     'text_fail': "Something in the responses has shifted. Reactions that were not hers before."},
+],
+'INT': [
+    {'id':'pf_int_low','group':'mental_state','priority':6,'stats':['INT'],'dc':11,
+     'fires_if': lambda s,c: 'psyche' in c['effects'] and c['psyche_stage']>=1 and c['tier']<=5,
+     'text_pass': "She has noticed the drift. Something different in how she processes. She can name it.",
+     'text_fail': "Something changed in how she thinks. She noticed too late."},
+    {'id':'pf_int_mid','group':'mental_state','priority':7,'stats':['INT'],'dc':12,
+     'fires_if': lambda s,c: 'psyche' in c['effects'] and c['psyche_stage']>=2 and 5<=c['tier']<=10,
+     'text_pass': "The drift is identifiable. She knows which parts are shifting.",
+     'text_fail': "The drift has reached the analysis. She is thinking differently about thinking differently."},
+    {'id':'pf_int_perm','group':'mental_state','priority':9,'stats':['INT'],'dc':15,
+     'fires_if': lambda s,c: 'psyche' in c['effects'] and c['psyche_stage']>=3,
+     'text_pass': "The drift is permanent. She knows that. Still narrating from inside it.",
+     'text_fail': "The drift is permanent and the narration has adjusted. This is who she is."},
+],
+'WIS': [
+    {'id':'pf_wis_low','group':'mental_state','priority':6,'stats':['WIS'],'dc':12,
+     'fires_if': lambda s,c: 'psyche' in c['effects'] and c['psyche_stage']>=1 and c['tier']<=6,
+     'text_pass': "She is aware something is shifting. Self-knowledge intact.",
+     'text_fail': "Something shifted and the awareness arrived after the change was in place."},
+    {'id':'pf_wis_mid','group':'mental_state','priority':7,'stats':['WIS'],'dc':14,
+     'fires_if': lambda s,c: 'psyche' in c['effects'] and c['psyche_stage']>=2 and c['wis_mod']>=1,
+     'text_pass': "She can feel who she is becoming. The self-knowledge has adapted.",
+     'text_fail': "The self-knowledge is drifting with the personality. Cannot get outside it."},
+],
+'CHA': [
+    {'id':'si_cha_mid','group':'physical_tell','priority':5,'stats':['CHA'],'dc':12,
+     'fires_if': lambda s,c: 'submissive' in c['effects'] and c['tier']>=6 and c['cha_mod']>=2,
+     'text_pass': "The compliance is visible. The willingness shows in her presence.",
+     'text_fail': "The submission is obvious. Everyone can see how much the reward is affecting her."},
+],
+'DOM': [
+    {'id':'pf_dom_mid','group':'dom_response','priority':7,'stats':['DOM'],'dc':12,
+     'fires_if': lambda s,c: 'psyche' in c['effects'] and c['psyche_stage']>=1 and c['dom_mod']>=1,
+     'text_pass': "Her composure is intact. The drift has not reached core self-image.",
+     'text_fail': "Something in the composure shifted. Not less present. Present differently."},
+],
+'SUB': [
+    {'id':'pf_sub_mid','group':'sub_response','priority':6,'stats':['SUB'],'dc':11,
+     'fires_if': lambda s,c: 'psyche' in c['effects'] and c['psyche_stage']>=1 and c['sub_mod']>=1,
+     'text_pass': "The yield instinct has a different character. She has noted that.",
+     'text_fail': "What she wants to yield to has changed without her permission."},
+],
+}, # end female psyche
+
+'trans_female': {
+'CON': [
+    {'id':'ptf_con_mid','group':'physical_tell','priority':6,'stats':['CON'],'dc':11,
+     'fires_if': lambda s,c: 'psyche' in c['effects'] and c['psyche_stage']>=1 and 4<=c['tier']<=8,
+     'text_pass': "The body still responds as expected. The drift has not reached here.",
+     'text_fail': "Responses have shifted. New reactions that feel both foreign and correct."},
+    {'id':'ptf_con_high','group':'physical_tell','priority':8,'stats':['CON'],'dc':13,
+     'fires_if': lambda s,c: 'psyche' in c['effects'] and c['psyche_stage']>=2 and c['tier']>=9,
+     'text_pass': "The body is changing. She is still present in it.",
+     'text_fail': "The body has moved past her. New reactions that feel right."},
+],
+'INT': [
+    {'id':'ptf_int_low','group':'mental_state','priority':6,'stats':['INT'],'dc':11,
+     'fires_if': lambda s,c: 'psyche' in c['effects'] and c['psyche_stage']>=1 and c['tier']<=5,
+     'text_pass': "She has noticed the drift. Can still name it.",
+     'text_fail': "Something changed. She noticed too late."},
+    {'id':'ptf_int_mid','group':'mental_state','priority':7,'stats':['INT'],'dc':13,
+     'fires_if': lambda s,c: 'psyche' in c['effects'] and c['psyche_stage']>=2 and 5<=c['tier']<=8 and c['int_mod']>=1,
+     'text_pass': "She can narrate the drift. The thoughts forming around it are still hers.",
+     'text_fail': "The drift is accelerating faster than she can analyze. The thoughts are becoming reactive."},
+    {'id':'ptf_int_perm','group':'mental_state','priority':9,'stats':['INT'],'dc':15,
+     'fires_if': lambda s,c: 'psyche' in c['effects'] and c['psyche_stage']>=3,
+     'text_pass': "The drift is permanent. She knows. Still narrating from inside it.",
+     'text_fail': "The drift is permanent. This is who she is now."},
+],
+'WIS': [
+    {'id':'ptf_wis_low','group':'mental_state','priority':6,'stats':['WIS'],'dc':12,
+     'fires_if': lambda s,c: 'psyche' in c['effects'] and c['psyche_stage']>=1 and c['wis_mod']<=0,
+     'text_pass': "She can feel the shift in who she is. The feeling of wrongness is fading.",
+     'text_fail': "Something is shifting. The sense that this is wrong is disappearing."},
+    {'id':'ptf_wis_mid','group':'mental_state','priority':7,'stats':['WIS'],'dc':14,
+     'fires_if': lambda s,c: 'psyche' in c['effects'] and c['psyche_stage']>=2 and c['wis_mod']>=1,
+     'text_pass': "She can feel who she is becoming. The self-knowledge has adapted.",
+     'text_fail': "The self-knowledge is drifting. Cannot get outside it."},
+],
+'CHA': [
+    {'id':'ptf_cha_mid','group':'dom_response','priority':7,'stats':['CHA'],'dc':12,
+     'fires_if': lambda s,c: 'psyche' in c['effects'] and c['psyche_stage']>=2 and c['cha_mod']>=1,
+     'text_pass': "The way she presents has shifted subtly. She is aware of it.",
+     'text_fail': "The presentation is new. It feels right. She is not sure when she decided this."},
+],
+'DOM': [
+    {'id':'ptf_dom_mid','group':'dom_response','priority':7,'stats':['DOM'],'dc':12,
+     'fires_if': lambda s,c: 'psyche' in c['effects'] and c['psyche_stage']>=1 and c['dom_mod']>=1,
+     'text_pass': "Her sense of self is intact. The drift has not reached core identity.",
+     'text_fail': "Something in the self shifted. Not less herself. Herself differently."},
+],
+'SUB': [
+    {'id':'ptf_sub_mid','group':'sub_response','priority':6,'stats':['SUB'],'dc':11,
+     'fires_if': lambda s,c: 'psyche' in c['effects'] and c['psyche_stage']>=1 and c['sub_mod']>=1,
+     'text_pass': "The yield instinct has shifted. She has noted that.",
+     'text_fail': "What she wants to yield to changed without permission."},
+    {'id':'ptf_sub_high','group':'sub_response','priority':8,'stats':['SUB'],'dc':13,
+     'fires_if': lambda s,c: 'psyche' in c['effects'] and c['psyche_stage']>=3 and c['sub_mod']>=1,
+     'text_pass': "The yield has become part of who she is now. The distinction between instinct and identity is blurred.",
+     'text_fail': "The yield is everything now. There is no separation between desire and will."},
+],
+}, # end trans_female psyche
+
+'trans_male': {
+'CON': [
+    {'id':'ptm_con_mid','group':'physical_tell','priority':6,'stats':['CON'],'dc':11,
+     'fires_if': lambda s,c: 'psyche' in c['effects'] and c['psyche_stage']>=1 and 4<=c['tier']<=8,
+     'text_pass': "The body still responds as expected. The drift has not reached here.",
+     'text_fail': "Something in the responses shifted. Reactions that were not his."},
+    {'id':'ptm_con_high','group':'physical_tell','priority':8,'stats':['CON'],'dc':13,
+     'fires_if': lambda s,c: 'psyche' in c['effects'] and c['psyche_stage']>=2 and c['tier']>=9,
+     'text_pass': "The body is changing. He is still present in it.",
+     'text_fail': "The body has moved past him. New reactions that feel right."},
+],
+'INT': [
+    {'id':'ptm_int_low','group':'mental_state','priority':6,'stats':['INT'],'dc':11,
+     'fires_if': lambda s,c: 'psyche' in c['effects'] and c['psyche_stage']>=1 and c['tier']<=5,
+     'text_pass': "He has noticed the drift. Can still name it.",
+     'text_fail': "Something changed in how he thinks. Noticed too late."},
+    {'id':'ptm_int_mid','group':'mental_state','priority':7,'stats':['INT'],'dc':13,
+     'fires_if': lambda s,c: 'psyche' in c['effects'] and c['psyche_stage']>=2 and 5<=c['tier']<=8 and c['int_mod']>=1,
+     'text_pass': "He can narrate the drift. The thoughts forming around it are still his.",
+     'text_fail': "The drift is accelerating faster than he can analyze. The thoughts are becoming reactive."},
+    {'id':'ptm_int_perm','group':'mental_state','priority':9,'stats':['INT'],'dc':15,
+     'fires_if': lambda s,c: 'psyche' in c['effects'] and c['psyche_stage']>=3,
+     'text_pass': "The drift is permanent. He knows. Still narrating from inside it.",
+     'text_fail': "The drift is permanent. This is who he is now."},
+],
+'WIS': [
+    {'id':'ptm_wis_low','group':'mental_state','priority':6,'stats':['WIS'],'dc':12,
+     'fires_if': lambda s,c: 'psyche' in c['effects'] and c['psyche_stage']>=1 and c['wis_mod']<=0,
+     'text_pass': "He can feel the shift in who he is. The feeling of wrongness is fading.",
+     'text_fail': "Something is shifting. The sense that this is wrong is disappearing."},
+    {'id':'ptm_wis_mid','group':'mental_state','priority':7,'stats':['WIS'],'dc':14,
+     'fires_if': lambda s,c: 'psyche' in c['effects'] and c['psyche_stage']>=2 and c['wis_mod']>=1,
+     'text_pass': "He can feel who he is becoming. Self-knowledge has adapted.",
+     'text_fail': "Self-knowledge is drifting with the personality."},
+],
+'CHA': [
+    {'id':'ptm_cha_mid','group':'dom_response','priority':7,'stats':['CHA'],'dc':12,
+     'fires_if': lambda s,c: 'psyche' in c['effects'] and c['psyche_stage']>=2 and c['cha_mod']>=1,
+     'text_pass': "The way he presents has shifted subtly. He is aware of it.",
+     'text_fail': "The presentation is new. It feels right. He is not sure when he decided this."},
+],
+'DOM': [
+    {'id':'ptm_dom_mid','group':'dom_response','priority':7,'stats':['DOM'],'dc':12,
+     'fires_if': lambda s,c: 'psyche' in c['effects'] and c['psyche_stage']>=1 and c['dom_mod']>=1,
+     'text_pass': "His sense of authority is intact. The drift has not reached core identity.",
+     'text_fail': "Something in the authority shifted. Dominant differently."},
+],
+'SUB': [
+    {'id':'ptm_sub_mid','group':'sub_response','priority':6,'stats':['SUB'],'dc':11,
+     'fires_if': lambda s,c: 'psyche' in c['effects'] and c['psyche_stage']>=1 and c['sub_mod']>=1,
+     'text_pass': "The yield instinct has shifted. He has noted that.",
+     'text_fail': "What he wants to yield to changed without permission."},
+    {'id':'ptm_sub_high','group':'sub_response','priority':8,'stats':['SUB'],'dc':13,
+     'fires_if': lambda s,c: 'psyche' in c['effects'] and c['psyche_stage']>=3 and c['sub_mod']>=1,
+     'text_pass': "The yield has become part of who he is now. The distinction between instinct and identity is blurred.",
+     'text_fail': "The yield is everything now. There is no separation between desire and will."},
+],
+}, # end trans_male psyche
+
+'intersex': {
+'CON': [
+    {'id':'pi_con_mid','group':'physical_tell','priority':6,'stats':['CON'],'dc':11,
+     'fires_if': lambda s,c: 'psyche' in c['effects'] and c['psyche_stage']>=1 and 4<=c['tier']<=8,
+     'text_pass': "The body still responds as expected. The drift has not reached here.",
+     'text_fail': "Something in the responses shifted. Reactions that were not hers."},
+    {'id':'pi_con_high','group':'physical_tell','priority':8,'stats':['CON'],'dc':13,
+     'fires_if': lambda s,c: 'psyche' in c['effects'] and c['psyche_stage']>=2 and c['tier']>=9,
+     'text_pass': "The body is changing. She is still present in it.",
+     'text_fail': "The body has moved past her. New reactions that feel right."},
+],
+'INT': [
+    {'id':'pi_int_low','group':'mental_state','priority':6,'stats':['INT'],'dc':11,
+     'fires_if': lambda s,c: 'psyche' in c['effects'] and c['psyche_stage']>=1 and c['tier']<=5,
+     'text_pass': "She has noticed the drift. Can still name it.",
+     'text_fail': "Something changed. Noticed too late."},
+    {'id':'pi_int_mid','group':'mental_state','priority':7,'stats':['INT'],'dc':13,
+     'fires_if': lambda s,c: 'psyche' in c['effects'] and c['psyche_stage']>=2 and 5<=c['tier']<=8 and c['int_mod']>=1,
+     'text_pass': "She can narrate the drift. The thoughts forming around it are still hers.",
+     'text_fail': "The drift is accelerating faster than she can analyze. The thoughts are becoming reactive."},
+    {'id':'pi_int_perm','group':'mental_state','priority':9,'stats':['INT'],'dc':15,
+     'fires_if': lambda s,c: 'psyche' in c['effects'] and c['psyche_stage']>=3,
+     'text_pass': "The drift is permanent. She knows. Still narrating from inside it.",
+     'text_fail': "The drift is permanent. This is who she is."},
+],
+'WIS': [
+    {'id':'pi_wis_low','group':'mental_state','priority':6,'stats':['WIS'],'dc':12,
+     'fires_if': lambda s,c: 'psyche' in c['effects'] and c['psyche_stage']>=1 and c['wis_mod']<=0,
+     'text_pass': "She can feel the shift in who she is. The feeling of wrongness is fading.",
+     'text_fail': "Something is shifting. The sense that this is wrong is disappearing."},
+    {'id':'pi_wis_mid','group':'mental_state','priority':7,'stats':['WIS'],'dc':14,
+     'fires_if': lambda s,c: 'psyche' in c['effects'] and c['psyche_stage']>=2 and c['wis_mod']>=1,
+     'text_pass': "She can feel who she is becoming.",
+     'text_fail': "The self-knowledge is drifting. Cannot get outside it."},
+],
+'CHA': [
+    {'id':'si_cha_mid','group':'physical_tell','priority':5,'stats':['CHA'],'dc':12,
+     'fires_if': lambda s,c: 'submissive' in c['effects'] and c['tier']>=6 and c['cha_mod']>=2,
+     'text_pass': "The compliance is visible. The willingness shows in her presence.",
+     'text_fail': "The submission is obvious. Everyone can see how much the reward is affecting her."},
+],
+'DOM': [
+    {'id':'pi_dom_mid','group':'dom_response','priority':7,'stats':['DOM'],'dc':12,
+     'fires_if': lambda s,c: 'psyche' in c['effects'] and c['psyche_stage']>=1 and c['dom_mod']>=1,
+     'text_pass': "Her composure is intact. The drift has not reached core self.",
+     'text_fail': "Something in the composure shifted. Present differently."},
+],
+'SUB': [
+    {'id':'pi_sub_mid','group':'sub_response','priority':6,'stats':['SUB'],'dc':11,
+     'fires_if': lambda s,c: 'psyche' in c['effects'] and c['psyche_stage']>=1 and c['sub_mod']>=1,
+     'text_pass': "The yield instinct has shifted character. She has noted that.",
+     'text_fail': "What she yields to changed without permission."},
+    {'id':'pi_sub_high','group':'sub_response','priority':8,'stats':['SUB'],'dc':13,
+     'fires_if': lambda s,c: 'psyche' in c['effects'] and c['psyche_stage']>=3 and c['sub_mod']>=1,
+     'text_pass': "The yield has become part of who she is now. The distinction between instinct and identity is blurred.",
+     'text_fail': "The yield is everything now. There is no separation between desire and will."},
+],
+}, # end intersex psyche
+
+} # end _T_PSYCHE
+
+# ─────────────────────────────────────────────────────────────────────────────
+# REMAINING PLACEHOLDER TABLES — will be filled in subsequent passes
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ─────────────────────────────────────────────────────────────────────────────
+# _T_BULL   dominance pressure, enlarged genitals, breeding drive
+# Penis-havers only: male, trans_female, intersex.
+# Roll: DOM.  DC 12, +3/pass (stage).
+# ─────────────────────────────────────────────────────────────────────────────
+
+_T_BULL = {
+
+'male': {
+'CON': [
+    {'id':'bum_con_low','group':'physical_tell','priority':6,'stats':['CON'],'dc':10,
+     'fires_if': lambda s,c: 'bull' in c['effects'] and c['tier']<=4,
+     'text_pass': "The enhancement is settling in. The body is heavier. The weight between his legs is real and specific.",
+     'text_fail': "The enhancement hit before he was ready. The body is insistent about what it has become."},
+    {'id':'bum_con_mid','group':'physical_tell','priority':7,'stats':['CON'],'dc':12,
+     'fires_if': lambda s,c: 'bull' in c['effects'] and 5<=c['tier']<=9,
+     'text_pass': "The bull anatomy is demanding. The size, the weight, the readiness. He is managing it.",
+     'text_fail': "The anatomy is running the show. The size has changed what the body wants and how urgently it wants it."},
+    {'id':'bum_con_high','group':'effect_core','priority':8,'stats':['CON'],'dc':13,
+     'fires_if': lambda s,c: 'bull' in c['effects'] and c['tier']>=10,
+     'text_pass': "The drive is total. The refractory period is minutes. The body is built to go again. He is still choosing.",
+     'text_fail': "The drive has the body. Built to breed. The refractory is gone. Only the next time matters."},
+],
+'INT': [
+    {'id':'bum_int_low','group':'mental_state','priority':5,'stats':['INT'],'dc':10,
+     'fires_if': lambda s,c: 'bull' in c['effects'] and c['tier']<=4,
+     'text_pass': "He has noted the changes. The size, the drive, the fertility. Clinical observation of what he has become.",
+     'text_fail': "He noticed the changes but the noticing did not produce useful distance from them."},
+    {'id':'bum_int_mid','group':'mental_state','priority':7,'stats':['INT'],'dc':12,
+     'fires_if': lambda s,c: 'bull' in c['effects'] and 5<=c['tier']<=10,
+     'text_pass': "The breeding drive is identifiable. He knows what the pill did. He is choosing what to do with that.",
+     'text_fail': "The breeding drive is louder than the analysis. He knows what he wants. The knowing is not control."},
+],
+'WIS': [
+    {'id':'bum_wis_mid','group':'mental_state','priority':6,'stats':['WIS'],'dc':12,
+     'fires_if': lambda s,c: 'bull' in c['effects'] and 4<=c['tier']<=9 and c['wis_mod']>=1,
+     'text_pass': "He knows the drive is chemical. The urge to finish inside is specific and deliberate. He is choosing.",
+     'text_fail': "He knows the drive is chemical. The knowing has not reduced the urgency to breed."},
+],
+'CHA': [
+    {'id':'bum_cha_mid','group':'physical_tell','priority':5,'stats':['CHA'],'dc':11,
+     'fires_if': lambda s,c: 'bull' in c['effects'] and c['tier']>=5 and c['cha_mod']>=1,
+     'text_pass': "The bull presence is impossible to miss. The size, the confidence, the raw physicality. Everything is louder.",
+     'text_fail': "The bull presence has taken over the room. The dominance is physical and automatic."},
+],
+'DOM': [
+    {'id':'bum_dom_low','group':'dom_response','priority':7,'stats':['DOM'],'dc':11,
+     'fires_if': lambda s,c: 'bull' in c['effects'] and c['tier']<=5 and c['dom_mod']>=1,
+     'text_pass': "The dominance and the bull drive are aligned. He has more to work with now. The control is natural.",
+     'text_fail': "The dominance has been amplified past what he can control cleanly. The bull drive is pushing it."},
+    {'id':'bum_dom_mid','group':'dom_response','priority':8,'stats':['DOM'],'dc':13,
+     'fires_if': lambda s,c: 'bull' in c['effects'] and 6<=c['tier']<=10 and c['dom_mod']>=1,
+     'text_pass': "The dominance is total. The bull anatomy gives it weight. He is directing the breeding drive.",
+     'text_fail': "The breeding drive has overtaken the dominance. He is not directing anymore. The drive is directing."},
+    {'id':'bum_dom_peak','group':'effect_escalation','priority':9,'stats':['DOM'],'dc':14,
+     'fires_if': lambda s,c: 'bull' in c['effects'] and c['tier']>=15 and c['dom_mod']>=1,
+     'text_pass': "Total dominance. The bull drive and the pride are the same thing. He finishes inside because he chooses to.",
+     'text_fail': "The pride gave way to the drive. He finishes inside because the body demands it."},
+],
+'SUB': [
+    {'id':'bum_sub_mid','group':'sub_response','priority':6,'stats':['SUB'],'dc':11,
+     'fires_if': lambda s,c: 'bull' in c['effects'] and 4<=c['tier']<=9 and c['sub_mod']>=1,
+     'text_pass': "The bull drive and the yield instinct are creating something unusual. He wants to breed and he wants to serve.",
+     'text_fail': "The yield instinct accepted the breeding drive. He will finish inside because he was told to."},
+],
+}, # end male bull
+
+'female':      {'CON':[],'INT':[],'WIS':[],'CHA':[],'DOM':[],'SUB':[]},
+'trans_male':  {'CON':[],'INT':[],'WIS':[],'CHA':[],'DOM':[],'SUB':[]},
+
+'trans_female': {
+'CON': [
+    {'id':'butf_con_low','group':'physical_tell','priority':6,'stats':['CON'],'dc':10,
+     'fires_if': lambda s,c: 'bull' in c['effects'] and c['tier']<=4,
+     'text_pass': "The enhancement is settling in. The anatomy is heavier, more present. She has noted it.",
+     'text_fail': "The enhancement arrived. The body is insistent about what it has become."},
+    {'id':'butf_con_mid','group':'physical_tell','priority':7,'stats':['CON'],'dc':12,
+     'fires_if': lambda s,c: 'bull' in c['effects'] and 5<=c['tier']<=9,
+     'text_pass': "The bull anatomy is demanding. The size and readiness are constant. She is managing it.",
+     'text_fail': "The anatomy is running the show. The size has changed what the body wants."},
+    {'id':'butf_con_high','group':'effect_core','priority':8,'stats':['CON'],'dc':13,
+     'fires_if': lambda s,c: 'bull' in c['effects'] and c['tier']>=10,
+     'text_pass': "The drive is total. Refractory is minutes. The body is built for this. Still choosing.",
+     'text_fail': "The drive has the body. Built to breed. Only the next time matters."},
+],
+'INT': [
+    {'id':'butf_int_low','group':'mental_state','priority':5,'stats':['INT'],'dc':10,
+     'fires_if': lambda s,c: 'bull' in c['effects'] and c['tier']<=4,
+     'text_pass': "She has noted the changes. Clinical. The irony of the anatomy is not lost on her.",
+     'text_fail': "She noticed but the noticing did not create distance."},
+    {'id':'butf_int_mid','group':'mental_state','priority':7,'stats':['INT'],'dc':12,
+     'fires_if': lambda s,c: 'bull' in c['effects'] and 5<=c['tier']<=10,
+     'text_pass': "The breeding drive is identifiable. She is choosing what to do with that.",
+     'text_fail': "The breeding drive is louder than the analysis. She knows what she wants."},
+],
+'WIS': [
+    {'id':'butf_wis_mid','group':'mental_state','priority':6,'stats':['WIS'],'dc':12,
+     'fires_if': lambda s,c: 'bull' in c['effects'] and 4<=c['tier']<=9 and c['wis_mod']>=1,
+     'text_pass': "She knows the drive is chemical. The urge is specific. She is choosing.",
+     'text_fail': "She knows. The knowing has not reduced the urgency."},
+],
+'CHA': [
+    {'id':'butf_cha_mid','group':'physical_tell','priority':5,'stats':['CHA'],'dc':11,
+     'fires_if': lambda s,c: 'bull' in c['effects'] and c['tier']>=5 and c['cha_mod']>=1,
+     'text_pass': "The bull presence and the feminine frame create something arresting. Impossible to ignore.",
+     'text_fail': "The presence has taken over. The contrast between the frame and the anatomy is commanding."},
+],
+'DOM': [
+    {'id':'butf_dom_mid','group':'dom_response','priority':8,'stats':['DOM'],'dc':13,
+     'fires_if': lambda s,c: 'bull' in c['effects'] and 5<=c['tier']<=10 and c['dom_mod']>=1,
+     'text_pass': "The dominance and the bull drive are aligned. She is directing it.",
+     'text_fail': "The drive has overtaken direction. She is not leading anymore."},
+    {'id':'butf_dom_high','group':'effect_escalation','priority':9,'stats':['DOM'],'dc':14,
+     'fires_if': lambda s,c: 'bull' in c['effects'] and c['tier']>=15 and c['dom_mod']>=1,
+     'text_pass': "Total dominance. The bull drive and the pride are aligned. She finishes inside because she chooses to.",
+     'text_fail': "The pride gave way to the drive. She finishes inside because the body demands it."},
+],
+'SUB': [
+    {'id':'butf_sub_mid','group':'sub_response','priority':6,'stats':['SUB'],'dc':11,
+     'fires_if': lambda s,c: 'bull' in c['effects'] and 4<=c['tier']<=9 and c['sub_mod']>=1,
+     'text_pass': "The bull drive and the yield instinct are creating something unusual.",
+     'text_fail': "The yield accepted the breeding drive. She will finish inside because she was told to."},
+    {'id':'butf_sub_high','group':'sub_response','priority':8,'stats':['SUB'],'dc':13,
+     'fires_if': lambda s,c: 'bull' in c['effects'] and c['tier']>=10 and c['sub_mod']>=1,
+     'text_pass': "The bull drive and the yield instinct have merged completely. Service becomes breeding.",
+     'text_fail': "The yield accepted everything. She serves the breeding drive without resistance."},
+],
+}, # end trans_female bull
+
+'intersex': {
+'CON': [
+    {'id':'bui_con_low','group':'physical_tell','priority':6,'stats':['CON'],'dc':10,
+     'fires_if': lambda s,c: 'bull' in c['effects'] and c['tier']<=4,
+     'text_pass': "The enhancement is settling into anatomy she already had. Heavier. More present.",
+     'text_fail': "The enhancement amplified what was already there. The body is insistent."},
+    {'id':'bui_con_mid','group':'physical_tell','priority':7,'stats':['CON'],'dc':12,
+     'fires_if': lambda s,c: 'bull' in c['effects'] and 5<=c['tier']<=9,
+     'text_pass': "The bull anatomy is demanding. The enhanced size on the familiar frame. She is managing.",
+     'text_fail': "The anatomy is running the show. Amplified past what the frame was used to."},
+    {'id':'bui_con_high','group':'effect_core','priority':8,'stats':['CON'],'dc':13,
+     'fires_if': lambda s,c: 'bull' in c['effects'] and c['tier']>=10,
+     'text_pass': "The drive is total. The body was built for both and the bull has amplified the male side. Still choosing.",
+     'text_fail': "The drive has the body. The male anatomy is dominant. Only breeding matters."},
+],
+'INT': [
+    {'id':'bui_int_low','group':'mental_state','priority':5,'stats':['INT'],'dc':10,
+     'fires_if': lambda s,c: 'bull' in c['effects'] and c['tier']<=4,
+     'text_pass': "She has noted the changes. The enhancement on familiar anatomy. Interesting.",
+     'text_fail': "She noticed but the noticing did not create distance."},
+],
+'WIS': [
+    {'id':'bui_wis_mid','group':'mental_state','priority':6,'stats':['WIS'],'dc':12,
+     'fires_if': lambda s,c: 'bull' in c['effects'] and 4<=c['tier']<=9 and c['wis_mod']>=1,
+     'text_pass': "She knows the drive is chemical. The urge is specific. She is choosing.",
+     'text_fail': "She knows. The knowing has not reduced the urgency."},
+],
+'CHA': [
+    {'id':'bui_cha_mid','group':'physical_tell','priority':5,'stats':['CHA'],'dc':11,
+     'fires_if': lambda s,c: 'bull' in c['effects'] and c['tier']>=5 and c['cha_mod']>=1,
+     'text_pass': "The bull presence amplified the dual anatomy. Both sides are louder.",
+     'text_fail': "The presence is commanding. The enhanced anatomy is impossible to ignore."},
+],
+'DOM': [
+    {'id':'bui_dom_mid','group':'dom_response','priority':8,'stats':['DOM'],'dc':13,
+     'fires_if': lambda s,c: 'bull' in c['effects'] and 5<=c['tier']<=10 and c['dom_mod']>=1,
+     'text_pass': "The dominance and the bull drive are aligned. She is directing it.",
+     'text_fail': "The drive has overtaken direction. She is not leading anymore."},
+    {'id':'bui_dom_high','group':'effect_escalation','priority':9,'stats':['DOM'],'dc':14,
+     'fires_if': lambda s,c: 'bull' in c['effects'] and c['tier']>=15 and c['dom_mod']>=1,
+     'text_pass': "Total dominance. The bull drive and the pride are aligned. She finishes inside because she chooses to.",
+     'text_fail': "The pride gave way to the drive. She finishes inside because the body demands it."},
+],
+'SUB': [
+    {'id':'bui_sub_mid','group':'sub_response','priority':6,'stats':['SUB'],'dc':11,
+     'fires_if': lambda s,c: 'bull' in c['effects'] and 4<=c['tier']<=9 and c['sub_mod']>=1,
+     'text_pass': "The bull drive and the yield instinct are creating something complex.",
+     'text_fail': "The yield accepted the breeding drive. She will finish inside because she was told to."},
+    {'id':'bui_sub_high','group':'sub_response','priority':8,'stats':['SUB'],'dc':13,
+     'fires_if': lambda s,c: 'bull' in c['effects'] and c['tier']>=10 and c['sub_mod']>=1,
+     'text_pass': "The bull drive and the yield instinct have merged. Service becomes breeding.",
+     'text_fail': "The yield accepted everything. She serves the breeding drive completely."},
+],
+}, # end intersex bull
+
+} # end _T_BULL
+
+# ─────────────────────────────────────────────────────────────────────────────
+# _T_BIMBO   intelligence degradation, staged (0→4=permanent)
+# Roll: INT.  DC 10, +3/stage.  All sex types.
+# ─────────────────────────────────────────────────────────────────────────────
+
+_T_BIMBO = {
+
+'male': {
+'CON': [
+    {'id':'bim_con_mid','group':'physical_tell','priority':6,'stats':['CON'],'dc':11,
+     'fires_if': lambda s,c: 'bimbo' in c['effects'] and c['bimbo_stage']>=1 and 4<=c['tier']<=8,
+     'text_pass': "The body feels good. That is becoming more important than it should be. He has noted that.",
+     'text_fail': "The body feels really good. The thinking about why it feels good has gotten simpler."},
+    {'id':'bim_con_high','group':'physical_tell','priority':8,'stats':['CON'],'dc':13,
+     'fires_if': lambda s,c: 'bimbo' in c['effects'] and c['bimbo_stage']>=2 and c['tier']>=9,
+     'text_pass': "The sensation is everything. He can still think past it. Just takes more effort.",
+     'text_fail': "Sensation is everything. Thinking past it is not really the point anymore."},
+],
+'INT': [
+    {'id':'bim_int_s0','group':'mental_state','priority':5,'stats':['INT'],'dc':10,
+     'fires_if': lambda s,c: 'bimbo' in c['effects'] and c['bimbo_stage']==0,
+     'text_pass': "He has noticed a slight fog. Thoughts are taking marginally longer to form. Still sharp.",
+     'text_fail': "There is a warmth where the sharp thoughts used to be. He is not sure when that started."},
+    {'id':'bim_int_s1','group':'mental_state','priority':7,'stats':['INT'],'dc':12,
+     'fires_if': lambda s,c: 'bimbo' in c['effects'] and c['bimbo_stage']==1,
+     'text_pass': "Things are getting easier. Not simpler. Easier. He can still do complex thoughts. They just take effort now.",
+     'text_fail': "Things are easier. Complicated thoughts take effort and effort is less appealing than it used to be."},
+    {'id':'bim_int_s2','group':'mental_state','priority':8,'stats':['INT'],'dc':14,
+     'fires_if': lambda s,c: 'bimbo' in c['effects'] and c['bimbo_stage']==2,
+     'text_pass': "The simplifying has settled in. He can still push through to complex thought. It costs something.",
+     'text_fail': "Complex topics slide away before they form. He feels good. Things that used to matter feel less urgent."},
+    {'id':'bim_int_s3','group':'mental_state','priority':9,'stats':['INT'],'dc':16,
+     'fires_if': lambda s,c: 'bimbo' in c['effects'] and c['bimbo_stage']>=3,
+     'text_pass': "The intelligence is degraded. He knows that. He can still observe it happening. That is what is left.",
+     'text_fail': "Thinking is hard. Feeling good is easy. The choice is not really a choice anymore."},
+    {'id':'bim_int_perm','group':'effect_escalation','priority':10,'stats':['INT'],'dc':18,
+     'fires_if': lambda s,c: 'bimbo' in c['effects'] and c['bimbo_stage']>=4,
+     'text_pass': "Permanent. He knows that in the way he still knows things. Simple. Present. Warm.",
+     'text_fail': "Pretty. Want. Good. That is the whole vocabulary now."},
+],
+'WIS': [
+    {'id':'bim_wis_mid','group':'mental_state','priority':6,'stats':['WIS'],'dc':12,
+     'fires_if': lambda s,c: 'bimbo' in c['effects'] and c['bimbo_stage']>=1 and c['wis_mod']>=1,
+     'text_pass': "He can feel the intelligence slipping. He is aware of it. The awareness is a lifeline.",
+     'text_fail': "He can feel something slipping but the concern about it is fading too."},
+],
+'CHA': [
+    {'id':'bim_cha_mid','group':'effect_core','priority':7,'stats':['CHA'],'dc':11,
+     'fires_if': lambda s,c: 'bimbo' in c['effects'] and c['bimbo_stage']>=1 and c['cha_mod']>=1,
+     'text_pass': "The attention-seeking is present. The desire to be looked at is new and warm.",
+     'text_fail': "The desire to be looked at is running the show. He is presenting without deciding to."},
+],
+'DOM': [
+    {'id':'bim_dom_mid','group':'dom_response','priority':7,'stats':['DOM'],'dc':12,
+     'fires_if': lambda s,c: 'bimbo' in c['effects'] and c['bimbo_stage']>=1 and c['dom_mod']>=1,
+     'text_pass': "The pride is pushing back against the simplification. He will not be made stupid.",
+     'text_fail': "The pride is softer than it was. Being looked at feels better than being in charge."},
+],
+'SUB': [
+    {'id':'bim_sub_mid','group':'sub_response','priority':6,'stats':['SUB'],'dc':10,
+     'fires_if': lambda s,c: 'bimbo' in c['effects'] and c['bimbo_stage']>=1 and c['sub_mod']>=1,
+     'text_pass': "The simplification and the yield instinct are working together. Compliance is easier when thinking is optional.",
+     'text_fail': "The yield instinct loves the simplification. Less to resist with. More to enjoy."},
+],
+}, # end male bimbo
+
+'female': {
+'CON': [
+    {'id':'bif_con_mid','group':'physical_tell','priority':6,'stats':['CON'],'dc':11,
+     'fires_if': lambda s,c: 'bimbo' in c['effects'] and c['bimbo_stage']>=1 and 4<=c['tier']<=8,
+     'text_pass': "The body feels good. She has noted that it is becoming more important.",
+     'text_fail': "The body feels really good. The analysis of why has gotten simpler."},
+],
+'INT': [
+    {'id':'bif_int_s0','group':'mental_state','priority':5,'stats':['INT'],'dc':10,
+     'fires_if': lambda s,c: 'bimbo' in c['effects'] and c['bimbo_stage']==0,
+     'text_pass': "She has noticed a slight fog. Thoughts take marginally longer. Still sharp.",
+     'text_fail': "There is a warmth where the sharp thoughts were. She is not sure when that started."},
+    {'id':'bif_int_s1','group':'mental_state','priority':7,'stats':['INT'],'dc':12,
+     'fires_if': lambda s,c: 'bimbo' in c['effects'] and c['bimbo_stage']==1,
+     'text_pass': "Things are easier. Not simpler. She can still think complex thoughts. They just cost more.",
+     'text_fail': "Things are easier. She dresses to show the body without thinking about it. It just feels right."},
+    {'id':'bif_int_s2','group':'mental_state','priority':8,'stats':['INT'],'dc':14,
+     'fires_if': lambda s,c: 'bimbo' in c['effects'] and c['bimbo_stage']==2,
+     'text_pass': "The simplifying has settled in comfortably. She can push through. It costs something.",
+     'text_fail': "Complex topics slide away. She is warm, friendly, present. She likes attention. Thinking hard feels unnecessary."},
+    {'id':'bif_int_s3','group':'mental_state','priority':9,'stats':['INT'],'dc':16,
+     'fires_if': lambda s,c: 'bimbo' in c['effects'] and c['bimbo_stage']>=3,
+     'text_pass': "The intelligence is degraded. She knows that. She can observe it. That is what is left.",
+     'text_fail': "Feeling good is easier than thinking. The choice is not really a choice."},
+    {'id':'bif_int_perm','group':'effect_escalation','priority':10,'stats':['INT'],'dc':18,
+     'fires_if': lambda s,c: 'bimbo' in c['effects'] and c['bimbo_stage']>=4,
+     'text_pass': "Permanent. She knows in the way she still knows things.",
+     'text_fail': "Pretty. Want. Good. The whole vocabulary."},
+],
+'WIS': [
+    {'id':'bif_wis_mid','group':'mental_state','priority':6,'stats':['WIS'],'dc':12,
+     'fires_if': lambda s,c: 'bimbo' in c['effects'] and c['bimbo_stage']>=1 and c['wis_mod']>=1,
+     'text_pass': "She can feel the intelligence slipping. The awareness is a lifeline.",
+     'text_fail': "Something is slipping but the concern about it is fading too."},
+],
+'CHA': [
+    {'id':'bif_cha_mid','group':'effect_core','priority':7,'stats':['CHA'],'dc':11,
+     'fires_if': lambda s,c: 'bimbo' in c['effects'] and c['bimbo_stage']>=1 and c['cha_mod']>=1,
+     'text_pass': "The attention-seeking is present. She likes how she looks. She likes being looked at.",
+     'text_fail': "The desire to be looked at is everything. She is performing without deciding to."},
+],
+'DOM': [
+    {'id':'bif_dom_mid','group':'dom_response','priority':7,'stats':['DOM'],'dc':12,
+     'fires_if': lambda s,c: 'bimbo' in c['effects'] and c['bimbo_stage']>=1 and c['dom_mod']>=1,
+     'text_pass': "The composure pushes back against the simplification. She will not be made stupid.",
+     'text_fail': "The composure is softer. Being looked at feels better than being in charge."},
+],
+'SUB': [
+    {'id':'bif_sub_mid','group':'sub_response','priority':6,'stats':['SUB'],'dc':10,
+     'fires_if': lambda s,c: 'bimbo' in c['effects'] and c['bimbo_stage']>=1 and c['sub_mod']>=1,
+     'text_pass': "The simplification and the yield work together. Compliance is easier when thinking is optional.",
+     'text_fail': "The yield loves the simplification. Less to resist with."},
+],
+}, # end female bimbo
+
+'trans_female': {
+'CON': [
+    {'id':'bitf_con_mid','group':'physical_tell','priority':6,'stats':['CON'],'dc':11,
+     'fires_if': lambda s,c: 'bimbo' in c['effects'] and c['bimbo_stage']>=1 and 4<=c['tier']<=8,
+     'text_pass': "The body feels good. She has noted it.",
+     'text_fail': "The body feels really good. Analysis is simpler."},
+    {'id':'bitf_con_high','group':'physical_tell','priority':8,'stats':['CON'],'dc':13,
+     'fires_if': lambda s,c: 'bimbo' in c['effects'] and c['bimbo_stage']>=2 and c['tier']>=9,
+     'text_pass': "The sensation is everything. She can still think past it. Just takes more effort.",
+     'text_fail': "Sensation is everything. Thinking past it is not really the point anymore."},
+],
+'INT': [
+    {'id':'bitf_int_s0','group':'mental_state','priority':5,'stats':['INT'],'dc':10,
+     'fires_if': lambda s,c: 'bimbo' in c['effects'] and c['bimbo_stage']==0,
+     'text_pass': "She has noticed a slight fog. Thoughts are taking marginally longer to form. Still sharp.",
+     'text_fail': "There is a warmth where the sharp thoughts used to be. She is not sure when that started."},
+    {'id':'bitf_int_s1','group':'mental_state','priority':7,'stats':['INT'],'dc':12,
+     'fires_if': lambda s,c: 'bimbo' in c['effects'] and c['bimbo_stage']==1,
+     'text_pass': "Things are easier. She can still think. It costs more.",
+     'text_fail': "Easier. She presents feminine without deciding to. It feels like arrival."},
+    {'id':'bitf_int_s2','group':'mental_state','priority':8,'stats':['INT'],'dc':14,
+     'fires_if': lambda s,c: 'bimbo' in c['effects'] and c['bimbo_stage']>=2,
+     'text_pass': "The simplifying is comfortable. She can push through.",
+     'text_fail': "Complex topics slide away. She is warm and present. Thinking hard feels unnecessary."},
+    {'id':'bitf_int_perm','group':'effect_escalation','priority':10,'stats':['INT'],'dc':18,
+     'fires_if': lambda s,c: 'bimbo' in c['effects'] and c['bimbo_stage']>=4,
+     'text_pass': "Permanent. She knows in the way she still knows things.",
+     'text_fail': "Pretty. Want. Good."},
+],
+'WIS': [
+    {'id':'bitf_wis_mid','group':'mental_state','priority':6,'stats':['WIS'],'dc':12,
+     'fires_if': lambda s,c: 'bimbo' in c['effects'] and c['bimbo_stage']>=1 and c['wis_mod']>=1,
+     'text_pass': "She can feel the intelligence slipping. Awareness is a lifeline.",
+     'text_fail': "Something slipping. The concern about it is fading."},
+],
+'CHA': [
+    {'id':'bitf_cha_mid','group':'effect_core','priority':7,'stats':['CHA'],'dc':11,
+     'fires_if': lambda s,c: 'bimbo' in c['effects'] and c['bimbo_stage']>=1 and c['cha_mod']>=1,
+     'text_pass': "The feminine display feels like arrival. She likes being looked at.",
+     'text_fail': "Being looked at is the point. She is performing femininity with total commitment."},
+],
+'DOM': [
+    {'id':'bitf_dom_mid','group':'dom_response','priority':7,'stats':['DOM'],'dc':12,
+     'fires_if': lambda s,c: 'bimbo' in c['effects'] and c['bimbo_stage']>=1 and c['dom_mod']>=1,
+     'text_pass': "The pride pushes back against the simplification. She will not be made stupid.",
+     'text_fail': "The pride is softer. Being looked at feels better than being in charge."},
+],
+'SUB': [
+    {'id':'bitf_sub_mid','group':'sub_response','priority':6,'stats':['SUB'],'dc':10,
+     'fires_if': lambda s,c: 'bimbo' in c['effects'] and c['bimbo_stage']>=1 and c['sub_mod']>=1,
+     'text_pass': "Simplification and the yield work together.",
+     'text_fail': "The yield loves the simplification. Less to resist with."},
+],
+}, # end trans_female bimbo
+
+'trans_male': {
+'CON': [
+    {'id':'bitm_con_mid','group':'physical_tell','priority':6,'stats':['CON'],'dc':11,
+     'fires_if': lambda s,c: 'bimbo' in c['effects'] and c['bimbo_stage']>=1 and 4<=c['tier']<=8,
+     'text_pass': "The body feels good. He has noted it.",
+     'text_fail': "The body feels really good. Analysis is simpler."},
+    {'id':'bitm_con_high','group':'physical_tell','priority':8,'stats':['CON'],'dc':13,
+     'fires_if': lambda s,c: 'bimbo' in c['effects'] and c['bimbo_stage']>=2 and c['tier']>=9,
+     'text_pass': "The sensation is everything. He can still think past it. Just takes more effort.",
+     'text_fail': "Sensation is everything. Thinking past it is not really the point anymore."},
+],
+'INT': [
+    {'id':'bitm_int_s1','group':'mental_state','priority':7,'stats':['INT'],'dc':12,
+     'fires_if': lambda s,c: 'bimbo' in c['effects'] and c['bimbo_stage']==1,
+     'text_pass': "Things are easier. He can still think. It costs more.",
+     'text_fail': "Easier. Complex thoughts take effort and effort is less appealing."},
+    {'id':'bitm_int_s2','group':'mental_state','priority':8,'stats':['INT'],'dc':14,
+     'fires_if': lambda s,c: 'bimbo' in c['effects'] and c['bimbo_stage']>=2,
+     'text_pass': "The simplifying is comfortable. He can push through.",
+     'text_fail': "Complex topics slide away. He is present. Thinking hard feels unnecessary."},
+    {'id':'bitm_int_perm','group':'effect_escalation','priority':10,'stats':['INT'],'dc':18,
+     'fires_if': lambda s,c: 'bimbo' in c['effects'] and c['bimbo_stage']>=4,
+     'text_pass': "Permanent. He knows in the way he still knows things.",
+     'text_fail': "Want. Good. That is the whole vocabulary."},
+],
+'WIS': [
+    {'id':'bitm_wis_mid','group':'mental_state','priority':6,'stats':['WIS'],'dc':12,
+     'fires_if': lambda s,c: 'bimbo' in c['effects'] and c['bimbo_stage']>=1 and c['wis_mod']>=1,
+     'text_pass': "He can feel the intelligence slipping. Awareness is a lifeline.",
+     'text_fail': "Something slipping. The concern is fading."},
+],
+'CHA': [
+    {'id':'bitm_cha_mid','group':'effect_core','priority':7,'stats':['CHA'],'dc':11,
+     'fires_if': lambda s,c: 'bimbo' in c['effects'] and c['bimbo_stage']>=1 and c['cha_mod']>=1,
+     'text_pass': "The attention-seeking is present. He likes being looked at.",
+     'text_fail': "Being looked at is running the show."},
+],
+'DOM': [
+    {'id':'bitm_dom_mid','group':'dom_response','priority':7,'stats':['DOM'],'dc':12,
+     'fires_if': lambda s,c: 'bimbo' in c['effects'] and c['bimbo_stage']>=1 and c['dom_mod']>=1,
+     'text_pass': "The pride pushes back against simplification.",
+     'text_fail': "The pride is softer. Being looked at feels better than being in charge."},
+],
+'SUB': [
+    {'id':'bitm_sub_mid','group':'sub_response','priority':6,'stats':['SUB'],'dc':10,
+     'fires_if': lambda s,c: 'bimbo' in c['effects'] and c['bimbo_stage']>=1 and c['sub_mod']>=1,
+     'text_pass': "Simplification and yield work together.",
+     'text_fail': "The yield loves the simplification."},
+],
+}, # end trans_male bimbo
+
+'intersex': {
+'CON': [
+    {'id':'bii_con_mid','group':'physical_tell','priority':6,'stats':['CON'],'dc':11,
+     'fires_if': lambda s,c: 'bimbo' in c['effects'] and c['bimbo_stage']>=1 and 4<=c['tier']<=8,
+     'text_pass': "The body feels good. She has noted it.",
+     'text_fail': "The body feels really good. Analysis is simpler."},
+    {'id':'bii_con_high','group':'physical_tell','priority':8,'stats':['CON'],'dc':13,
+     'fires_if': lambda s,c: 'bimbo' in c['effects'] and c['bimbo_stage']>=2 and c['tier']>=9,
+     'text_pass': "The sensation is everything. She can still think past it. Just takes more effort.",
+     'text_fail': "Sensation is everything. Thinking past it is not really the point anymore."},
+],
+'INT': [
+    {'id':'bii_int_s1','group':'mental_state','priority':7,'stats':['INT'],'dc':12,
+     'fires_if': lambda s,c: 'bimbo' in c['effects'] and c['bimbo_stage']==1,
+     'text_pass': "Things are easier. She can still think. It costs more.",
+     'text_fail': "Easier. She likes attention. Thinking is less urgent."},
+    {'id':'bii_int_s2','group':'mental_state','priority':8,'stats':['INT'],'dc':14,
+     'fires_if': lambda s,c: 'bimbo' in c['effects'] and c['bimbo_stage']>=2,
+     'text_pass': "The simplifying is comfortable. She can push through.",
+     'text_fail': "Complex topics slide away. She is warm and present."},
+    {'id':'bii_int_perm','group':'effect_escalation','priority':10,'stats':['INT'],'dc':18,
+     'fires_if': lambda s,c: 'bimbo' in c['effects'] and c['bimbo_stage']>=4,
+     'text_pass': "Permanent. She knows in the way she still knows things.",
+     'text_fail': "Pretty. Want. Good."},
+],
+'WIS': [
+    {'id':'bii_wis_mid','group':'mental_state','priority':6,'stats':['WIS'],'dc':12,
+     'fires_if': lambda s,c: 'bimbo' in c['effects'] and c['bimbo_stage']>=1 and c['wis_mod']>=1,
+     'text_pass': "She can feel the intelligence slipping.",
+     'text_fail': "Something slipping. The concern is fading."},
+],
+'CHA': [
+    {'id':'bii_cha_mid','group':'effect_core','priority':7,'stats':['CHA'],'dc':11,
+     'fires_if': lambda s,c: 'bimbo' in c['effects'] and c['bimbo_stage']>=1 and c['cha_mod']>=1,
+     'text_pass': "She likes being looked at. The attention feels warm.",
+     'text_fail': "Being looked at is everything."},
+],
+'DOM': [
+    {'id':'bii_dom_mid','group':'dom_response','priority':7,'stats':['DOM'],'dc':12,
+     'fires_if': lambda s,c: 'bimbo' in c['effects'] and c['bimbo_stage']>=1 and c['dom_mod']>=1,
+     'text_pass': "The composure pushes back against the simplification. She will not be made stupid.",
+     'text_fail': "The composure is softer. Being looked at feels better than being in charge."},
+],
+'SUB': [
+    {'id':'bii_sub_mid','group':'sub_response','priority':6,'stats':['SUB'],'dc':10,
+     'fires_if': lambda s,c: 'bimbo' in c['effects'] and c['bimbo_stage']>=1 and c['sub_mod']>=1,
+     'text_pass': "Simplification and yield work together.",
+     'text_fail': "The yield loves the simplification."},
+],
+}, # end intersex bimbo
+
+} # end _T_BIMBO
+
+# ─────────────────────────────────────────────────────────────────────────────
+# REMAINING PLACEHOLDERS
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ─────────────────────────────────────────────────────────────────────────────
+# _T_COMPLIANT   targeted obedience to controller, DC starts brutal (20)
+# Roll: WIS+DOM.  DC 20, +5/pass.  Never resets.  All sex types.
+# ─────────────────────────────────────────────────────────────────────────────
+
+_T_COMPLIANT = {
+
+'male': {
+'CON': [
+    {'id':'cm_con_mid','group':'effect_core','priority':7,'stats':['CON'],'dc':12,
+     'fires_if': lambda s,c: 'compliant' in c['effects'] and 4<=c['tier']<=8,
+     'text_pass': "The compulsion to obey is physical. The body wants to comply. He is holding the line.",
+     'text_fail': "The compulsion has the body. The muscles are already orienting toward compliance before he decides."},
+    {'id':'cm_con_high','group':'effect_core','priority':8,'stats':['CON'],'dc':14,
+     'fires_if': lambda s,c: 'compliant' in c['effects'] and c['tier']>=9,
+     'text_pass': "The compulsion is total. The body wants to obey. He is enduring the want.",
+     'text_fail': "The body obeys. He is inside the obedience. The resistance is gone from the muscles."},
+],
+'INT': [
+    {'id':'cm_int_low','group':'mental_state','priority':6,'stats':['INT'],'dc':12,
+     'fires_if': lambda s,c: 'compliant' in c['effects'] and c['tier']<=5,
+     'text_pass': "He understands the compulsion. It is mechanical. He can name it even if he cannot stop it.",
+     'text_fail': "He knows something is wrong with his ability to refuse. The framework for resistance is not forming."},
+    {'id':'cm_int_mid','group':'mental_state','priority':8,'stats':['INT'],'dc':14,
+     'fires_if': lambda s,c: 'compliant' in c['effects'] and 5<=c['tier']<=10,
+     'text_pass': "The analysis continues. He knows the compliance is forced. The knowing is the only thing left that is his.",
+     'text_fail': "The analysis has started rationalizing the compliance. He is finding reasons to obey that feel like his own."},
+],
+'WIS': [
+    {'id':'cm_wis_mid','group':'mental_state','priority':7,'stats':['WIS'],'dc':14,
+     'fires_if': lambda s,c: 'compliant' in c['effects'] and 4<=c['tier']<=9 and c['wis_mod']>=1,
+     'text_pass': "He knows this is not his choice. The compliance is imposed. Holding onto that knowledge.",
+     'text_fail': "The distinction between his will and the compulsion has blurred. He cannot tell which choices are his."},
+],
+'CHA': [
+    {'id':'si_cha_mid','group':'physical_tell','priority':5,'stats':['CHA'],'dc':12,
+     'fires_if': lambda s,c: 'submissive' in c['effects'] and c['tier']>=6 and c['cha_mod']>=2,
+     'text_pass': "The compliance is visible. The willingness shows in her presence.",
+     'text_fail': "The submission is obvious. Everyone can see how much the reward is affecting her."},
+],
+'DOM': [
+    {'id':'cm_dom_mid','group':'dom_response','priority':8,'stats':['DOM'],'dc':14,
+     'fires_if': lambda s,c: 'compliant' in c['effects'] and 4<=c['tier']<=9 and c['dom_mod']>=1,
+     'text_pass': "His pride is the last wall. The compulsion cannot make him willing. Only obedient.",
+     'text_fail': "The pride broke. The compulsion does not need his willingness. It has his obedience."},
+    {'id':'cm_dom_peak','group':'effect_escalation','priority':9,'stats':['DOM'],'dc':16,
+     'fires_if': lambda s,c: 'compliant' in c['effects'] and c['tier']>=15 and c['dom_mod']>=1,
+     'text_pass': "The pride is a ghost. Present but powerless. He obeys and the pride watches.",
+     'text_fail': "The pride is gone. There is only the controller's will. He does what he is told."},
+],
+'SUB': [
+    {'id':'cm_sub_mid','group':'sub_response','priority':7,'stats':['SUB'],'dc':11,
+     'fires_if': lambda s,c: 'compliant' in c['effects'] and 4<=c['tier']<=9 and c['sub_mod']>=1,
+     'text_pass': "The compliance and the yield instinct have merged. Obeying feels like what the body was always for.",
+     'text_fail': "The yield accepted the compliance completely. He does not distinguish between wanting to obey and having to."},
+],
+}, # end male compliant
+
+'female': {
+'CON': [
+    {'id':'cf_con_mid','group':'effect_core','priority':7,'stats':['CON'],'dc':12,
+     'fires_if': lambda s,c: 'compliant' in c['effects'] and 4<=c['tier']<=8,
+     'text_pass': "The compulsion to obey is physical. She is holding the line.",
+     'text_fail': "The compulsion has the body. Already orienting toward compliance."},
+    {'id':'cf_con_high','group':'effect_core','priority':8,'stats':['CON'],'dc':14,
+     'fires_if': lambda s,c: 'compliant' in c['effects'] and c['tier']>=9,
+     'text_pass': "The compulsion is total. She is enduring.",
+     'text_fail': "The body obeys. The resistance is gone."},
+],
+'INT': [
+    {'id':'cf_int_low','group':'mental_state','priority':6,'stats':['INT'],'dc':12,
+     'fires_if': lambda s,c: 'compliant' in c['effects'] and c['tier']<=5,
+     'text_pass': "She understands the compulsion. Mechanical. She can name it.",
+     'text_fail': "She knows something is wrong with her ability to refuse."},
+    {'id':'cf_int_mid','group':'mental_state','priority':8,'stats':['INT'],'dc':14,
+     'fires_if': lambda s,c: 'compliant' in c['effects'] and 5<=c['tier']<=10,
+     'text_pass': "The analysis continues. The compliance is forced. The knowing is what is left.",
+     'text_fail': "The analysis has started rationalizing. She is finding reasons to obey that feel like her own."},
+],
+'WIS': [
+    {'id':'cf_wis_mid','group':'mental_state','priority':7,'stats':['WIS'],'dc':14,
+     'fires_if': lambda s,c: 'compliant' in c['effects'] and 4<=c['tier']<=9 and c['wis_mod']>=1,
+     'text_pass': "She knows this is not her choice. Holding onto that knowledge.",
+     'text_fail': "The distinction between her will and the compulsion has blurred."},
+],
+'CHA': [
+    {'id':'si_cha_mid','group':'physical_tell','priority':5,'stats':['CHA'],'dc':12,
+     'fires_if': lambda s,c: 'submissive' in c['effects'] and c['tier']>=6 and c['cha_mod']>=2,
+     'text_pass': "The compliance is visible. The willingness shows in her presence.",
+     'text_fail': "The submission is obvious. Everyone can see how much the reward is affecting her."},
+],
+'DOM': [
+    {'id':'cf_dom_mid','group':'dom_response','priority':8,'stats':['DOM'],'dc':14,
+     'fires_if': lambda s,c: 'compliant' in c['effects'] and 4<=c['tier']<=9 and c['dom_mod']>=1,
+     'text_pass': "Her composure is the last wall. The compulsion cannot make her willing.",
+     'text_fail': "The composure broke. The compulsion has her obedience."},
+    {'id':'cf_dom_peak','group':'effect_escalation','priority':9,'stats':['DOM'],'dc':16,
+     'fires_if': lambda s,c: 'compliant' in c['effects'] and c['tier']>=15 and c['dom_mod']>=1,
+     'text_pass': "The composure is a ghost. She obeys and the composure watches.",
+     'text_fail': "The composure is gone. Only the controller's will."},
+],
+'SUB': [
+    {'id':'cf_sub_mid','group':'sub_response','priority':7,'stats':['SUB'],'dc':11,
+     'fires_if': lambda s,c: 'compliant' in c['effects'] and 4<=c['tier']<=9 and c['sub_mod']>=1,
+     'text_pass': "Compliance and yield merged. Obeying feels natural.",
+     'text_fail': "She does not distinguish between wanting to obey and having to."},
+],
+}, # end female compliant
+
+'trans_female': {
+'CON': [
+    {'id':'ctf_con_mid','group':'effect_core','priority':7,'stats':['CON'],'dc':12,
+     'fires_if': lambda s,c: 'compliant' in c['effects'] and 4<=c['tier']<=8,
+     'text_pass': "The compulsion to obey is physical. She is holding.",
+     'text_fail': "The compulsion has the body. Already orienting toward compliance."},
+    {'id':'ctf_con_high','group':'effect_core','priority':8,'stats':['CON'],'dc':14,
+     'fires_if': lambda s,c: 'compliant' in c['effects'] and c['tier']>=9,
+     'text_pass': "The compulsion is total. She is enduring the want.",
+     'text_fail': "The body obeys. She is inside the obedience. The resistance is gone."},
+],
+'INT': [
+    {'id':'ctf_int_low','group':'mental_state','priority':6,'stats':['INT'],'dc':12,
+     'fires_if': lambda s,c: 'compliant' in c['effects'] and c['tier']<=5,
+     'text_pass': "She understands the compulsion. Mechanical. She can name it.",
+     'text_fail': "She knows something is wrong with her ability to refuse."},
+    {'id':'ctf_int_mid','group':'mental_state','priority':8,'stats':['INT'],'dc':14,
+     'fires_if': lambda s,c: 'compliant' in c['effects'] and 5<=c['tier']<=10,
+     'text_pass': "She knows the compliance is forced. The knowing is what is left.",
+     'text_fail': "The analysis rationalized. She is finding reasons to obey that feel like hers."},
+],
+'WIS': [
+    {'id':'ctf_wis_mid','group':'mental_state','priority':7,'stats':['WIS'],'dc':14,
+     'fires_if': lambda s,c: 'compliant' in c['effects'] and 4<=c['tier']<=9 and c['wis_mod']>=1,
+     'text_pass': "She knows this is not her choice.",
+     'text_fail': "Her will and the compulsion have blurred."},
+    {'id':'ctf_wis_high','group':'mental_state','priority':8,'stats':['WIS'],'dc':15,
+     'fires_if': lambda s,c: 'compliant' in c['effects'] and c['tier']>=10 and c['wis_mod']>=1,
+     'text_pass': "She knows the obedience is imposed. The knowledge is the only thing left that is hers.",
+     'text_fail': "The knowledge is not enough. The compulsion has claimed everything else."},
+],
+'CHA': [
+    {'id':'si_cha_mid','group':'physical_tell','priority':5,'stats':['CHA'],'dc':12,
+     'fires_if': lambda s,c: 'submissive' in c['effects'] and c['tier']>=6 and c['cha_mod']>=2,
+     'text_pass': "The compliance is visible. The willingness shows in her presence.",
+     'text_fail': "The submission is obvious. Everyone can see how much the reward is affecting her."},
+],
+'DOM': [
+    {'id':'ctf_dom_mid','group':'dom_response','priority':8,'stats':['DOM'],'dc':14,
+     'fires_if': lambda s,c: 'compliant' in c['effects'] and 4<=c['tier']<=9 and c['dom_mod']>=1,
+     'text_pass': "Her sense of self is the last wall.",
+     'text_fail': "The self-possession broke. The compulsion has her obedience."},
+    {'id':'ctf_dom_peak','group':'effect_escalation','priority':9,'stats':['DOM'],'dc':16,
+     'fires_if': lambda s,c: 'compliant' in c['effects'] and c['tier']>=15 and c['dom_mod']>=1,
+     'text_pass': "The self-possession is a ghost. Present but powerless. She obeys and the self watches.",
+     'text_fail': "The self-possession is gone. Only the controller's will remains."},
+],
+'SUB': [
+    {'id':'ctf_sub_mid','group':'sub_response','priority':7,'stats':['SUB'],'dc':11,
+     'fires_if': lambda s,c: 'compliant' in c['effects'] and 4<=c['tier']<=9 and c['sub_mod']>=1,
+     'text_pass': "Compliance and yield merged.",
+     'text_fail': "She does not distinguish between wanting to obey and having to."},
+],
+}, # end trans_female compliant
+
+'trans_male': {
+'CON': [
+    {'id':'ctm_con_mid','group':'effect_core','priority':7,'stats':['CON'],'dc':12,
+     'fires_if': lambda s,c: 'compliant' in c['effects'] and 4<=c['tier']<=8,
+     'text_pass': "The compulsion is physical. He is holding the line.",
+     'text_fail': "The compulsion has the body. Already orienting toward compliance."},
+    {'id':'ctm_con_high','group':'effect_core','priority':8,'stats':['CON'],'dc':14,
+     'fires_if': lambda s,c: 'compliant' in c['effects'] and c['tier']>=9,
+     'text_pass': "The compulsion is total. He is enduring the want.",
+     'text_fail': "The body obeys. He is inside the obedience. The resistance is gone."},
+],
+'INT': [
+    {'id':'ctm_int_low','group':'mental_state','priority':6,'stats':['INT'],'dc':12,
+     'fires_if': lambda s,c: 'compliant' in c['effects'] and c['tier']<=5,
+     'text_pass': "He understands the compulsion. Mechanical. He can name it.",
+     'text_fail': "He knows something is wrong with his ability to refuse."},
+    {'id':'ctm_int_mid','group':'mental_state','priority':8,'stats':['INT'],'dc':14,
+     'fires_if': lambda s,c: 'compliant' in c['effects'] and 5<=c['tier']<=10,
+     'text_pass': "He knows the compliance is forced. The knowing is what is left.",
+     'text_fail': "The analysis rationalized. Finding reasons to obey that feel like his."},
+],
+'WIS': [
+    {'id':'ctm_wis_mid','group':'mental_state','priority':7,'stats':['WIS'],'dc':14,
+     'fires_if': lambda s,c: 'compliant' in c['effects'] and 4<=c['tier']<=9 and c['wis_mod']>=1,
+     'text_pass': "He knows this is not his choice.",
+     'text_fail': "His will and the compulsion have blurred."},
+    {'id':'ctm_wis_high','group':'mental_state','priority':8,'stats':['WIS'],'dc':15,
+     'fires_if': lambda s,c: 'compliant' in c['effects'] and c['tier']>=10 and c['wis_mod']>=1,
+     'text_pass': "He knows the obedience is imposed. The knowledge is the only thing left that is his.",
+     'text_fail': "The knowledge is not enough. The compulsion has claimed everything else."},
+],
+'CHA': [
+    {'id':'si_cha_mid','group':'physical_tell','priority':5,'stats':['CHA'],'dc':12,
+     'fires_if': lambda s,c: 'submissive' in c['effects'] and c['tier']>=6 and c['cha_mod']>=2,
+     'text_pass': "The compliance is visible. The willingness shows in her presence.",
+     'text_fail': "The submission is obvious. Everyone can see how much the reward is affecting her."},
+],
+'DOM': [
+    {'id':'ctm_dom_mid','group':'dom_response','priority':8,'stats':['DOM'],'dc':14,
+     'fires_if': lambda s,c: 'compliant' in c['effects'] and 4<=c['tier']<=9 and c['dom_mod']>=1,
+     'text_pass': "His pride is the last wall.",
+     'text_fail': "The pride broke. The compulsion has his obedience."},
+    {'id':'ctm_dom_peak','group':'effect_escalation','priority':9,'stats':['DOM'],'dc':16,
+     'fires_if': lambda s,c: 'compliant' in c['effects'] and c['tier']>=15 and c['dom_mod']>=1,
+     'text_pass': "The pride is a ghost. Present but powerless. He obeys and the pride watches.",
+     'text_fail': "The pride is gone. Only the controller's will remains."},
+],
+'SUB': [
+    {'id':'ctm_sub_mid','group':'sub_response','priority':7,'stats':['SUB'],'dc':11,
+     'fires_if': lambda s,c: 'compliant' in c['effects'] and 4<=c['tier']<=9 and c['sub_mod']>=1,
+     'text_pass': "Compliance and yield merged.",
+     'text_fail': "He does not distinguish between wanting to obey and having to."},
+],
+}, # end trans_male compliant
+
+'intersex': {
+'CON': [
+    {'id':'ci_con_mid','group':'effect_core','priority':7,'stats':['CON'],'dc':12,
+     'fires_if': lambda s,c: 'compliant' in c['effects'] and 4<=c['tier']<=8,
+     'text_pass': "The compulsion is physical. She is holding.",
+     'text_fail': "The compulsion has the body. Already complying."},
+    {'id':'ci_con_high','group':'effect_core','priority':8,'stats':['CON'],'dc':14,
+     'fires_if': lambda s,c: 'compliant' in c['effects'] and c['tier']>=9,
+     'text_pass': "The compulsion is total. She is enduring the want.",
+     'text_fail': "The body obeys. She is inside the obedience. The resistance is gone."},
+],
+'INT': [
+    {'id':'ci_int_low','group':'mental_state','priority':6,'stats':['INT'],'dc':12,
+     'fires_if': lambda s,c: 'compliant' in c['effects'] and c['tier']<=5,
+     'text_pass': "She understands the compulsion. Mechanical. She can name it.",
+     'text_fail': "She knows something is wrong with her ability to refuse."},
+    {'id':'ci_int_mid','group':'mental_state','priority':8,'stats':['INT'],'dc':14,
+     'fires_if': lambda s,c: 'compliant' in c['effects'] and 5<=c['tier']<=10,
+     'text_pass': "She knows the compliance is forced. The knowing is what is left.",
+     'text_fail': "The analysis rationalized. Reasons to obey that feel like hers."},
+],
+'WIS': [
+    {'id':'ci_wis_mid','group':'mental_state','priority':7,'stats':['WIS'],'dc':14,
+     'fires_if': lambda s,c: 'compliant' in c['effects'] and 4<=c['tier']<=9 and c['wis_mod']>=1,
+     'text_pass': "She knows this is not her choice.",
+     'text_fail': "Her will and the compulsion have blurred."},
+    {'id':'ci_wis_high','group':'mental_state','priority':8,'stats':['WIS'],'dc':15,
+     'fires_if': lambda s,c: 'compliant' in c['effects'] and c['tier']>=10 and c['wis_mod']>=1,
+     'text_pass': "She knows the obedience is imposed. The knowledge is the only thing left that is hers.",
+     'text_fail': "The knowledge is not enough. The compulsion has claimed everything else."},
+],
+'CHA': [
+    {'id':'si_cha_mid','group':'physical_tell','priority':5,'stats':['CHA'],'dc':12,
+     'fires_if': lambda s,c: 'submissive' in c['effects'] and c['tier']>=6 and c['cha_mod']>=2,
+     'text_pass': "The compliance is visible. The willingness shows in her presence.",
+     'text_fail': "The submission is obvious. Everyone can see how much the reward is affecting her."},
+],
+'DOM': [
+    {'id':'ci_dom_mid','group':'dom_response','priority':8,'stats':['DOM'],'dc':14,
+     'fires_if': lambda s,c: 'compliant' in c['effects'] and 4<=c['tier']<=9 and c['dom_mod']>=1,
+     'text_pass': "Her composure is the last wall.",
+     'text_fail': "The composure broke."},
+    {'id':'ci_dom_peak','group':'effect_escalation','priority':9,'stats':['DOM'],'dc':16,
+     'fires_if': lambda s,c: 'compliant' in c['effects'] and c['tier']>=15 and c['dom_mod']>=1,
+     'text_pass': "The composure is a ghost. She obeys and the composure watches.",
+     'text_fail': "The composure is gone. Only the controller's will."},
+],
+'SUB': [
+    {'id':'ci_sub_mid','group':'sub_response','priority':7,'stats':['SUB'],'dc':11,
+     'fires_if': lambda s,c: 'compliant' in c['effects'] and 4<=c['tier']<=9 and c['sub_mod']>=1,
+     'text_pass': "Compliance and yield merged.",
+     'text_fail': "No distinction between wanting to obey and having to."},
+],
+}, # end intersex compliant
+
+} # end _T_COMPLIANT
+
+# ─────────────────────────────────────────────────────────────────────────────
+# _T_SURROGATE   pre-conception = breeder, switches on conception
+# Vagina-bearers: female, trans_male, + transformed male/trans_female/intersex.
+# 3 stages with WIS penalties & arousal floors.  Reverts at birth except stage 3.
+# ─────────────────────────────────────────────────────────────────────────────
+
+_T_SURROGATE = {
+
+'male': {'CON':[],'INT':[],'WIS':[],'CHA':[],'DOM':[],'SUB':[]},
+
+'female': {
+'CON': [
+    {'id':'sgf_con_pre','group':'effect_core','priority':7,'stats':['CON'],'dc':11,
+     'fires_if': lambda s,c: 'surrogate' in c['effects'] and not c['surrogate_pregnant'] and 5<=c['tier']<=9,
+     'text_pass': "The compulsion is physical. The body knows what it wants. She is managing.",
+     'text_fail': "The compulsion has the body. It wants to be filled. The specificity is alarming."},
+    {'id':'sgf_con_preg','group':'effect_core','priority':8,'stats':['CON'],'dc':13,
+     'fires_if': lambda s,c: 'surrogate' in c['effects'] and c['surrogate_pregnant'] and c['tier']>=5,
+     'text_pass': "Pregnant. The surrogate drive continues. The body is carrying and still wanting. She is present with both.",
+     'text_fail': "Pregnant and still driven. The nesting instinct and the arousal are intertwined. She cannot separate them."},
+],
+'INT': [
+    {'id':'sgf_int_pre','group':'mental_state','priority':6,'stats':['INT'],'dc':11,
+     'fires_if': lambda s,c: 'surrogate' in c['effects'] and not c['surrogate_pregnant'] and c['tier']<=6,
+     'text_pass': "She has identified the compulsion. Identical to breeder. She knows what the body wants.",
+     'text_fail': "The compulsion named itself before she was ready. She knows what she wants now."},
+    {'id':'sgf_int_preg','group':'mental_state','priority':8,'stats':['INT'],'dc':13,
+     'fires_if': lambda s,c: 'surrogate' in c['effects'] and c['surrogate_pregnant'],
+     'text_pass': "Pregnant. The surrogate has switched. She can feel the role change. Carrying, not seeking.",
+     'text_fail': "The surrogate took over at conception. She is inside the carrying now. The identity is shifting."},
+],
+'WIS': [
+    {'id':'sgf_wis_pre','group':'mental_state','priority':6,'stats':['WIS'],'dc':12,
+     'fires_if': lambda s,c: 'surrogate' in c['effects'] and not c['surrogate_pregnant'] and c['wis_mod']>=1,
+     'text_pass': "She knows the compulsion is temporary. It ends at conception. She is choosing.",
+     'text_fail': "She knows it is temporary. The knowing has not reduced the urgency."},
+    {'id':'sgf_wis_preg','group':'mental_state','priority':7,'stats':['WIS'],'dc':14,
+     'fires_if': lambda s,c: 'surrogate' in c['effects'] and c['surrogate_pregnant'] and c['wis_mod']>=1,
+     'text_pass': "The surrogate instinct has switched. She knows. The carrying is deliberate.",
+     'text_fail': "The surrogate instinct has the judgment now. What she wants is what the pregnancy needs."},
+],
+'CHA': [
+    {'id':'si_cha_mid','group':'physical_tell','priority':5,'stats':['CHA'],'dc':12,
+     'fires_if': lambda s,c: 'submissive' in c['effects'] and c['tier']>=6 and c['cha_mod']>=2,
+     'text_pass': "The compliance is visible. The willingness shows in her presence.",
+     'text_fail': "The submission is obvious. Everyone can see how much the reward is affecting her."},
+],
+'DOM': [
+    {'id':'sgf_dom_pre','group':'dom_response','priority':7,'stats':['DOM'],'dc':13,
+     'fires_if': lambda s,c: 'surrogate' in c['effects'] and not c['surrogate_pregnant'] and c['dom_mod']>=1,
+     'text_pass': "Her composure is fighting the compulsion. The breeding drive is beneath her.",
+     'text_fail': "The composure lost to the compulsion. She will accept insemination."},
+],
+'SUB': [
+    {'id':'sgf_sub_pre','group':'sub_response','priority':6,'stats':['SUB'],'dc':10,
+     'fires_if': lambda s,c: 'surrogate' in c['effects'] and not c['surrogate_pregnant'] and c['sub_mod']>=1,
+     'text_pass': "The yield instinct and the breeding compulsion are aligned. The body knows what it is for.",
+     'text_fail': "The yield and the compulsion merged. She will accept insemination because the body demands it."},
+    {'id':'sgf_sub_preg','group':'sub_response','priority':8,'stats':['SUB'],'dc':12,
+     'fires_if': lambda s,c: 'surrogate' in c['effects'] and c['surrogate_pregnant'] and c['sub_mod']>=1,
+     'text_pass': "Pregnant. The carrying and the submission are the same thing now. She is vessel and she is choosing that.",
+     'text_fail': "Pregnant. She is vessel. The choice was never really a choice."},
+],
+}, # end female surrogate
+
+'trans_female': {
+'CON': [
+    {'id':'sgtf_con_pre','group':'effect_core','priority':7,'stats':['CON'],'dc':11,
+     'fires_if': lambda s,c: 'surrogate' in c['effects'] and not c['surrogate_pregnant'] and 5<=c['tier']<=9,
+     'text_pass': "The compulsion is physical. The transformed anatomy knows what it wants. She is managing.",
+     'text_fail': "The compulsion has the body. The new anatomy wants to be filled."},
+    {'id':'sgtf_con_preg','group':'effect_core','priority':8,'stats':['CON'],'dc':13,
+     'fires_if': lambda s,c: 'surrogate' in c['effects'] and c['surrogate_pregnant'] and c['tier']>=5,
+     'text_pass': "Pregnant. The surrogate drive continues. Carrying in anatomy that was not hers a month ago.",
+     'text_fail': "Pregnant and still driven. The nesting and the arousal are one thing."},
+],
+'INT': [
+    {'id':'sgtf_int_pre','group':'mental_state','priority':6,'stats':['INT'],'dc':11,
+     'fires_if': lambda s,c: 'surrogate' in c['effects'] and not c['surrogate_pregnant'] and c['tier']<=6,
+     'text_pass': "She has identified the compulsion. The anatomy responds perfectly to the role. She knows what the body wants.",
+     'text_fail': "The compulsion named itself before she was ready. The new anatomy is already willing."},
+    {'id':'sgtf_int_preg','group':'mental_state','priority':8,'stats':['INT'],'dc':13,
+     'fires_if': lambda s,c: 'surrogate' in c['effects'] and c['surrogate_pregnant'],
+     'text_pass': "The surrogate switched at conception. She can map the role change. Pregnant identity is settling in.",
+     'text_fail': "The surrogate took over. She is inside the carrying now. The identity shift is nearly complete."},
+],
+'WIS': [
+    {'id':'sgtf_wis_pre','group':'mental_state','priority':6,'stats':['WIS'],'dc':12,
+     'fires_if': lambda s,c: 'surrogate' in c['effects'] and not c['surrogate_pregnant'] and c['wis_mod']>=1,
+     'text_pass': "She knows the compulsion is temporary. Choosing.",
+     'text_fail': "She knows. The knowing has not reduced the urgency."},
+    {'id':'sgtf_wis_preg','group':'mental_state','priority':7,'stats':['WIS'],'dc':14,
+     'fires_if': lambda s,c: 'surrogate' in c['effects'] and c['surrogate_pregnant'] and c['wis_mod']>=1,
+     'text_pass': "The surrogate instinct has switched. She knows. The carrying is deliberate.",
+     'text_fail': "The surrogate instinct has the judgment now. What she wants is what the pregnancy needs."},
+],
+'CHA': [
+    {'id':'si_cha_mid','group':'physical_tell','priority':5,'stats':['CHA'],'dc':12,
+     'fires_if': lambda s,c: 'submissive' in c['effects'] and c['tier']>=6 and c['cha_mod']>=2,
+     'text_pass': "The compliance is visible. The willingness shows in her presence.",
+     'text_fail': "The submission is obvious. Everyone can see how much the reward is affecting her."},
+],
+'DOM': [
+    {'id':'sgtf_dom_pre','group':'dom_response','priority':7,'stats':['DOM'],'dc':13,
+     'fires_if': lambda s,c: 'surrogate' in c['effects'] and not c['surrogate_pregnant'] and c['dom_mod']>=1,
+     'text_pass': "Her self-image is fighting the compulsion. The breeding drive in anatomy that was not hers before.",
+     'text_fail': "The self-image lost to the compulsion. She will accept insemination."},
+],
+'SUB': [
+    {'id':'sgtf_sub_pre','group':'sub_response','priority':6,'stats':['SUB'],'dc':10,
+     'fires_if': lambda s,c: 'surrogate' in c['effects'] and not c['surrogate_pregnant'] and c['sub_mod']>=1,
+     'text_pass': "The yield and the breeding compulsion are aligned.",
+     'text_fail': "The yield and the compulsion merged. She will accept insemination."},
+    {'id':'sgtf_sub_preg','group':'sub_response','priority':8,'stats':['SUB'],'dc':12,
+     'fires_if': lambda s,c: 'surrogate' in c['effects'] and c['surrogate_pregnant'] and c['sub_mod']>=1,
+     'text_pass': "Pregnant. The carrying and the submission are the same thing now. She is vessel and she is choosing that.",
+     'text_fail': "Pregnant. She is vessel. The choice was never really a choice."},
+],
+}, # end trans_female surrogate
+
+'trans_male': {
+'CON': [
+    {'id':'sgtm_con_pre','group':'effect_core','priority':7,'stats':['CON'],'dc':11,
+     'fires_if': lambda s,c: 'surrogate' in c['effects'] and not c['surrogate_pregnant'] and 5<=c['tier']<=9,
+     'text_pass': "The compulsion is physical. The anatomy he does not fully claim knows what it wants. He is managing.",
+     'text_fail': "The compulsion has the body. Anatomy he has complicated feelings about wants to be filled."},
+    {'id':'sgtm_con_preg','group':'effect_core','priority':8,'stats':['CON'],'dc':13,
+     'fires_if': lambda s,c: 'surrogate' in c['effects'] and c['surrogate_pregnant'] and c['tier']>=5,
+     'text_pass': "Pregnant. The anatomy question is secondary to the carrying. He is present.",
+     'text_fail': "Pregnant. The anatomy question has gone quiet. The carrying is everything."},
+],
+'INT': [
+    {'id':'sgtm_int_pre','group':'mental_state','priority':6,'stats':['INT'],'dc':11,
+     'fires_if': lambda s,c: 'surrogate' in c['effects'] and not c['surrogate_pregnant'] and c['tier']<=6,
+     'text_pass': "He has identified the compulsion. The anatomy responds to the role. He knows what the body wants.",
+     'text_fail': "The compulsion named itself before he was ready. The anatomy is already willing."},
+    {'id':'sgtm_int_preg','group':'mental_state','priority':8,'stats':['INT'],'dc':13,
+     'fires_if': lambda s,c: 'surrogate' in c['effects'] and c['surrogate_pregnant'],
+     'text_pass': "The surrogate switched. He can map the change. Pregnant identity is taking hold.",
+     'text_fail': "The surrogate took over. The carrying has eclipsed the identity negotiation."},
+],
+'WIS': [
+    {'id':'sgtm_wis_pre','group':'mental_state','priority':6,'stats':['WIS'],'dc':12,
+     'fires_if': lambda s,c: 'surrogate' in c['effects'] and not c['surrogate_pregnant'] and c['wis_mod']>=1,
+     'text_pass': "He knows the compulsion is temporary. Choosing.",
+     'text_fail': "He knows. The knowing has not reduced the urgency."},
+    {'id':'sgtm_wis_preg','group':'mental_state','priority':7,'stats':['WIS'],'dc':14,
+     'fires_if': lambda s,c: 'surrogate' in c['effects'] and c['surrogate_pregnant'] and c['wis_mod']>=1,
+     'text_pass': "The surrogate instinct has switched. He knows. The carrying is deliberate.",
+     'text_fail': "The surrogate instinct has the judgment now. What he wants is what the pregnancy needs."},
+],
+'CHA': [
+    {'id':'si_cha_mid','group':'physical_tell','priority':5,'stats':['CHA'],'dc':12,
+     'fires_if': lambda s,c: 'submissive' in c['effects'] and c['tier']>=6 and c['cha_mod']>=2,
+     'text_pass': "The compliance is visible. The willingness shows in her presence.",
+     'text_fail': "The submission is obvious. Everyone can see how much the reward is affecting her."},
+],
+'DOM': [
+    {'id':'sgtm_dom_pre','group':'dom_response','priority':7,'stats':['DOM'],'dc':13,
+     'fires_if': lambda s,c: 'surrogate' in c['effects'] and not c['surrogate_pregnant'] and c['dom_mod']>=1,
+     'text_pass': "His pride is fighting the compulsion. The breeding drive in anatomy he does not claim.",
+     'text_fail': "The pride lost to the compulsion. He will accept insemination."},
+],
+'SUB': [
+    {'id':'sgtm_sub_pre','group':'sub_response','priority':6,'stats':['SUB'],'dc':10,
+     'fires_if': lambda s,c: 'surrogate' in c['effects'] and not c['surrogate_pregnant'] and c['sub_mod']>=1,
+     'text_pass': "The yield and the breeding compulsion are aligned. The anatomy question is quieter than usual.",
+     'text_fail': "The yield and the compulsion merged. He will accept insemination."},
+    {'id':'sgtm_sub_preg','group':'sub_response','priority':8,'stats':['SUB'],'dc':12,
+     'fires_if': lambda s,c: 'surrogate' in c['effects'] and c['surrogate_pregnant'] and c['sub_mod']>=1,
+     'text_pass': "Pregnant. The carrying and the submission are the same thing now. He is vessel and he is choosing that.",
+     'text_fail': "Pregnant. He is vessel. The choice was never really a choice."},
+],
+}, # end trans_male surrogate
+
+'intersex': {
+'CON': [
+    {'id':'sgi_con_pre','group':'effect_core','priority':7,'stats':['CON'],'dc':11,
+     'fires_if': lambda s,c: 'surrogate' in c['effects'] and not c['surrogate_pregnant'] and 5<=c['tier']<=9,
+     'text_pass': "The compulsion is physical. She is managing.",
+     'text_fail': "The compulsion has the body. It wants to be filled."},
+    {'id':'sgi_con_preg','group':'effect_core','priority':8,'stats':['CON'],'dc':13,
+     'fires_if': lambda s,c: 'surrogate' in c['effects'] and c['surrogate_pregnant'] and c['tier']>=5,
+     'text_pass': "Pregnant. The surrogate drive continues. She is carrying and still wanting.",
+     'text_fail': "Pregnant and still driven. Cannot separate the nesting from the arousal."},
+],
+'INT': [
+    {'id':'sgi_int_pre','group':'mental_state','priority':6,'stats':['INT'],'dc':11,
+     'fires_if': lambda s,c: 'surrogate' in c['effects'] and not c['surrogate_pregnant'] and c['tier']<=6,
+     'text_pass': "She has identified the compulsion. Both anatomies respond to the role. She knows what the body wants.",
+     'text_fail': "The compulsion named itself before she was ready. Both sides of herself are already willing."},
+    {'id':'sgi_int_preg','group':'mental_state','priority':8,'stats':['INT'],'dc':13,
+     'fires_if': lambda s,c: 'surrogate' in c['effects'] and c['surrogate_pregnant'],
+     'text_pass': "The surrogate switched at conception. She can map it. The dual identity is consolidating.",
+     'text_fail': "The surrogate took over. Inside the carrying now. The identity negotiation has stopped."},
+],
+'WIS': [
+    {'id':'sgi_wis_pre','group':'mental_state','priority':6,'stats':['WIS'],'dc':12,
+     'fires_if': lambda s,c: 'surrogate' in c['effects'] and not c['surrogate_pregnant'] and c['wis_mod']>=1,
+     'text_pass': "She knows the compulsion is temporary. Choosing.",
+     'text_fail': "She knows. The knowing has not reduced the urgency."},
+    {'id':'sgi_wis_preg','group':'mental_state','priority':7,'stats':['WIS'],'dc':14,
+     'fires_if': lambda s,c: 'surrogate' in c['effects'] and c['surrogate_pregnant'] and c['wis_mod']>=1,
+     'text_pass': "The surrogate instinct has switched. She knows. The carrying is deliberate.",
+     'text_fail': "The surrogate instinct has the judgment now. What she wants is what the pregnancy needs."},
+],
+'CHA': [
+    {'id':'si_cha_mid','group':'physical_tell','priority':5,'stats':['CHA'],'dc':12,
+     'fires_if': lambda s,c: 'submissive' in c['effects'] and c['tier']>=6 and c['cha_mod']>=2,
+     'text_pass': "The compliance is visible. The willingness shows in her presence.",
+     'text_fail': "The submission is obvious. Everyone can see how much the reward is affecting her."},
+],
+'DOM': [
+    {'id':'sgi_dom_pre','group':'dom_response','priority':7,'stats':['DOM'],'dc':13,
+     'fires_if': lambda s,c: 'surrogate' in c['effects'] and not c['surrogate_pregnant'] and c['dom_mod']>=1,
+     'text_pass': "Her composure is fighting the compulsion. The breeding drive spans both anatomies.",
+     'text_fail': "The composure lost to the compulsion. She will accept insemination."},
+],
+'SUB': [
+    {'id':'sgi_sub_pre','group':'sub_response','priority':6,'stats':['SUB'],'dc':10,
+     'fires_if': lambda s,c: 'surrogate' in c['effects'] and not c['surrogate_pregnant'] and c['sub_mod']>=1,
+     'text_pass': "The yield and the breeding compulsion are aligned.",
+     'text_fail': "The yield and the compulsion merged."},
+    {'id':'sgi_sub_preg','group':'sub_response','priority':8,'stats':['SUB'],'dc':12,
+     'fires_if': lambda s,c: 'surrogate' in c['effects'] and c['surrogate_pregnant'] and c['sub_mod']>=1,
+     'text_pass': "Pregnant. The carrying and the submission are the same thing now. She is vessel and she is choosing that.",
+     'text_fail': "Pregnant. She is vessel. The choice was never really a choice."},
+],
+}, # end intersex surrogate
+
+} # end _T_SURROGATE
+
+# ─────────────────────────────────────────────────────────────────────────────
+# _T_PREGNANCY   Pregnancy state fragments (independent from breeder/surrogate)
+# 4 sexes: male (pink-pilled), female (born female), trans_male (blue-pilled),
+#          trans_female (pink-pilled, already with vagina from pill)
+# Intersex excluded — intersex has no vagina, cannot get pregnant
+# 3 stages: 1=early (just confirmed), 2=showing (visible), 3=late (near birth)
+# Breeder vs Surrogate split via fires_if conditions
+# ─────────────────────────────────────────────────────────────────────────────
+
+_T_PREGNANCY = {
+
+# ═══════════════════════════════════════════════════════════════════════════
+# MALE (born male, pink-pilled to female: maximum confusion about pregnancy)
+# ═══════════════════════════════════════════════════════════════════════════
+'male': {
+
+'CON': [
+    # Stage 1 - Early
+    {'id':'preg_m_con_s1_shared','group':'physical_tell','priority':11,'stats':['CON'],'dc':11,
+     'fires_if': lambda s,c: c['pregnancy_stage']==1,
+     'text_pass': "The body is changing in ways the mind has no framework for. The aches are low and unfamiliar.",
+     'text_fail': "Something in the belly is changing. The body knows what it is. He does not."},
+    # Stage 2 - Showing
+    {'id':'preg_m_con_s2_shared','group':'physical_tell','priority':12,'stats':['CON'],'dc':12,
+     'fires_if': lambda s,c: c['pregnancy_stage']==2,
+     'text_pass': "The belly is changing. Gaining weight in a way he did not expect. The body is doing something without asking.",
+     'text_fail': "The belly is growing visibly. His body is working and he is only watching it happen."},
+    # Stage 3 - Late
+    {'id':'preg_m_con_s3_shared','group':'physical_tell','priority':13,'stats':['CON'],'dc':13,
+     'fires_if': lambda s,c: c['pregnancy_stage']==3,
+     'text_pass': "Heavily pregnant. The weight is unprecedented. Every movement takes calculation. The body has become something else.",
+     'text_fail': "Heavily pregnant and nothing prepared him for this. The body is heavy and strange and entirely real."},
+],
+
+'INT': [
+    # Stage 1 - Early (born-male confusion)
+    {'id':'preg_m_int_s1_shared','group':'mental_state','priority':11,'stats':['INT'],'dc':11,
+     'fires_if': lambda s,c: c['pregnancy_stage']==1 and c['int_mod']>=0,
+     'text_pass': "This is happening. The fact of it has arrived before the understanding of it.",
+     'text_fail': "The reality has no narrative yet. The mind is still looking for the framework."},
+    # Stage 2 - Showing (born-male trying to narrate)
+    {'id':'preg_m_int_s2_shared','group':'mental_state','priority':12,'stats':['INT'],'dc':12,
+     'fires_if': lambda s,c: c['pregnancy_stage']==2 and c['int_mod']>=0,
+     'text_pass': "He is tracking the changes. Documenting them to make them real. Still alien but at least catalogued.",
+     'text_fail': "The changes are happening faster than the narration can keep pace. The mind is lagging."},
+    # Stage 3 - Late (born-male acceptance of reality)
+    {'id':'preg_m_int_s3_shared','group':'mental_state','priority':13,'stats':['INT'],'dc':13,
+     'fires_if': lambda s,c: c['pregnancy_stage']==3 and c['int_mod']>=0,
+     'text_pass': "The analysis has become simpler. He knows what is happening. The detail no longer matters.",
+     'text_fail': "The detail has stopped mattering. He is only watching his body work without him."},
+],
+
+'WIS': [
+    # Stage 1 - Early (born-male: reconciling identity with pregnant body)
+    {'id':'preg_m_wis_s1_shared','group':'mental_state','priority':11,'stats':['WIS'],'dc':10,
+     'fires_if': lambda s,c: c['pregnancy_stage']==1,
+     'text_pass': "The judgment is still forming. What he is and what is happening are not yet the same thing.",
+     'text_fail': "What is happening is arriving before judgment can catch it."},
+    # Stage 2 - Showing (born-male: the belly makes it undeniable)
+    {'id':'preg_m_wis_s2_shared','group':'mental_state','priority':12,'stats':['WIS'],'dc':11,
+     'fires_if': lambda s,c: c['pregnancy_stage']==2 and c['wis_mod']>=0,
+     'text_pass': "The belly is visible. The truth is visible. Still processing but no longer in denial.",
+     'text_fail': "The belly is visible and the denial has nowhere to hide anymore."},
+    # Stage 3 - Late (born-male: acceptance)
+    {'id':'preg_m_wis_s3_shared','group':'mental_state','priority':13,'stats':['WIS'],'dc':12,
+     'fires_if': lambda s,c: c['pregnancy_stage']==3 and c['wis_mod']>=1,
+     'text_pass': "This is real. He has stopped arguing with it. The weight and the reality are the same thing now.",
+     'text_fail': "This is real. The acceptance has still not arrived but the argument is over."},
+],
+
+'CHA': [
+    # Stage 1 - Early (born-male: barely showing)
+    {'id':'preg_m_cha_s1_shared','group':'physical_tell','priority':11,'stats':['CHA'],'dc':10,
+     'fires_if': lambda s,c: c['pregnancy_stage']==1 and c['cha_mod']>=0,
+     'text_pass': "The change is not visible yet. The knowledge is, but the body is still keeping the secret.",
+     'text_fail': "Something is different about him but no one quite knows what."},
+    # Stage 2 - Showing (born-male: pregnant belly is obvious)
+    {'id':'preg_m_cha_s2_shared','group':'physical_tell','priority':12,'stats':['CHA'],'dc':12,
+     'fires_if': lambda s,c: c['pregnancy_stage']==2 and c['cha_mod']>=0,
+     'text_pass': "The belly is visible. The glow is there. He reads as undeniably pregnant to anyone looking.",
+     'text_fail': "The belly gives it away. The visible change is the only truth that matters now."},
+    # Stage 3 - Late (born-male: heavily pregnant, unmistakable)
+    {'id':'preg_m_cha_s3_shared','group':'physical_tell','priority':13,'stats':['CHA'],'dc':13,
+     'fires_if': lambda s,c: c['pregnancy_stage']==3 and c['cha_mod']>=0,
+     'text_pass': "Heavily pregnant. The presence is unmistakable. The transformation is complete and visible.",
+     'text_fail': "Heavily pregnant. Everyone can see it. The transformation is written on his body."},
+],
+
+'DOM': [
+    # Stage 1 - Early (born-male: loss of bodily control begins)
+    {'id':'preg_m_dom_s1_shared','group':'dom_response','priority':11,'stats':['DOM'],'dc':11,
+     'fires_if': lambda s,c: c['pregnancy_stage']==1 and c['dom_mod']>=0,
+     'text_pass': "The control is still his. The body is doing something but he is watching it happen.",
+     'text_fail': "The first loss of control. The body is moving without the mind deciding."},
+    # Stage 2 - Showing (born-male: bodily autonomy slipping)
+    {'id':'preg_m_dom_s2_shared','group':'dom_response','priority':12,'stats':['DOM'],'dc':12,
+     'fires_if': lambda s,c: c['pregnancy_stage']==2 and c['dom_mod']>=0,
+     'text_pass': "The weight is teaching him about surrender. Still resisting but learning.",
+     'text_fail': "The weight and the belly have taken the control. He is no longer the dominant force."},
+    # Stage 3 - Late (born-male: complete bodily surrender)
+    {'id':'preg_m_dom_s3_shared','group':'dom_response','priority':13,'stats':['DOM'],'dc':13,
+     'fires_if': lambda s,c: c['pregnancy_stage']==3 and c['dom_mod']>=0,
+     'text_pass': "The body is doing what it will. His pride has retreated to watch from a distance.",
+     'text_fail': "The body has won. The control never existed. The pregnancy is absolute."},
+],
+
+'SUB': [
+    # Stage 1 - Early (born-male: forced surrender to unfamiliar)
+    {'id':'preg_m_sub_s1_shared','group':'sub_response','priority':11,'stats':['SUB'],'dc':10,
+     'fires_if': lambda s,c: c['pregnancy_stage']==1 and c['sub_mod']>=0,
+     'text_pass': "The body is opening to something new. The submission is arriving with the anatomy.",
+     'text_fail': "The surrender has already begun. The body is yielding before the mind permits it."},
+    # Stage 2 - Showing (born-male: learning to yield to biological process)
+    {'id':'preg_m_sub_s2_shared','group':'sub_response','priority':12,'stats':['SUB'],'dc':11,
+     'fires_if': lambda s,c: c['pregnancy_stage']==2 and c['sub_mod']>=0,
+     'text_pass': "The yielding is becoming easier. The belly is teaching him how to surrender.",
+     'text_fail': "The surrender is complete. The body has everything. The submission is the only language left."},
+    # Stage 3 - Late (born-male: complete submission to biology)
+    {'id':'preg_m_sub_s3_shared','group':'sub_response','priority':13,'stats':['SUB'],'dc':12,
+     'fires_if': lambda s,c: c['pregnancy_stage']==3 and c['sub_mod']>=0,
+     'text_pass': "The yielding is total. The biology is in control and he has stopped fighting it.",
+     'text_fail': "The body has everything. The will to resist never existed. Only the carrying matters."},
+],
+
+}, # end male pregnancy
+
+# ═══════════════════════════════════════════════════════════════════════════
+# FEMALE (born female: familiar framework, processing reality)
+# ═══════════════════════════════════════════════════════════════════════════
+'female': {
+
+'CON': [
+    # Stage 1 - Early (born-female: familiar but intense)
+    {'id':'preg_f_con_s1_shared','group':'physical_tell','priority':11,'stats':['CON'],'dc':11,
+     'fires_if': lambda s,c: c['pregnancy_stage']==1,
+     'text_pass': "The body is doing what she always knew it could. The sensation is familiar in its framework but intense in its presence.",
+     'text_fail': "The changes are starting. The body is moving into territory she knew existed but never expected to visit."},
+    # Stage 2 - Showing (born-female: scale surprises even with knowledge)
+    {'id':'preg_f_con_s2_shared','group':'physical_tell','priority':12,'stats':['CON'],'dc':12,
+     'fires_if': lambda s,c: c['pregnancy_stage']==2,
+     'text_pass': "The belly is growing. The weight is as much as she expected. The reality is matching the knowledge.",
+     'text_fail': "The belly is larger than she anticipated. The weight and the scale are teaching her something new."},
+    # Stage 3 - Late (born-female: heavy with familiar understanding)
+    {'id':'preg_f_con_s3_shared','group':'physical_tell','priority':13,'stats':['CON'],'dc':13,
+     'fires_if': lambda s,c: c['pregnancy_stage']==3,
+     'text_pass': "Heavily pregnant and she knows what is coming. The weight is enormous but expected. The body is finishing what it started.",
+     'text_fail': "Heavily pregnant. The weight is more than the knowledge prepared her for. The body is making demands."},
+],
+
+'INT': [
+    # Stage 1 - Early (born-female: processing reality)
+    {'id':'preg_f_int_s1_shared','group':'mental_state','priority':11,'stats':['INT'],'dc':10,
+     'fires_if': lambda s,c: c['pregnancy_stage']==1 and c['int_mod']>=0,
+     'text_pass': "She understands what is happening. The knowledge has always been there. Now she is processing the reality.",
+     'text_fail': "She knows what this is. The understanding is different from the experience of it."},
+    # Stage 2 - Showing (born-female: detailed awareness)
+    {'id':'preg_f_int_s2_shared','group':'mental_state','priority':12,'stats':['INT'],'dc':12,
+     'fires_if': lambda s,c: c['pregnancy_stage']==2 and c['int_mod']>=1,
+     'text_pass': "She is tracking it all. Every change. The detailed awareness is grounding her.",
+     'text_fail': "The changes are happening faster than she can track them. The detail is slipping."},
+    # Stage 3 - Late (born-female: integrated understanding)
+    {'id':'preg_f_int_s3_shared','group':'mental_state','priority':13,'stats':['INT'],'dc':13,
+     'fires_if': lambda s,c: c['pregnancy_stage']==3 and c['int_mod']>=1,
+     'text_pass': "She knows exactly where she is in this. The understanding is complete. She is ready.",
+     'text_fail': "The detail is being overwhelmed by the reality. The knowledge is no longer enough to hold it."},
+],
+
+'WIS': [
+    # Stage 1 - Early (born-female: reconciling possibility with reality)
+    {'id':'preg_f_wis_s1_shared','group':'mental_state','priority':11,'stats':['WIS'],'dc':10,
+     'fires_if': lambda s,c: c['pregnancy_stage']==1,
+     'text_pass': "The possibility has become the reality. She is integrating the two.",
+     'text_fail': "The reality has arrived before she finished deciding how to live with it."},
+    # Stage 2 - Showing (born-female: acceptance of the path)
+    {'id':'preg_f_wis_s2_shared','group':'mental_state','priority':12,'stats':['WIS'],'dc':11,
+     'fires_if': lambda s,c: c['pregnancy_stage']==2 and c['wis_mod']>=0,
+     'text_pass': "The belly is visible and she has accepted it. The truth is settled now.",
+     'text_fail': "The belly is visible and the denial is no longer possible."},
+    # Stage 3 - Late (born-female: wisdom of the late stage)
+    {'id':'preg_f_wis_s3_shared','group':'mental_state','priority':13,'stats':['WIS'],'dc':12,
+     'fires_if': lambda s,c: c['pregnancy_stage']==3 and c['wis_mod']>=1,
+     'text_pass': "She is in the final stretch and it is as she understood. The body knows what to do.",
+     'text_fail': "The final stretch is harder than the knowledge prepared her for."},
+],
+
+'CHA': [
+    # Stage 1 - Early (born-female: not yet showing)
+    {'id':'preg_f_cha_s1_shared','group':'physical_tell','priority':11,'stats':['CHA'],'dc':10,
+     'fires_if': lambda s,c: c['pregnancy_stage']==1 and c['cha_mod']>=0,
+     'text_pass': "She has the knowledge but not yet the visible signs. The secret is hers to keep for now.",
+     'text_fail': "Something is different but no one can quite see it yet."},
+    # Stage 2 - Showing (born-female: visibly pregnant with glow)
+    {'id':'preg_f_cha_s2_shared','group':'physical_tell','priority':12,'stats':['CHA'],'dc':12,
+     'fires_if': lambda s,c: c['pregnancy_stage']==2 and c['cha_mod']>=0,
+     'text_pass': "The belly is visible. The glow is visible. She reads as pregnant to everyone. She accepts the presence.",
+     'text_fail': "The belly gives it all away. The pregnancy is the only thing visible now."},
+    # Stage 3 - Late (born-female: unmistakably pregnant)
+    {'id':'preg_f_cha_s3_shared','group':'physical_tell','priority':13,'stats':['CHA'],'dc':13,
+     'fires_if': lambda s,c: c['pregnancy_stage']==3 and c['cha_mod']>=0,
+     'text_pass': "Heavily pregnant. The presence is unmistakable. She has become the pregnancy.",
+     'text_fail': "Heavily pregnant and everyone knows it. The body is the only story being told."},
+],
+
+'DOM': [
+    # Stage 1 - Early (born-female: bodily autonomy)
+    {'id':'preg_f_dom_s1_shared','group':'dom_response','priority':11,'stats':['DOM'],'dc':11,
+     'fires_if': lambda s,c: c['pregnancy_stage']==1 and c['dom_mod']>=1,
+     'text_pass': "The choice is still hers. The body is doing what it wants. She is deciding if she wants it too.",
+     'text_fail': "The body has already decided. The choice was hers until it was not."},
+    # Stage 2 - Showing (born-female: power/surrender negotiation)
+    {'id':'preg_f_dom_s2_shared','group':'dom_response','priority':12,'stats':['DOM'],'dc':12,
+     'fires_if': lambda s,c: c['pregnancy_stage']==2 and c['dom_mod']>=1,
+     'text_pass': "The weight is negotiating with her power. She is learning when to yield and when to hold.",
+     'text_fail': "The weight is winning. The power is being consumed by the carrying."},
+    # Stage 3 - Late (born-female: power transforms or surrenders)
+    {'id':'preg_f_dom_s3_shared','group':'dom_response','priority':13,'stats':['DOM'],'dc':13,
+     'fires_if': lambda s,c: c['pregnancy_stage']==3 and c['dom_mod']>=1,
+     'text_pass': "The power has transformed into the power to carry. She is at her strongest in the surrender.",
+     'text_fail': "The power has surrendered. The body is the only force that matters now."},
+],
+
+'SUB': [
+    # Stage 1 - Early (born-female: natural surrender)
+    {'id':'preg_f_sub_s1_shared','group':'sub_response','priority':11,'stats':['SUB'],'dc':10,
+     'fires_if': lambda s,c: c['pregnancy_stage']==1 and c['sub_mod']>=0,
+     'text_pass': "The body is opening and she is allowing it. The submission is natural.",
+     'text_fail': "The body is opening. The submission has arrived whether she invited it or not."},
+    # Stage 2 - Showing (born-female: deepening surrender)
+    {'id':'preg_f_sub_s2_shared','group':'sub_response','priority':12,'stats':['SUB'],'dc':11,
+     'fires_if': lambda s,c: c['pregnancy_stage']==2 and c['sub_mod']>=0,
+     'text_pass': "The yielding is deepening. Her body is teaching her surrender. She is learning from it.",
+     'text_fail': "The yielding is complete. The body has everything now."},
+    # Stage 3 - Late (born-female: total biological submission)
+    {'id':'preg_f_sub_s3_shared','group':'sub_response','priority':13,'stats':['SUB'],'dc':12,
+     'fires_if': lambda s,c: c['pregnancy_stage']==3 and c['sub_mod']>=0,
+     'text_pass': "The surrender is total and she has made peace with it. The biology is everything and that is enough.",
+     'text_fail': "The surrender is total. The body is in charge. She has accepted it."},
+],
+
+}, # end female pregnancy
+
+# ═══════════════════════════════════════════════════════════════════════════
+# TRANS_MALE (born female, blue-pilled to male: body memory, masculine identity conflict)
+# ═══════════════════════════════════════════════════════════════════════════
+'trans_male': {
+
+'CON': [
+    # Stage 1 - Early (trans-male: body memory but identity conflict)
+    {'id':'preg_tm_con_s1_shared','group':'physical_tell','priority':11,'stats':['CON'],'dc':11,
+     'fires_if': lambda s,c: c['pregnancy_stage']==1,
+     'text_pass': "The body remembers. The sensations are familiar but they arrive in a body he chose to build differently.",
+     'text_fail': "The body is changing in ways he forgot it could. The memory is returning."},
+    # Stage 2 - Showing (trans-male: belly on masculine frame)
+    {'id':'preg_tm_con_s2_shared','group':'physical_tell','priority':12,'stats':['CON'],'dc':12,
+     'fires_if': lambda s,c: c['pregnancy_stage']==2,
+     'text_pass': "The belly is growing on the masculine frame he built. The contradiction is visible now.",
+     'text_fail': "The belly is visible and it is wrong on the male frame. The conflict is written on the body."},
+    # Stage 3 - Late (trans-male: pregnant in the body he rejected)
+    {'id':'preg_tm_con_s3_shared','group':'physical_tell','priority':13,'stats':['CON'],'dc':13,
+     'fires_if': lambda s,c: c['pregnancy_stage']==3,
+     'text_pass': "Heavily pregnant in the male body. The weight is enormous and it carries the contradiction.",
+     'text_fail': "Heavily pregnant. The body he rejected has become impossible to deny."},
+],
+
+'INT': [
+    # Stage 1 - Early (trans-male: narrating the contradiction)
+    {'id':'preg_tm_int_s1_shared','group':'mental_state','priority':11,'stats':['INT'],'dc':11,
+     'fires_if': lambda s,c: c['pregnancy_stage']==1 and c['int_mod']>=0,
+     'text_pass': "He knows what the body remembers. The narration has to hold the contradiction.",
+     'text_fail': "The contradiction has no framework. The mind is trying to hold two opposites."},
+    # Stage 2 - Showing (trans-male: detail-tracking the wrong body)
+    {'id':'preg_tm_int_s2_shared','group':'mental_state','priority':12,'stats':['INT'],'dc':12,
+     'fires_if': lambda s,c: c['pregnancy_stage']==2 and c['int_mod']>=1,
+     'text_pass': "He is tracking the changes. The detail is grounding him even as it contradicts who he is.",
+     'text_fail': "The detail is slipping. The contradiction is too much to hold."},
+    # Stage 3 - Late (trans-male: acceptance without surrender of identity)
+    {'id':'preg_tm_int_s3_shared','group':'mental_state','priority':13,'stats':['INT'],'dc':13,
+     'fires_if': lambda s,c: c['pregnancy_stage']==3 and c['int_mod']>=1,
+     'text_pass': "He knows exactly what is happening. The contradiction is settled. He is still himself.",
+     'text_fail': "The contradiction is overwhelming. The detail cannot hold what the body is doing."},
+],
+
+'WIS': [
+    # Stage 1 - Early (trans-male: accepting reality within identity)
+    {'id':'preg_tm_wis_s1_shared','group':'mental_state','priority':11,'stats':['WIS'],'dc':11,
+     'fires_if': lambda s,c: c['pregnancy_stage']==1,
+     'text_pass': "The reality has arrived and it does not change what he decided about himself. He is processing both.",
+     'text_fail': "The reality is challenging what he decided to be. The judgment is wavering."},
+    # Stage 2 - Showing (trans-male: wisdom of the impossible position)
+    {'id':'preg_tm_wis_s2_shared','group':'mental_state','priority':12,'stats':['WIS'],'dc':12,
+     'fires_if': lambda s,c: c['pregnancy_stage']==2 and c['wis_mod']>=0,
+     'text_pass': "He is learning how to hold the contradiction. The body is masculine and pregnant. Both are true.",
+     'text_fail': "The contradiction is unmistakable. The two truths are not sitting together easily."},
+    # Stage 3 - Late (trans-male: settled in paradox)
+    {'id':'preg_tm_wis_s3_shared','group':'mental_state','priority':13,'stats':['WIS'],'dc':13,
+     'fires_if': lambda s,c: c['pregnancy_stage']==3 and c['wis_mod']>=1,
+     'text_pass': "He has accepted the paradox. Pregnant and male. Both true. Final.",
+     'text_fail': "The paradox is not resolved. He is still fighting the contradiction."},
+],
+
+'CHA': [
+    # Stage 1 - Early (trans-male: not yet showing)
+    {'id':'preg_tm_cha_s1_shared','group':'physical_tell','priority':11,'stats':['CHA'],'dc':10,
+     'fires_if': lambda s,c: c['pregnancy_stage']==1 and c['cha_mod']>=0,
+     'text_pass': "The change is not visible. The masculine presentation is still intact.",
+     'text_fail': "Something is shifting in the presence. The secret is harder to keep."},
+    # Stage 2 - Showing (trans-male: belly contradicts masculine presentation)
+    {'id':'preg_tm_cha_s2_shared','group':'physical_tell','priority':12,'stats':['CHA'],'dc':12,
+     'fires_if': lambda s,c: c['pregnancy_stage']==2 and c['cha_mod']>=0,
+     'text_pass': "The belly is visible on the masculine frame. The presence reads as impossible. He owns the contradiction.",
+     'text_fail': "The belly breaks the masculine presentation. The contradiction is written on him now."},
+    # Stage 3 - Late (trans-male: unmistakably pregnant, masculine defiant)
+    {'id':'preg_tm_cha_s3_shared','group':'physical_tell','priority':13,'stats':['CHA'],'dc':13,
+     'fires_if': lambda s,c: c['pregnancy_stage']==3 and c['cha_mod']>=0,
+     'text_pass': "Heavily pregnant and undeniably masculine. The presence holds the paradox. He is exactly what he is.",
+     'text_fail': "Heavily pregnant. The masculine presentation is overwhelmed by the belly."},
+],
+
+'DOM': [
+    # Stage 1 - Early (trans-male: masculine control meeting biological reality)
+    {'id':'preg_tm_dom_s1_shared','group':'dom_response','priority':11,'stats':['DOM'],'dc':11,
+     'fires_if': lambda s,c: c['pregnancy_stage']==1 and c['dom_mod']>=1,
+     'text_pass': "The masculine identity is holding the control. The body is doing something but he is in charge.",
+     'text_fail': "The masculine control is wavering. The body is taking something back."},
+    # Stage 2 - Showing (trans-male: power negotiating with biology)
+    {'id':'preg_tm_dom_s2_shared','group':'dom_response','priority':12,'stats':['DOM'],'dc':12,
+     'fires_if': lambda s,c: c['pregnancy_stage']==2 and c['dom_mod']>=1,
+     'text_pass': "The masculine power is holding ground. The belly is there but it does not rule him.",
+     'text_fail': "The power is being consumed. The body is becoming the dominant force."},
+    # Stage 3 - Late (trans-male: still dominant but acknowledging biology)
+    {'id':'preg_tm_dom_s3_shared','group':'dom_response','priority':13,'stats':['DOM'],'dc':13,
+     'fires_if': lambda s,c: c['pregnancy_stage']==3 and c['dom_mod']>=1,
+     'text_pass': "The masculine identity is holding the power. The body is heavy but he is still in charge.",
+     'text_fail': "The power has surrendered. The body is everything and he is only its vessel."},
+],
+
+'SUB': [
+    # Stage 1 - Early (trans-male: resisting biological surrender)
+    {'id':'preg_tm_sub_s1_shared','group':'sub_response','priority':11,'stats':['SUB'],'dc':10,
+     'fires_if': lambda s,c: c['pregnancy_stage']==1 and c['sub_mod']>=0,
+     'text_pass': "The body is opening but the masculine identity is resisting the surrender.",
+     'text_fail': "The surrender is arriving and the masculine identity has no defense against it."},
+    # Stage 2 - Showing (trans-male: biological yield vs masculine power)
+    {'id':'preg_tm_sub_s2_shared','group':'sub_response','priority':12,'stats':['SUB'],'dc':11,
+     'fires_if': lambda s,c: c['pregnancy_stage']==2 and c['sub_mod']>=0,
+     'text_pass': "The body wants to yield and the masculine identity is holding it back. The tension is everything.",
+     'text_fail': "The yield is winning. The masculine identity cannot hold against the biological need."},
+    # Stage 3 - Late (trans-male: biological destiny acknowledged)
+    {'id':'preg_tm_sub_s3_shared','group':'sub_response','priority':13,'stats':['SUB'],'dc':12,
+     'fires_if': lambda s,c: c['pregnancy_stage']==3 and c['sub_mod']>=0,
+     'text_pass': "The biological process is absolute and he has accepted it. The masculine identity carries it.",
+     'text_fail': "The biological process is absolute. The identity has surrendered to it."},
+],
+
+}, # end trans_male pregnancy
+
+# ═══════════════════════════════════════════════════════════════════════════
+# TRANS_FEMALE (born male, pink-pilled to female: same confusion as male)
+# ═══════════════════════════════════════════════════════════════════════════
+'trans_female': {
+
+'CON': [
+    # Stage 1 - Early (trans-female: confusion like any born-male)
+    {'id':'preg_tf_con_s1_shared','group':'physical_tell','priority':11,'stats':['CON'],'dc':11,
+     'fires_if': lambda s,c: c['pregnancy_stage']==1,
+     'text_pass': "The belly is changing in ways the female body was supposed to handle. The sensation is still alien.",
+     'text_fail': "The body is doing something without asking. She is only watching it happen."},
+    # Stage 2 - Showing (trans-female: visible pregnancy on female frame)
+    {'id':'preg_tf_con_s2_shared','group':'physical_tell','priority':12,'stats':['CON'],'dc':12,
+     'fires_if': lambda s,c: c['pregnancy_stage']==2,
+     'text_pass': "The belly is growing on the female frame. The weight is becoming real. The body knows what to do.",
+     'text_fail': "The belly is growing and the body is leading. She is being dragged along."},
+    # Stage 3 - Late (trans-female: heavily pregnant on chosen female body)
+    {'id':'preg_tf_con_s3_shared','group':'physical_tell','priority':13,'stats':['CON'],'dc':13,
+     'fires_if': lambda s,c: c['pregnancy_stage']==3,
+     'text_pass': "Heavily pregnant in the female body she chose. The weight is total and it is right.",
+     'text_fail': "Heavily pregnant. The body is consuming her. Nothing prepared her for this."},
+],
+
+'INT': [
+    # Stage 1 - Early (trans-female: no framework, trying to understand)
+    {'id':'preg_tf_int_s1_shared','group':'mental_state','priority':11,'stats':['INT'],'dc':11,
+     'fires_if': lambda s,c: c['pregnancy_stage']==1 and c['int_mod']>=0,
+     'text_pass': "This is happening in the female body. The understanding is arriving but slowly.",
+     'text_fail': "The reality has no framework. The mind is still looking for how to think about it."},
+    # Stage 2 - Showing (trans-female: detailed narration of changes)
+    {'id':'preg_tf_int_s2_shared','group':'mental_state','priority':12,'stats':['INT'],'dc':12,
+     'fires_if': lambda s,c: c['pregnancy_stage']==2 and c['int_mod']>=1,
+     'text_pass': "She is tracking the changes. The detail is grounding her in the female experience.",
+     'text_fail': "The changes are overwhelming the narration. The detail is slipping away."},
+    # Stage 3 - Late (trans-female: stripped down to essence)
+    {'id':'preg_tf_int_s3_shared','group':'mental_state','priority':13,'stats':['INT'],'dc':13,
+     'fires_if': lambda s,c: c['pregnancy_stage']==3 and c['int_mod']>=1,
+     'text_pass': "The analysis has become simple. She knows what is happening. Everything else has fallen away.",
+     'text_fail': "The analysis has stopped. She is only watching the biology work without her."},
+],
+
+'WIS': [
+    # Stage 1 - Early (trans-female: reconciling femininity with pregnancy)
+    {'id':'preg_tf_wis_s1_shared','group':'mental_state','priority':11,'stats':['WIS'],'dc':10,
+     'fires_if': lambda s,c: c['pregnancy_stage']==1,
+     'text_pass': "The feminine identity is holding the reality. She is integrating what is happening.",
+     'text_fail': "What is happening is arriving before judgment can catch up."},
+    # Stage 2 - Showing (trans-female: acceptance of feminine biological path)
+    {'id':'preg_tf_wis_s2_shared','group':'mental_state','priority':12,'stats':['WIS'],'dc':11,
+     'fires_if': lambda s,c: c['pregnancy_stage']==2 and c['wis_mod']>=0,
+     'text_pass': "The belly is visible and she has accepted it. She is on the feminine path completely.",
+     'text_fail': "The belly is visible and the feminine identity is wavering."},
+    # Stage 3 - Late (trans-female: wisdom of the late feminine stage)
+    {'id':'preg_tf_wis_s3_shared','group':'mental_state','priority':13,'stats':['WIS'],'dc':12,
+     'fires_if': lambda s,c: c['pregnancy_stage']==3 and c['wis_mod']>=1,
+     'text_pass': "She is in the final stretch of the feminine experience. She knows what comes next.",
+     'text_fail': "The final stretch is harder than she understood. The body is making demands."},
+],
+
+'CHA': [
+    # Stage 1 - Early (trans-female: not yet showing)
+    {'id':'preg_tf_cha_s1_shared','group':'physical_tell','priority':11,'stats':['CHA'],'dc':10,
+     'fires_if': lambda s,c: c['pregnancy_stage']==1 and c['cha_mod']>=0,
+     'text_pass': "The change is not visible yet. The feminine presence is still intact.",
+     'text_fail': "Something in the presence is shifting. The secret is becoming harder to keep."},
+    # Stage 2 - Showing (trans-female: visibly pregnant, undeniably feminine)
+    {'id':'preg_tf_cha_s2_shared','group':'physical_tell','priority':12,'stats':['CHA'],'dc':12,
+     'fires_if': lambda s,c: c['pregnancy_stage']==2 and c['cha_mod']>=0,
+     'text_pass': "The belly is visible. The glow is there. She reads as a pregnant woman. She owns it.",
+     'text_fail': "The belly gives it all away. The pregnancy is written on her completely."},
+    # Stage 3 - Late (trans-female: heavily pregnant, affirmed in womanhood)
+    {'id':'preg_tf_cha_s3_shared','group':'physical_tell','priority':13,'stats':['CHA'],'dc':13,
+     'fires_if': lambda s,c: c['pregnancy_stage']==3 and c['cha_mod']>=0,
+     'text_pass': "Heavily pregnant. The feminine presence is undeniable. She has become the woman completely.",
+     'text_fail': "Heavily pregnant. The body is the only story being told. The woman is only the pregnancy now."},
+],
+
+'DOM': [
+    # Stage 1 - Early (trans-female: feminine control meeting biological process)
+    {'id':'preg_tf_dom_s1_shared','group':'dom_response','priority':11,'stats':['DOM'],'dc':11,
+     'fires_if': lambda s,c: c['pregnancy_stage']==1 and c['dom_mod']>=1,
+     'text_pass': "The feminine identity is holding the control. The body is moving but she is directing it.",
+     'text_fail': "The control is wavering. The biological process is taking something away."},
+    # Stage 2 - Showing (trans-female: power vs biological reality)
+    {'id':'preg_tf_dom_s2_shared','group':'dom_response','priority':12,'stats':['DOM'],'dc':12,
+     'fires_if': lambda s,c: c['pregnancy_stage']==2 and c['dom_mod']>=1,
+     'text_pass': "The feminine power is holding ground. The belly is real but it does not rule her.",
+     'text_fail': "The power is being consumed. The belly is becoming everything."},
+    # Stage 3 - Late (trans-female: surrendered to feminine biological destiny)
+    {'id':'preg_tf_dom_s3_shared','group':'dom_response','priority':13,'stats':['DOM'],'dc':13,
+     'fires_if': lambda s,c: c['pregnancy_stage']==3 and c['dom_mod']>=1,
+     'text_pass': "The feminine power has transformed. She is strongest in the surrender now.",
+     'text_fail': "The power has surrendered completely. The biology is absolute."},
+],
+
+'SUB': [
+    # Stage 1 - Early (trans-female: forced surrender to unfamiliar female process)
+    {'id':'preg_tf_sub_s1_shared','group':'sub_response','priority':11,'stats':['SUB'],'dc':10,
+     'fires_if': lambda s,c: c['pregnancy_stage']==1 and c['sub_mod']>=0,
+     'text_pass': "The body is opening to the feminine biological process. The submission is arriving with the anatomy.",
+     'text_fail': "The surrender has already begun. The body is yielding before she permits it."},
+    # Stage 2 - Showing (trans-female: learning to surrender as a woman)
+    {'id':'preg_tf_sub_s2_shared','group':'sub_response','priority':12,'stats':['SUB'],'dc':11,
+     'fires_if': lambda s,c: c['pregnancy_stage']==2 and c['sub_mod']>=0,
+     'text_pass': "The yielding is becoming easier. The feminine body is teaching her how to surrender.",
+     'text_fail': "The surrender is complete. The feminine body has everything now."},
+    # Stage 3 - Late (trans-female: complete submission to feminine biology)
+    {'id':'preg_tf_sub_s3_shared','group':'sub_response','priority':13,'stats':['SUB'],'dc':12,
+     'fires_if': lambda s,c: c['pregnancy_stage']==3 and c['sub_mod']>=0,
+     'text_pass': "The yielding is total. The feminine biology is in control and she has stopped fighting it.",
+     'text_fail': "The body has everything. The will to resist never existed. The carrying is everything."},
+],
+
+}, # end trans_female pregnancy
+
+} # end _T_PREGNANCY
+
+# ─────────────────────────────────────────────────────────────────────────────
+# _T_TRANSFORMATION_BLUE   blue-pill FTM body change
+# Female → male.  Female=loss, trans_male=fulfillment, intersex=change.
+# ─────────────────────────────────────────────────────────────────────────────
+
+_T_TRANSFORMATION_BLUE = {
+
+'male':        {'CON':[],'INT':[],'WIS':[],'CHA':[],'DOM':[],'SUB':[]},
+'trans_female': {'CON':[],'INT':[],'WIS':[],'CHA':[],'DOM':[],'SUB':[]},
+
+'female': {
+'CON': [
+    {'id':'tbf_con_late','group':'transformation','priority':10,'stats':['CON'],'dc':12,
+     'fires_if': lambda s,c: c['transforming'] and c['pill']=='blue' and c['tier']>=11,
+     'text_pass': "The transformation is nearly complete. The body is becoming something unfamiliar. She is still her.",
+     'text_fail': "The transformation has the body. Whatever she was physically is not what this is becoming."},
+],
+'INT': [
+    {'id':'tbf_int_mid','group':'transformation','priority':7,'stats':['INT'],'dc':12,
+     'fires_if': lambda s,c: c['transforming'] and c['pill']=='blue' and 5<=c['tier']<=10 and c['int_mod']>=1,
+     'text_pass': "She is mapping the changes. The anatomy is shifting. Clinical distance costs something to maintain.",
+     'text_fail': "The clinical distance closed. The changes are personal now."},
+    {'id':'tbf_int_high','group':'transformation','priority':9,'stats':['INT'],'dc':13,
+     'fires_if': lambda s,c: c['transforming'] and c['pill']=='blue' and c['tier']>=11 and c['int_mod']>=1,
+     'text_pass': "Nearly complete. She is still narrating the shift. The narration is almost finished.",
+     'text_fail':  "The narration has stopped. She is just inside the becoming."},
+],
+'WIS': [
+    {'id':'tbf_wis_mid','group':'transformation','priority':7,'stats':['WIS'],'dc':12,
+     'fires_if': lambda s,c: c['transforming'] and c['pill']=='blue' and 5<=c['tier']<=9 and c['wis_mod']>=1,
+     'text_pass': "She knows what the pill is doing. She is choosing what to do with that knowledge.",
+     'text_fail': "She knows what the pill is doing. The knowing has not given her control over the body's response."},
+    {'id':'tbf_wis_late','group':'transformation','priority':8,'stats':['WIS'],'dc':12,
+     'fires_if': lambda s,c: c['transforming'] and c['pill']=='blue' and c['tier']>=10 and c['wis_mod']>=1,
+     'text_pass': "She knows what is happening. The acceptance of it is real.",
+     'text_fail':  "She knows. The acceptance is not by choice anymore."},
+],
+'CHA': [
+    {'id':'si_cha_mid','group':'physical_tell','priority':5,'stats':['CHA'],'dc':12,
+     'fires_if': lambda s,c: 'submissive' in c['effects'] and c['tier']>=6 and c['cha_mod']>=2,
+     'text_pass': "The compliance is visible. The willingness shows in her presence.",
+     'text_fail': "The submission is obvious. Everyone can see how much the reward is affecting her."},
+],
+'DOM': [
+    {'id':'tbf_dom_early','group':'transformation','priority':8,'once':True,'stats':['DOM'],'dc':11,
+     'fires_if': lambda s,c: c['transforming'] and c['pill']=='blue' and c['tier']<=4 and c['dom_mod']>=1,
+     'text_pass': "The body is changing. Her composure has noted it. Neither has decided what to do with that.",
+     'text_fail': "The body changed faster than expected. The composure response arrived late."},
+    {'id':'tbf_dom_mid','group':'transformation','priority':9,'stats':['DOM'],'dc':13,
+     'fires_if': lambda s,c: c['transforming'] and c['pill']=='blue' and 5<=c['tier']<=10 and c['dom_mod']>=2,
+     'text_pass': "The transformation is proceeding. Her resistance is real and costing her.",
+     'text_fail': "The resistance cracked. The body accepted a change the composure did not authorize."},
+],
+'SUB': [
+    {'id':'tbf_sub_early','group':'transformation','priority':7,'once':True,'stats':['SUB'],'dc':10,
+     'fires_if': lambda s,c: c['transforming'] and c['pill']=='blue' and c['tier']<=4 and c['sub_mod']>=1,
+     'text_pass': "The body is changing and something in the change is interesting rather than alarming.",
+     'text_fail': "The body changed and the response was not resistance."},
+    {'id':'tbf_sub_late','group':'transformation','priority':8,'stats':['SUB'],'dc':10,
+     'fires_if': lambda s,c: c['transforming'] and c['pill']=='blue' and c['tier']>=11 and c['sub_mod']>=1,
+     'text_pass': "Nearly done. The yield has integrated the shift. This is what her body is.",
+     'text_fail': "Nearly complete and she has dissolved entirely into the shift."},
+],
+}, # end female blue transformation
+
+'trans_male': {
+'CON': [
+    {'id':'tbtm_con_late','group':'transformation','priority':10,'stats':['CON'],'dc':11,
+     'fires_if': lambda s,c: c['transforming'] and c['pill']=='blue' and c['tier']>=11,
+     'text_pass': "Nearly complete. The body is becoming what it was always supposed to be. He is still himself. More himself.",
+     'text_fail': "The transformation has the body entirely. He is inside the becoming."},
+],
+'INT': [
+    {'id':'tbtm_int_mid','group':'transformation','priority':8,'stats':['INT'],'dc':11,
+     'fires_if': lambda s,c: c['transforming'] and c['pill']=='blue' and 5<=c['tier']<=10,
+     'text_pass': "The transformation is proceeding. He is mapping it, noting each change as arrival.",
+     'text_fail': "The transformation is moving faster than the mapping. He has stopped distinguishing each change."},
+    {'id':'tbtm_int_high','group':'transformation','priority':9,'stats':['INT'],'dc':12,
+     'fires_if': lambda s,c: c['transforming'] and c['pill']=='blue' and c['tier']>=11 and c['int_mod']>=1,
+     'text_pass': "Nearly complete. He is still narrating the arrival. The narration is almost complete.",
+     'text_fail':  "The narration has stopped. He is just inside the becoming now."},
+],
+'WIS': [
+    {'id':'tbtm_wis_mid','group':'transformation','priority':7,'stats':['WIS'],'dc':11,
+     'fires_if': lambda s,c: c['transforming'] and c['pill']=='blue' and 4<=c['tier']<=9 and c['wis_mod']>=1,
+     'text_pass': "He knows what the pill is doing. He is letting it. Deliberately.",
+     'text_fail': "He knows. He stopped making deliberate choices about it. The body knows what it needs."},
+    {'id':'tbtm_wis_late','group':'transformation','priority':8,'stats':['WIS'],'dc':11,
+     'fires_if': lambda s,c: c['transforming'] and c['pill']=='blue' and c['tier']>=10 and c['wis_mod']>=1,
+     'text_pass': "He knows exactly what is happening. He chose this arrival.",
+     'text_fail':  "He chose the pill. The pill is choosing for him now."},
+],
+'CHA': [
+    {'id':'si_cha_mid','group':'physical_tell','priority':5,'stats':['CHA'],'dc':12,
+     'fires_if': lambda s,c: 'submissive' in c['effects'] and c['tier']>=6 and c['cha_mod']>=2,
+     'text_pass': "The compliance is visible. The willingness shows in her presence.",
+     'text_fail': "The submission is obvious. Everyone can see how much the reward is affecting her."},
+],
+'DOM': [
+    {'id':'tbtm_dom_mid','group':'transformation','priority':6,'stats':['DOM'],'dc':11,
+     'fires_if': lambda s,c: c['transforming'] and c['pill']=='blue' and 5<=c['tier']<=10 and c['dom_mod']>=1,
+     'text_pass': "The transformation is proceeding. His sense of himself is not threatened by it.",
+     'text_fail': "The transformation got through the self-possession. He is in it rather than directing it."},
+    {'id':'tbtm_dom_late','group':'transformation','priority':7,'stats':['DOM'],'dc':10,
+     'fires_if': lambda s,c: c['transforming'] and c['pill']=='blue' and c['tier']>=11 and c['dom_mod']>=1,
+     'text_pass': "Nearly complete. His sense of self is intact through the arrival.",
+     'text_fail':  "Nearly complete and he has dissolved into it."},
+],
+'SUB': [
+    {'id':'tbtm_sub_early','group':'transformation','priority':8,'once':True,'stats':['SUB'],'dc':10,
+     'fires_if': lambda s,c: c['transforming'] and c['pill']=='blue' and c['tier']<=4,
+     'text_pass': "The body is changing. This is what he has been waiting for. He is present with all of it.",
+     'text_fail': "The body is changing faster than he can track. He is in it before he is ready."},
+    {'id':'tbtm_sub_late','group':'transformation','priority':9,'stats':['SUB'],'dc':10,
+     'fires_if': lambda s,c: c['transforming'] and c['pill']=='blue' and c['tier']>=11,
+     'text_pass': "Nearly done. The body is what he always knew it should be. Fulfillment.",
+     'text_fail': "The transformation is complete and he is entirely inside the completion of it."},
+],
+}, # end trans_male blue transformation
+
+'intersex': {
+'CON': [
+    {'id':'tbi_con_mid','group':'transformation','priority':8,'stats':['CON'],'dc':11,
+     'fires_if': lambda s,c: c['transforming'] and c['pill']=='blue' and 5<=c['tier']<=8,
+     'text_pass': "The body is emphasizing the male side. The shift feels familiar.",
+     'text_fail':  "The shift is more intense than expected. The body is demanding more than she anticipated."},
+    {'id':'tbi_con_late','group':'transformation','priority':10,'stats':['CON'],'dc':12,
+     'fires_if': lambda s,c: c['transforming'] and c['pill']=='blue' and c['tier']>=9,
+     'text_pass': "The transformation is completing. The body is shifting toward the male side.",
+     'text_fail': "The transformation is doing something she is still processing."},
+],
+'INT': [
+    {'id':'tbi_int_mid','group':'transformation','priority':7,'stats':['INT'],'dc':11,
+     'fires_if': lambda s,c: c['transforming'] and c['pill']=='blue' and c['tier']>=5,
+     'text_pass': "The transformation is completing. She has mapped it. The body is shifting emphasis.",
+     'text_fail': "The transformation is moving faster than the mapping."},
+    {'id':'tbi_int_high','group':'transformation','priority':9,'stats':['INT'],'dc':12,
+     'fires_if': lambda s,c: c['transforming'] and c['pill']=='blue' and c['tier']>=11 and c['int_mod']>=1,
+     'text_pass': "Nearly complete. She still understands. The shift is integrated into the whole.",
+     'text_fail':  "Nearly complete and she has stopped trying to make sense of it."},
+],
+'WIS': [
+    {'id':'tbi_wis_early','group':'transformation','priority':7,'once':True,'stats':['WIS'],'dc':10,
+     'fires_if': lambda s,c: c['transforming'] and c['pill']=='blue' and c['tier']<=4,
+     'text_pass': "The body is changing emphasis. She is orienting to what that means.",
+     'text_fail': "Something is shifting in the anatomy. She has not finished deciding how she feels about that."},
+    {'id':'tbi_wis_mid','group':'transformation','priority':7,'stats':['WIS'],'dc':11,
+     'fires_if': lambda s,c: c['transforming'] and c['pill']=='blue' and 5<=c['tier']<=9 and c['wis_mod']>=1,
+     'text_pass': "She knows what is shifting. The shift makes sense in the context of what was already there.",
+     'text_fail':  "She knows what is shifting. The knowing has not resolved the strangeness of it."},
+],
+'CHA': [
+    {'id':'si_cha_mid','group':'physical_tell','priority':5,'stats':['CHA'],'dc':12,
+     'fires_if': lambda s,c: 'submissive' in c['effects'] and c['tier']>=6 and c['cha_mod']>=2,
+     'text_pass': "The compliance is visible. The willingness shows in her presence.",
+     'text_fail': "The submission is obvious. Everyone can see how much the reward is affecting her."},
+],
+'DOM': [
+    {'id':'tbi_dom_mid','group':'transformation','priority':6,'stats':['DOM'],'dc':11,
+     'fires_if': lambda s,c: c['transforming'] and c['pill']=='blue' and 5<=c['tier']<=10 and c['dom_mod']>=1,
+     'text_pass': "The body is shifting. Her sense of herself has noted it and not been threatened.",
+     'text_fail': "The body shifted and her sense of herself is still orienting."},
+    {'id':'tbi_dom_late','group':'transformation','priority':7,'stats':['DOM'],'dc':10,
+     'fires_if': lambda s,c: c['transforming'] and c['pill']=='blue' and c['tier']>=11 and c['dom_mod']>=1,
+     'text_pass': "Nearly complete. Her sense of self encompasses the shift.",
+     'text_fail':  "Nearly complete and the shift has consumed her attention."},
+],
+'SUB': [
+    {'id':'tbi_sub_mid','group':'transformation','priority':6,'stats':['SUB'],'dc':10,
+     'fires_if': lambda s,c: c['transforming'] and c['pill']=='blue' and 5<=c['tier']<=10 and c['sub_mod']>=1,
+     'text_pass': "The yield instinct has accepted the shift.",
+     'text_fail': "The yield instinct accepted the shift before the rest of her caught up."},
+    {'id':'tbi_sub_late','group':'transformation','priority':7,'stats':['SUB'],'dc':10,
+     'fires_if': lambda s,c: c['transforming'] and c['pill']=='blue' and c['tier']>=11 and c['sub_mod']>=1,
+     'text_pass': "Nearly complete. The yield has integrated the shift.",
+     'text_fail': "Nearly complete and she has dissolved into the shift."},
+],
+}, # end intersex blue transformation
+
+} # end _T_TRANSFORMATION_BLUE
+
+# ─────────────────────────────────────────────────────────────────────────────
+# _T_TRANSFORMATION_PURPLE   purple-pill: female body + penis, no vagina
+# Contradictory anatomy.  Unique framing per sex type.
+# ─────────────────────────────────────────────────────────────────────────────
+
+_T_TRANSFORMATION_PURPLE = {
+
+'male': {
+'CON': [
+    {'id':'tpm_con_late','group':'transformation','priority':10,'stats':['CON'],'dc':12,
+     'fires_if': lambda s,c: c['transforming'] and c['pill']=='purple' and c['tier']>=9,
+     'text_pass': "The body is becoming female but the cock remains. The contradiction is physical. He is processing.",
+     'text_fail': "The transformation produced something the body has no framework for. Female form, male anatomy retained."},
+],
+'INT': [
+    {'id':'tpm_int_mid','group':'transformation','priority':7,'stats':['INT'],'dc':12,
+     'fires_if': lambda s,c: c['transforming'] and c['pill']=='purple' and 5<=c['tier']<=10,
+     'text_pass': "He is mapping the contradictory anatomy. Female body, penis retained. The framework is strained.",
+     'text_fail': "The mapping failed. The anatomy makes no consistent sense and the analysis cannot hold it."},
+    {'id':'tpm_int_high','group':'transformation','priority':9,'stats':['INT'],'dc':13,
+     'fires_if': lambda s,c: c['transforming'] and c['pill']=='purple' and c['tier']>=11 and c['int_mod']>=1,
+     'text_pass': "Nearly complete. He is still holding both contradictions. The framework adapted.",
+     'text_fail': "Nearly complete and the contradictions have dissolved the framework."},
+],
+'WIS': [
+    {'id':'tpm_wis_mid','group':'transformation','priority':7,'stats':['WIS'],'dc':12,
+     'fires_if': lambda s,c: c['transforming'] and c['pill']=='purple' and 5<=c['tier']<=10 and c['wis_mod']>=1,
+     'text_pass': "He knows what the pill did. Both things are true. He is finding a way to hold both.",
+     'text_fail': "He knows what the pill did. The knowing does not resolve the contradiction."},
+    {'id':'tpm_wis_late','group':'transformation','priority':8,'stats':['WIS'],'dc':12,
+     'fires_if': lambda s,c: c['transforming'] and c['pill']=='purple' and c['tier']>=10 and c['wis_mod']>=1,
+     'text_pass': "He knows. Both things are true and he has accepted both.",
+     'text_fail': "He knows. The acceptance has left him inside the contradiction."},
+],
+'CHA': [
+    {'id':'si_cha_mid','group':'physical_tell','priority':5,'stats':['CHA'],'dc':12,
+     'fires_if': lambda s,c: 'submissive' in c['effects'] and c['tier']>=6 and c['cha_mod']>=2,
+     'text_pass': "The compliance is visible. The willingness shows in her presence.",
+     'text_fail': "The submission is obvious. Everyone can see how much the reward is affecting her."},
+],
+'DOM': [
+    {'id':'tpm_dom_mid','group':'transformation','priority':8,'stats':['DOM'],'dc':13,
+     'fires_if': lambda s,c: c['transforming'] and c['pill']=='purple' and 5<=c['tier']<=10 and c['dom_mod']>=1,
+     'text_pass': "The pride is adapting to the new form. Female body with the anatomy he started with. Complicated.",
+     'text_fail': "The pride has no framework for this body. Neither loss nor gain. Just different."},
+],
+'SUB': [
+    {'id':'tpm_sub_mid','group':'transformation','priority':7,'stats':['SUB'],'dc':10,
+     'fires_if': lambda s,c: c['transforming'] and c['pill']=='purple' and 5<=c['tier']<=10 and c['sub_mod']>=1,
+     'text_pass': "The yield instinct is adapting to dual anatomy. Both sides responsive. New territory.",
+     'text_fail': "The yield instinct accepted both sides before he could decide how to feel about that."},
+    {'id':'tpm_sub_late','group':'transformation','priority':8,'stats':['SUB'],'dc':10,
+     'fires_if': lambda s,c: c['transforming'] and c['pill']=='purple' and c['tier']>=11 and c['sub_mod']>=1,
+     'text_pass': "Nearly complete. The yield encompasses both. This is what responsiveness looks like.",
+     'text_fail': "Nearly complete and he is entirely inside the dual responsiveness."},
+],
+}, # end male purple
+
+'female': {
+'CON': [
+    {'id':'tpf_con_late','group':'transformation','priority':10,'stats':['CON'],'dc':12,
+     'fires_if': lambda s,c: c['transforming'] and c['pill']=='purple' and c['tier']>=9,
+     'text_pass': "The body gained something and lost something. Female form but the vagina is gone. A cock in its place. She is processing.",
+     'text_fail': "The transformation replaced the vagina with a cock. The body has no framework for what it is now."},
+],
+'INT': [
+    {'id':'tpf_int_mid','group':'transformation','priority':7,'stats':['INT'],'dc':12,
+     'fires_if': lambda s,c: c['transforming'] and c['pill']=='purple' and 5<=c['tier']<=10,
+     'text_pass': "She is mapping the changes. Female body, penis, no vagina. The framework is strained but holding.",
+     'text_fail': "The anatomy makes no sense to the analysis. She does not have a framework for this body."},
+    {'id':'tpf_int_high','group':'transformation','priority':9,'stats':['INT'],'dc':13,
+     'fires_if': lambda s,c: c['transforming'] and c['pill']=='purple' and c['tier']>=11 and c['int_mod']>=1,
+     'text_pass': "Nearly complete. She is still holding the contradiction. The framework adapted.",
+     'text_fail': "Nearly complete and the contradiction has dissolved the framework."},
+],
+'WIS': [
+    {'id':'tpf_wis_mid','group':'transformation','priority':7,'stats':['WIS'],'dc':12,
+     'fires_if': lambda s,c: c['transforming'] and c['pill']=='purple' and 5<=c['tier']<=10 and c['wis_mod']>=1,
+     'text_pass': "She knows what the pill did. The body is contradictory. She is finding a way to hold both.",
+     'text_fail': "She knows what the pill did. The knowing does not resolve the contradiction."},
+    {'id':'tpf_wis_late','group':'transformation','priority':8,'stats':['WIS'],'dc':12,
+     'fires_if': lambda s,c: c['transforming'] and c['pill']=='purple' and c['tier']>=10 and c['wis_mod']>=1,
+     'text_pass': "She knows. Both things are true and she has accepted both.",
+     'text_fail': "She knows. The acceptance has left her inside the contradiction."},
+],
+'CHA': [
+    {'id':'si_cha_mid','group':'physical_tell','priority':5,'stats':['CHA'],'dc':12,
+     'fires_if': lambda s,c: 'submissive' in c['effects'] and c['tier']>=6 and c['cha_mod']>=2,
+     'text_pass': "The compliance is visible. The willingness shows in her presence.",
+     'text_fail': "The submission is obvious. Everyone can see how much the reward is affecting her."},
+],
+'DOM': [
+    {'id':'tpf_dom_mid','group':'transformation','priority':8,'stats':['DOM'],'dc':13,
+     'fires_if': lambda s,c: c['transforming'] and c['pill']=='purple' and 5<=c['tier']<=10 and c['dom_mod']>=1,
+     'text_pass': "Her composure is adapting. Still her body. Just configured differently.",
+     'text_fail': "The composure is struggling with the contradiction. This body does not match any self-image."},
+    {'id':'tpf_dom_late','group':'transformation','priority':9,'stats':['DOM'],'dc':13,
+     'fires_if': lambda s,c: c['transforming'] and c['pill']=='purple' and c['tier']>=11 and c['dom_mod']>=1,
+     'text_pass': "Nearly complete. Her composure encompasses the contradiction.",
+     'text_fail': "Nearly complete and she has dissolved into the contradiction."},
+],
+'SUB': [
+    {'id':'tpf_sub_mid','group':'transformation','priority':7,'stats':['SUB'],'dc':10,
+     'fires_if': lambda s,c: c['transforming'] and c['pill']=='purple' and 5<=c['tier']<=10 and c['sub_mod']>=1,
+     'text_pass': "The yield instinct is adapting. New anatomy, new sensations. Interesting rather than alarming.",
+     'text_fail': "The yield instinct accepted the new anatomy before she decided how she felt."},
+    {'id':'tpf_sub_late','group':'transformation','priority':8,'stats':['SUB'],'dc':10,
+     'fires_if': lambda s,c: c['transforming'] and c['pill']=='purple' and c['tier']>=11 and c['sub_mod']>=1,
+     'text_pass': "Nearly complete. The yield encompasses the contradiction.",
+     'text_fail': "Nearly complete and she is entirely inside the dual anatomy."},
+],
+}, # end female purple
+
+'trans_female': {
+'CON': [
+    {'id':'tptf_con_late','group':'transformation','priority':10,'stats':['CON'],'dc':11,
+     'fires_if': lambda s,c: c['transforming'] and c['pill']=='purple' and c['tier']>=9,
+     'text_pass': "Female body arrived. The cock stayed. Both things are true and neither is wrong.",
+     'text_fail': "The transformation gave the body she wanted but kept the anatomy. She is processing both."},
+],
+'INT': [
+    {'id':'tptf_int_mid','group':'transformation','priority':7,'stats':['INT'],'dc':11,
+     'fires_if': lambda s,c: c['transforming'] and c['pill']=='purple' and 5<=c['tier']<=10,
+     'text_pass': "The female form arrived. The cock remained. She can hold both. The framework adapts.",
+     'text_fail': "The framework is strained. The body she wanted but not exactly. Close enough to be complicated."},
+    {'id':'tptf_int_high','group':'transformation','priority':9,'stats':['INT'],'dc':12,
+     'fires_if': lambda s,c: c['transforming'] and c['pill']=='purple' and c['tier']>=11 and c['int_mod']>=1,
+     'text_pass': "Nearly complete. She still holds both. The framework adapted to the contradiction.",
+     'text_fail': "Nearly complete and the contradiction has dissolved the framework."},
+],
+'WIS': [
+    {'id':'tptf_wis_mid','group':'transformation','priority':7,'stats':['WIS'],'dc':11,
+     'fires_if': lambda s,c: c['transforming'] and c['pill']=='purple' and 5<=c['tier']<=10 and c['wis_mod']>=1,
+     'text_pass': "She knows what the pill did. She got the body and kept the anatomy. Both are true.",
+     'text_fail': "She knows. The body is not exactly what she wanted but it is hers."},
+    {'id':'tptf_wis_late','group':'transformation','priority':8,'stats':['WIS'],'dc':11,
+     'fires_if': lambda s,c: c['transforming'] and c['pill']=='purple' and c['tier']>=10 and c['wis_mod']>=1,
+     'text_pass': "She knows. Both things are true and neither is wrong to her.",
+     'text_fail': "She knows. The acceptance has integrated the contradiction."},
+],
+'CHA': [
+    {'id':'si_cha_mid','group':'physical_tell','priority':5,'stats':['CHA'],'dc':12,
+     'fires_if': lambda s,c: 'submissive' in c['effects'] and c['tier']>=6 and c['cha_mod']>=2,
+     'text_pass': "The compliance is visible. The willingness shows in her presence.",
+     'text_fail': "The submission is obvious. Everyone can see how much the reward is affecting her."},
+],
+'DOM': [
+    {'id':'tptf_dom_mid','group':'transformation','priority':7,'stats':['DOM'],'dc':11,
+     'fires_if': lambda s,c: c['transforming'] and c['pill']=='purple' and 5<=c['tier']<=10 and c['dom_mod']>=1,
+     'text_pass': "Her sense of self is adapting. The body got what it wanted even if the anatomy is unexpected.",
+     'text_fail': "Her sense of self is struggling with the contradiction."},
+    {'id':'tptf_dom_late','group':'transformation','priority':8,'stats':['DOM'],'dc':11,
+     'fires_if': lambda s,c: c['transforming'] and c['pill']=='purple' and c['tier']>=11 and c['dom_mod']>=1,
+     'text_pass': "Nearly complete. Her sense of self encompasses both sides.",
+     'text_fail': "Nearly complete and she is inside the contradiction."},
+    {'id':'sgtf_dom_pre','group':'dom_response','priority':7,'stats':['DOM'],'dc':13,
+     'fires_if': lambda s,c: 'surrogate' in c['effects'] and not c['surrogate_pregnant'] and c['dom_mod']>=1,
+     'text_pass': "Her self-image is fighting the compulsion. The breeding drive in anatomy that was not hers before.",
+     'text_fail': "The self-image lost to the compulsion. She will accept insemination."},
+],
+'SUB': [
+    {'id':'tptf_sub_mid','group':'transformation','priority':7,'stats':['SUB'],'dc':10,
+     'fires_if': lambda s,c: c['transforming'] and c['pill']=='purple' and 5<=c['tier']<=10,
+     'text_pass': "The yield instinct accepts both sides. The body is hers even if it is not exactly what she expected.",
+     'text_fail': "The yield instinct accepted everything before she could sort out the complicated feelings."},
+    {'id':'tptf_sub_late','group':'transformation','priority':8,'stats':['SUB'],'dc':10,
+     'fires_if': lambda s,c: c['transforming'] and c['pill']=='purple' and c['tier']>=11 and c['sub_mod']>=1,
+     'text_pass': "Nearly complete. The yield encompasses both sides. This is fulfillment.",
+     'text_fail': "Nearly complete and she is entirely inside both responses."},
+],
+}, # end trans_female purple
+
+'trans_male': {
+'CON': [
+    {'id':'tptm_con_late','group':'transformation','priority':10,'stats':['CON'],'dc':12,
+     'fires_if': lambda s,c: c['transforming'] and c['pill']=='purple' and c['tier']>=9,
+     'text_pass': "The body feminized but the cock appeared. Contradictory to the identity he built. He is processing.",
+     'text_fail': "The transformation moved in the wrong direction with an unexpected addition. The body is confusing."},
+],
+'INT': [
+    {'id':'tptm_int_mid','group':'transformation','priority':7,'stats':['INT'],'dc':12,
+     'fires_if': lambda s,c: c['transforming'] and c['pill']=='purple' and 5<=c['tier']<=10,
+     'text_pass': "He is mapping the contradictions. Female form, male anatomy, male identity. Strained but holding.",
+     'text_fail': "The mapping failed. Too many contradictions for the framework."},
+    {'id':'tptm_int_high','group':'transformation','priority':9,'stats':['INT'],'dc':13,
+     'fires_if': lambda s,c: c['transforming'] and c['pill']=='purple' and c['tier']>=11 and c['int_mod']>=1,
+     'text_pass': "Nearly complete. He still holds the contradictions. The framework adapted.",
+     'text_fail': "Nearly complete and the contradictions have dissolved the framework."},
+],
+'WIS': [
+    {'id':'tptm_wis_mid','group':'transformation','priority':7,'stats':['WIS'],'dc':12,
+     'fires_if': lambda s,c: c['transforming'] and c['pill']=='purple' and 5<=c['tier']<=10 and c['wis_mod']>=1,
+     'text_pass': "He knows what the pill did. The body moved the wrong way but gave him what he already had. Complicated.",
+     'text_fail': "He knows. The contradictions have not resolved."},
+    {'id':'tptm_wis_late','group':'transformation','priority':8,'stats':['WIS'],'dc':12,
+     'fires_if': lambda s,c: c['transforming'] and c['pill']=='purple' and c['tier']>=10 and c['wis_mod']>=1,
+     'text_pass': "He knows. The contradictions are real and he has accepted them.",
+     'text_fail': "He knows. The acceptance has left him inside the contradiction."},
+],
+'CHA': [
+    {'id':'si_cha_mid','group':'physical_tell','priority':5,'stats':['CHA'],'dc':12,
+     'fires_if': lambda s,c: 'submissive' in c['effects'] and c['tier']>=6 and c['cha_mod']>=2,
+     'text_pass': "The compliance is visible. The willingness shows in her presence.",
+     'text_fail': "The submission is obvious. Everyone can see how much the reward is affecting her."},
+],
+'DOM': [
+    {'id':'tptm_dom_mid','group':'transformation','priority':8,'stats':['DOM'],'dc':13,
+     'fires_if': lambda s,c: c['transforming'] and c['pill']=='purple' and 5<=c['tier']<=10 and c['dom_mod']>=1,
+     'text_pass': "The pride is adapting. The cock is something to work with even in the wrong body.",
+     'text_fail': "The pride has no framework. The body contradicts the identity in every direction."},
+    {'id':'tptm_dom_late','group':'transformation','priority':9,'stats':['DOM'],'dc':13,
+     'fires_if': lambda s,c: c['transforming'] and c['pill']=='purple' and c['tier']>=11 and c['dom_mod']>=1,
+     'text_pass': "Nearly complete. The pride encompasses the contradiction.",
+     'text_fail': "Nearly complete and he is entirely inside the contradiction."},
+],
+'SUB': [
+    {'id':'tptm_sub_mid','group':'transformation','priority':7,'stats':['SUB'],'dc':10,
+     'fires_if': lambda s,c: c['transforming'] and c['pill']=='purple' and 5<=c['tier']<=10 and c['sub_mod']>=1,
+     'text_pass': "The yield instinct is adapting to the contradiction. The cock remains. New framework.",
+     'text_fail': "The yield instinct accepted the contradiction before he sorted the feelings."},
+    {'id':'tptm_sub_late','group':'transformation','priority':8,'stats':['SUB'],'dc':10,
+     'fires_if': lambda s,c: c['transforming'] and c['pill']=='purple' and c['tier']>=11 and c['sub_mod']>=1,
+     'text_pass': "Nearly complete. The yield encompasses both sides. This is what works.",
+     'text_fail': "Nearly complete and he is entirely inside both responses."},
+],
+}, # end trans_male purple
+
+'intersex': {
+'CON': [
+    {'id':'tpi_con_late','group':'transformation','priority':10,'stats':['CON'],'dc':11,
+     'fires_if': lambda s,c: c['transforming'] and c['pill']=='purple' and c['tier']>=9,
+     'text_pass': "The body reinforced what she already was. Female with a cock. More of the same. Familiar.",
+     'text_fail': "The transformation amplified both sides. More female, more present. She is inside the intensification."},
+],
+'INT': [
+    {'id':'tpi_int_mid','group':'transformation','priority':7,'stats':['INT'],'dc':10,
+     'fires_if': lambda s,c: c['transforming'] and c['pill']=='purple' and 5<=c['tier']<=10,
+     'text_pass': "The transformation reinforced what was already there. She has the framework. This body makes sense to her.",
+     'text_fail': "Even with the framework the intensification caught her off guard."},
+    {'id':'tpi_int_high','group':'transformation','priority':9,'stats':['INT'],'dc':11,
+     'fires_if': lambda s,c: c['transforming'] and c['pill']=='purple' and c['tier']>=11 and c['int_mod']>=1,
+     'text_pass': "Nearly complete. She still understands. The reinforcement is integrated into what was already there.",
+     'text_fail': "Nearly complete and she has stopped trying to make sense of the intensification."},
+],
+'WIS': [
+    {'id':'tpi_wis_mid','group':'transformation','priority':7,'stats':['WIS'],'dc':10,
+     'fires_if': lambda s,c: c['transforming'] and c['pill']=='purple' and 5<=c['tier']<=10 and c['wis_mod']>=1,
+     'text_pass': "She knows what the pill did. It reinforced what was already there. Both sides amplified.",
+     'text_fail': "She knows. The intensification is more than the knowing can hold."},
+    {'id':'tpi_wis_late','group':'transformation','priority':8,'stats':['WIS'],'dc':10,
+     'fires_if': lambda s,c: c['transforming'] and c['pill']=='purple' and c['tier']>=10 and c['wis_mod']>=1,
+     'text_pass': "She knows. The reinforcement is of what was already true.",
+     'text_fail': "She knows. The intensification has overrun the knowing."},
+],
+'CHA': [
+    {'id':'si_cha_mid','group':'physical_tell','priority':5,'stats':['CHA'],'dc':12,
+     'fires_if': lambda s,c: 'submissive' in c['effects'] and c['tier']>=6 and c['cha_mod']>=2,
+     'text_pass': "The compliance is visible. The willingness shows in her presence.",
+     'text_fail': "The submission is obvious. Everyone can see how much the reward is affecting her."},
+],
+'DOM': [
+    {'id':'tpi_dom_mid','group':'transformation','priority':6,'stats':['DOM'],'dc':10,
+     'fires_if': lambda s,c: c['transforming'] and c['pill']=='purple' and 5<=c['tier']<=10 and c['dom_mod']>=1,
+     'text_pass': "Her sense of self is stable. The reinforcement is of what was already there.",
+     'text_fail': "Her sense of self is stretched by the intensification."},
+    {'id':'tpi_dom_late','group':'transformation','priority':7,'stats':['DOM'],'dc':10,
+     'fires_if': lambda s,c: c['transforming'] and c['pill']=='purple' and c['tier']>=11 and c['dom_mod']>=1,
+     'text_pass': "Nearly complete. Her sense of self encompasses the intensification.",
+     'text_fail': "Nearly complete and the intensification has consumed her attention."},
+    {'id':'sgtf_dom_pre','group':'dom_response','priority':7,'stats':['DOM'],'dc':13,
+     'fires_if': lambda s,c: 'surrogate' in c['effects'] and not c['surrogate_pregnant'] and c['dom_mod']>=1,
+     'text_pass': "Her self-image is fighting the compulsion. The breeding drive in anatomy that was not hers before.",
+     'text_fail': "The self-image lost to the compulsion. She will accept insemination."},
+],
+'SUB': [
+    {'id':'tpi_sub_mid','group':'transformation','priority':6,'stats':['SUB'],'dc':10,
+     'fires_if': lambda s,c: c['transforming'] and c['pill']=='purple' and 5<=c['tier']<=10 and c['sub_mod']>=1,
+     'text_pass': "The yield instinct accepted the reinforcement. This feels like completion.",
+     'text_fail': "The yield instinct accepted it all before she was ready for the intensity."},
+    {'id':'tpi_sub_late','group':'transformation','priority':7,'stats':['SUB'],'dc':10,
+     'fires_if': lambda s,c: c['transforming'] and c['pill']=='purple' and c['tier']>=11 and c['sub_mod']>=1,
+     'text_pass': "Nearly complete. The yield encompasses both sides. This is what intensification looks like.",
+     'text_fail': "Nearly complete and she is entirely inside both sides."},
+],
+}, # end intersex purple
+
+} # end _T_TRANSFORMATION_PURPLE
+
+# ─────────────────────────────────────────────────────────────────────────────
+# EFFECT / TRANSFORMATION TABLE MAPS (used by _build_pool)
+# ─────────────────────────────────────────────────────────────────────────────
+
+EFFECT_TABLE_MAP = {
+    'bull':       _T_BULL,
+    'denial':     _T_DENIAL,
+    'bimbo':      _T_BIMBO,
+    'compliant':  _T_COMPLIANT,
+    'submissive': _T_SUBMISSIVE,
+    'psyche':     _T_PSYCHE,
+    'surrogate':  _T_SURROGATE,
+    'show_off':   _T_SHOW_OFF,
+}
+
+TRANSFORMATION_TABLE_MAP = {
+    'pink':   _T_TRANSFORMATION_PINK,
+    'blue':   _T_TRANSFORMATION_BLUE,
+    'purple': _T_TRANSFORMATION_PURPLE,
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Build and append effect-specific portrait fragments (MUST be after all tables)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _build_breeder_progression():
+    """Build arousal-tiered breeder progression fragments for all sexes/stats."""
+
+    # Sex config: (id_prefix, breeder_path, pronouns, name_key)
+    sexes_config = [
+        ('m', 'born_male', 'he', 'male'),
+        ('f', 'born_female', 'she', 'female'),
+        ('tm', 'born_female', 'he', 'trans_male'),
+        ('tf', 'born_male', 'she', 'trans_female'),
+        ('i', 'born_male', 'they', 'intersex'),
+    ]
+
+    for sex_prefix, breeder_path, pronoun, sex_key in sexes_config:
+        # CON: Physical sensations
+        _T_BREEDER[sex_key]['CON'].extend([
+            {'id':f'br_{sex_prefix}_con_t0_first','group':'effect_core','priority':11,'stats':['CON'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and c['tier']<=2 and c['orgasm_count']==0,
+             'text_pass': "A warmth low in the belly. Unfamiliar. Not unpleasant.",
+             'text_fail': "The warmth is already there. The body accepted it before the mind noticed."},
+            {'id':f'br_{sex_prefix}_con_t0_repeat','group':'effect_core','priority':11,'stats':['CON'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and c['tier']<=2 and c['orgasm_count']>=1,
+             'text_pass': "The warmth is familiar now. Settling. Expected.",
+             'text_fail': "The warmth arrives like it lives here."},
+            {'id':f'br_{sex_prefix}_con_t2_first','group':'effect_core','priority':11,'stats':['CON'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and 2<=c['tier']<=4 and c['orgasm_count']==0,
+             'text_pass': "A flutter. Something unfamiliar is moving inside. No reference for it.",
+             'text_fail': "The body is moving without permission. A clenching at the core."},
+            {'id':f'br_{sex_prefix}_con_t2_repeat','group':'effect_core','priority':11,'stats':['CON'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and 2<=c['tier']<=4 and c['orgasm_count']>=1,
+             'text_pass': "The clenching is familiar. The body already knows this want.",
+             'text_fail': "The clenching is insistent. The body asking. Again."},
+            {'id':f'br_{sex_prefix}_con_t4_first','group':'effect_core','priority':12,'stats':['CON'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and 4<=c['tier']<6 and c['orgasm_count']==0,
+             'text_pass': "A deep involuntary clench. No name. Just alien sensation.",
+             'text_fail': "The body is clenching. Waves. The mind has no framework."},
+            {'id':f'br_{sex_prefix}_con_t4_repeat','group':'effect_core','priority':12,'stats':['CON'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and 4<=c['tier']<6 and c['orgasm_count']>=1,
+             'text_pass': "The clenching is rhythm. The body knows this dance.",
+             'text_fail': "The clenching is demanding. The body running the show."},
+            {'id':f'br_{sex_prefix}_con_t6_first','group':'effect_core','priority':12,'stats':['CON'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and 6<=c['tier']<9 and c['orgasm_count']==0,
+             'text_pass': "Pressure building. Physical need is becoming specific.",
+             'text_fail': "The body is moving in patterns. Hip movement pronounced. Waves of want."},
+            {'id':f'br_{sex_prefix}_con_t6_repeat','group':'effect_core','priority':12,'stats':['CON'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and 6<=c['tier']<9 and c['orgasm_count']>=1,
+             'text_pass': "The hips are moving. The body knows what it's reaching for.",
+             'text_fail': "The body is in motion. Taking what it wants."},
+            {'id':f'br_{sex_prefix}_con_t9_first','group':'effect_core','priority':12,'stats':['CON'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and 9<=c['tier']<12 and c['orgasm_count']==0,
+             'text_pass': "The body is pure want. Control is mostly theoretical.",
+             'text_fail': "The body has stopped asking permission."},
+            {'id':f'br_{sex_prefix}_con_t9_repeat','group':'effect_core','priority':12,'stats':['CON'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and 9<=c['tier']<12 and c['orgasm_count']>=1,
+             'text_pass': "The body is authority. The mind is along for the ride.",
+             'text_fail': "Only sensation. Only need."},
+            {'id':f'br_{sex_prefix}_con_t12','group':'effect_core','priority':13,'stats':['CON'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and c['tier']>=12,
+             'text_pass': "The body is pure compulsion. Control is a distant theory.",
+             'text_fail': "Physical need is the only thing in the room."},
+        ])
+
+        # INT: Awareness/narration
+        _T_BREEDER[sex_key]['INT'].extend([
+            {'id':f'br_{sex_prefix}_int_t0_first','group':'effect_core','priority':11,'stats':['INT'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and c['tier']<=2 and c['orgasm_count']==0,
+             'text_pass': "Something is arriving. Noted. Filed without examination.",
+             'text_fail': "Something arrived. The mind did not process it fast enough."},
+            {'id':f'br_{sex_prefix}_int_t0_repeat','group':'effect_core','priority':11,'stats':['INT'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and c['tier']<=2 and c['orgasm_count']>=1,
+             'text_pass': "The want is familiar. Already named in previous arousal.",
+             'text_fail': "The knowing didn't slow it down."},
+            {'id':f'br_{sex_prefix}_int_t2_first','group':'effect_core','priority':11,'stats':['INT'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and 2<=c['tier']<=4 and c['orgasm_count']==0,
+             'text_pass': "The sensation is unfamiliar. The mind is confused by the physical change.",
+             'text_fail': "Confusion. The body is doing something the mind has no name for."},
+            {'id':f'br_{sex_prefix}_int_t2_repeat','group':'effect_core','priority':11,'stats':['INT'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and 2<=c['tier']<=4 and c['orgasm_count']>=1,
+             'text_pass': "The clenching means something now. The mind can name it.",
+             'text_fail': "The knowing doesn't help. Understanding doesn't slow it down."},
+            {'id':f'br_{sex_prefix}_int_t4_first','group':'effect_core','priority':12,'stats':['INT'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and 4<=c['tier']<6 and c['orgasm_count']==0,
+             'text_pass': "Confused by the new sensation. No reference to judge against.",
+             'text_fail': "The body is doing something. Narration is failing."},
+            {'id':f'br_{sex_prefix}_int_t4_repeat','group':'effect_core','priority':12,'stats':['INT'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and 4<=c['tier']<6 and c['orgasm_count']>=1,
+             'text_pass': "The body is familiar now. The mind can track what's happening.",
+             'text_fail': "The knowing is there. It's not enough."},
+            {'id':f'br_{sex_prefix}_int_t6_first','group':'effect_core','priority':12,'stats':['INT'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and 6<=c['tier']<9 and c['orgasm_count']==0,
+             'text_pass': "Narration is thinning. Processing is overloaded.",
+             'text_fail': "The mind cannot keep up. Sensation is winning."},
+            {'id':f'br_{sex_prefix}_int_t6_repeat','group':'effect_core','priority':12,'stats':['INT'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and 6<=c['tier']<9 and c['orgasm_count']>=1,
+             'text_pass': "The mind is tracking the arousal. Still narrating.",
+             'text_fail': "The narration is struggling to keep pace."},
+            {'id':f'br_{sex_prefix}_int_t9_first','group':'effect_core','priority':12,'stats':['INT'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and 9<=c['tier']<12 and c['orgasm_count']==0,
+             'text_pass': "Narration is nearly gone. Only the want remains.",
+             'text_fail': "The mind has stopped analyzing. Only need."},
+            {'id':f'br_{sex_prefix}_int_t9_repeat','group':'effect_core','priority':12,'stats':['INT'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and 9<=c['tier']<12 and c['orgasm_count']>=1,
+             'text_pass': "The mind knows what this is. Can't stop it.",
+             'text_fail': "Thinking has stopped. Only the want."},
+            {'id':f'br_{sex_prefix}_int_t12','group':'effect_core','priority':13,'stats':['INT'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and c['tier']>=12,
+             'text_pass': "Narration stopped. Only the need and the body that knows it.",
+             'text_fail': "No thought. Only want."},
+        ])
+
+        # WIS: Judgment/choice
+        _T_BREEDER[sex_key]['WIS'].extend([
+            {'id':f'br_{sex_prefix}_wis_t0_first','group':'effect_core','priority':11,'stats':['WIS'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and c['tier']<=2 and c['orgasm_count']==0,
+             'text_pass': "No decisions needed yet. Just warmth.",
+             'text_fail': "The warmth arrived before judgment could engage."},
+            {'id':f'br_{sex_prefix}_wis_t0_repeat','group':'effect_core','priority':11,'stats':['WIS'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and c['tier']<=2 and c['orgasm_count']>=1,
+             'text_pass': "The want is familiar. Judgment acknowledges it.",
+             'text_fail': "Knowing what's coming didn't stop anything."},
+            {'id':f'br_{sex_prefix}_wis_t2_first','group':'effect_core','priority':11,'stats':['WIS'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and 2<=c['tier']<=4 and c['orgasm_count']==0,
+             'text_pass': "What is happening. No reference to judge against.",
+             'text_fail': "The body is moving. Judgment was not consulted."},
+            {'id':f'br_{sex_prefix}_wis_t2_repeat','group':'effect_core','priority':11,'stats':['WIS'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and 2<=c['tier']<=4 and c['orgasm_count']>=1,
+             'text_pass': "The body knows this pattern. Judgment knows what's coming.",
+             'text_fail': "Knowing didn't change anything."},
+            {'id':f'br_{sex_prefix}_wis_t4_first','group':'effect_core','priority':12,'stats':['WIS'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and 4<=c['tier']<6 and c['orgasm_count']==0,
+             'text_pass': "Judgment is confused. No framework for this.",
+             'text_fail': "The body has decided. Judgment is not being asked."},
+            {'id':f'br_{sex_prefix}_wis_t4_repeat','group':'effect_core','priority':12,'stats':['WIS'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and 4<=c['tier']<6 and c['orgasm_count']>=1,
+             'text_pass': "Judgment knows what the body wants. Choosing how to respond.",
+             'text_fail': "The body knows what it wants. Judgment gave up the argument."},
+            {'id':f'br_{sex_prefix}_wis_t6_first','group':'effect_core','priority':12,'stats':['WIS'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and 6<=c['tier']<9 and c['orgasm_count']==0,
+             'text_pass': "Judgment is failing. Finding reasons to surrender.",
+             'text_fail': "Judgment has lost ground. The body is winning."},
+            {'id':f'br_{sex_prefix}_wis_t6_repeat','group':'effect_core','priority':12,'stats':['WIS'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and 6<=c['tier']<9 and c['orgasm_count']>=1,
+             'text_pass': "Judgment knows what it wants. Choosing to let it happen.",
+             'text_fail': "Judgment gave way. The body leads."},
+            {'id':f'br_{sex_prefix}_wis_t9_first','group':'effect_core','priority':12,'stats':['WIS'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and 9<=c['tier']<12 and c['orgasm_count']==0,
+             'text_pass': "Judgment is remote. The body has full say.",
+             'text_fail': "No judgment left. Only what the body needs."},
+            {'id':f'br_{sex_prefix}_wis_t9_repeat','group':'effect_core','priority':12,'stats':['WIS'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and 9<=c['tier']<12 and c['orgasm_count']>=1,
+             'text_pass': "Judgment watches the body take what it wants.",
+             'text_fail': "No choice left. Just surrender."},
+            {'id':f'br_{sex_prefix}_wis_t12','group':'effect_core','priority':13,'stats':['WIS'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and c['tier']>=12,
+             'text_pass': "No decisions. Just the body doing what it needs.",
+             'text_fail': "Judgment is gone. Only the need."},
+        ])
+
+        # CHA: External tells/broadcast
+        _T_BREEDER[sex_key]['CHA'].extend([
+            {'id':f'br_{sex_prefix}_cha_t0_first','group':'effect_core','priority':11,'stats':['CHA'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and c['tier']<=2 and c['orgasm_count']==0,
+             'text_pass': "Nothing visible yet. Just internal warmth.",
+             'text_fail': "The body is betraying something. A flush is arriving."},
+            {'id':f'br_{sex_prefix}_cha_t0_repeat','group':'effect_core','priority':11,'stats':['CHA'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and c['tier']<=2 and c['orgasm_count']>=1,
+             'text_pass': "The flush is familiar. Trying not to show it.",
+             'text_fail': "The heat is showing. Can't hide it."},
+            {'id':f'br_{sex_prefix}_cha_t2_first','group':'effect_core','priority':11,'stats':['CHA'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and 2<=c['tier']<=4 and c['orgasm_count']==0,
+             'text_pass': "A flush is starting. Embarrassed at the body's behavior.",
+             'text_fail': "The flush is visible. The body is broadcasting."},
+            {'id':f'br_{sex_prefix}_cha_t2_repeat','group':'effect_core','priority':11,'stats':['CHA'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and 2<=c['tier']<=4 and c['orgasm_count']>=1,
+             'text_pass': "The flush is familiar. Knows what it means. Trying to hide it.",
+             'text_fail': "The flush is obvious. Not trying to hide it anymore."},
+            {'id':f'br_{sex_prefix}_cha_t4_first','group':'effect_core','priority':12,'stats':['CHA'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and 4<=c['tier']<6 and c['orgasm_count']==0,
+             'text_pass': "Visible flush. Confused at being so exposed.",
+             'text_fail': "The need is showing. Can't hide it."},
+            {'id':f'br_{sex_prefix}_cha_t4_repeat','group':'effect_core','priority':12,'stats':['CHA'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and 4<=c['tier']<6 and c['orgasm_count']>=1,
+             'text_pass': "The flush is clear. Knows what it broadcasts. Trying anyway.",
+             'text_fail': "Not trying to hide it. The need is showing."},
+            {'id':f'br_{sex_prefix}_cha_t6_first','group':'effect_core','priority':12,'stats':['CHA'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and 6<=c['tier']<9 and c['orgasm_count']==0,
+             'text_pass': "Everything is visible. The need is written on the surface.",
+             'text_fail': "Broadcasting the want completely. Can't hide it."},
+            {'id':f'br_{sex_prefix}_cha_t6_repeat','group':'effect_core','priority':12,'stats':['CHA'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and 6<=c['tier']<9 and c['orgasm_count']>=1,
+             'text_pass': "The broadcast is total. The body is announcing what it needs.",
+             'text_fail': "Not hiding anything. The want is written in every movement."},
+            {'id':f'br_{sex_prefix}_cha_t9_first','group':'effect_core','priority':12,'stats':['CHA'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and 9<=c['tier']<12 and c['orgasm_count']==0,
+             'text_pass': "Total visibility. The need is everything.",
+             'text_fail': "Nothing but the want is visible."},
+            {'id':f'br_{sex_prefix}_cha_t9_repeat','group':'effect_core','priority':12,'stats':['CHA'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and 9<=c['tier']<12 and c['orgasm_count']>=1,
+             'text_pass': "Broadcasting the compulsion. No attempt to hide.",
+             'text_fail': "Pure need. Pure broadcast."},
+            {'id':f'br_{sex_prefix}_cha_t12','group':'effect_core','priority':13,'stats':['CHA'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and c['tier']>=12,
+             'text_pass': "Everything visible. No hiding anything.",
+             'text_fail': "Only the want is showing."},
+        ])
+
+        # DOM: Control/pride
+        _T_BREEDER[sex_key]['DOM'].extend([
+            {'id':f'br_{sex_prefix}_dom_t0_first','group':'effect_core','priority':11,'stats':['DOM'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and c['tier']<=2 and c['orgasm_count']==0,
+             'text_pass': "Pride is intact. Nothing to fight yet.",
+             'text_fail': "The warmth arrived. Pride is noticing."},
+            {'id':f'br_{sex_prefix}_dom_t0_repeat','group':'effect_core','priority':11,'stats':['DOM'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and c['tier']<=2 and c['orgasm_count']>=1,
+             'text_pass': "Pride knows what's coming. Prepared.",
+             'text_fail': "Pride lost the first battle."},
+            {'id':f'br_{sex_prefix}_dom_t2_first','group':'effect_core','priority':11,'stats':['DOM'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and 2<=c['tier']<=4 and c['orgasm_count']==0,
+             'text_pass': "Pride is confused by the unfamiliar compulsion.",
+             'text_fail': "Pride was not ready for this."},
+            {'id':f'br_{sex_prefix}_dom_t2_repeat','group':'effect_core','priority':11,'stats':['DOM'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and 2<=c['tier']<=4 and c['orgasm_count']>=1,
+             'text_pass': "Pride knows this fight. Knows it will lose.",
+             'text_fail': "Pride already lost this round."},
+            {'id':f'br_{sex_prefix}_dom_t4_first','group':'effect_core','priority':12,'stats':['DOM'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and 4<=c['tier']<6 and c['orgasm_count']==0,
+             'text_pass': "Pride confused by the new compulsion. No framework.",
+             'text_fail': "Pride is losing ground."},
+            {'id':f'br_{sex_prefix}_dom_t4_repeat','group':'effect_core','priority':12,'stats':['DOM'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and 4<=c['tier']<6 and c['orgasm_count']>=1,
+             'text_pass': "Pride knows it's losing. Still fighting.",
+             'text_fail': "Pride lost. The body wins."},
+            {'id':f'br_{sex_prefix}_dom_t6_first','group':'effect_core','priority':12,'stats':['DOM'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and 6<=c['tier']<9 and c['orgasm_count']==0,
+             'text_pass': "Pride vs compulsion. Authority is crumbling.",
+             'text_fail': "Pride has lost. The compulsion has won."},
+            {'id':f'br_{sex_prefix}_dom_t6_repeat','group':'effect_core','priority':12,'stats':['DOM'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and 6<=c['tier']<9 and c['orgasm_count']>=1,
+             'text_pass': "Pride watches the compulsion take over.",
+             'text_fail': "Pride is gone. The need is in charge."},
+            {'id':f'br_{sex_prefix}_dom_t9_first','group':'effect_core','priority':12,'stats':['DOM'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and 9<=c['tier']<12 and c['orgasm_count']==0,
+             'text_pass': "Pride is watching from a distance. Cannot stop it.",
+             'text_fail': "Pride is gone. The body leads."},
+            {'id':f'br_{sex_prefix}_dom_t9_repeat','group':'effect_core','priority':12,'stats':['DOM'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and 9<=c['tier']<12 and c['orgasm_count']>=1,
+             'text_pass': "Pride is a spectator. Cannot stop what's happening.",
+             'text_fail': "Pride is not watching anymore."},
+            {'id':f'br_{sex_prefix}_dom_t12','group':'effect_core','priority':13,'stats':['DOM'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and c['tier']>=12,
+             'text_pass': "Pride is watching from a distance. Cannot stop it.",
+             'text_fail': "Pride is gone. Only the need."},
+        ])
+
+        # SUB: Yielding/surrender
+        _T_BREEDER[sex_key]['SUB'].extend([
+            {'id':f'br_{sex_prefix}_sub_t0_first','group':'effect_core','priority':11,'stats':['SUB'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and c['tier']<=2 and c['orgasm_count']==0,
+             'text_pass': "A quiet pull. Nothing urgent.",
+             'text_fail': "The pull arrived. The yield instinct is responding."},
+            {'id':f'br_{sex_prefix}_sub_t0_repeat','group':'effect_core','priority':11,'stats':['SUB'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and c['tier']<=2 and c['orgasm_count']>=1,
+             'text_pass': "The pull is familiar. The body knows what it means.",
+             'text_fail': "The pull is insistent. The body already saying yes."},
+            {'id':f'br_{sex_prefix}_sub_t2_first','group':'effect_core','priority':11,'stats':['SUB'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and 2<=c['tier']<=4 and c['orgasm_count']==0,
+             'text_pass': "A pull arriving. No framework for what it means.",
+             'text_fail': "The pull knows what it wants. The body is answering."},
+            {'id':f'br_{sex_prefix}_sub_t2_repeat','group':'effect_core','priority':11,'stats':['SUB'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and 2<=c['tier']<=4 and c['orgasm_count']>=1,
+             'text_pass': "The pull is familiar. Knows exactly what it means.",
+             'text_fail': "The pull. The body already saying yes."},
+            {'id':f'br_{sex_prefix}_sub_t4_first','group':'effect_core','priority':12,'stats':['SUB'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and 4<=c['tier']<6 and c['orgasm_count']==0,
+             'text_pass': "The pull is becoming clear. Confused by what it means.",
+             'text_fail': "The body knows what the pull means. Already yielding."},
+            {'id':f'br_{sex_prefix}_sub_t4_repeat','group':'effect_core','priority':12,'stats':['SUB'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and 4<=c['tier']<6 and c['orgasm_count']>=1,
+             'text_pass': "The pull is command. The body is listening.",
+             'text_fail': "The pull. The body answering. Surrender acceleration."},
+            {'id':f'br_{sex_prefix}_sub_t6_first','group':'effect_core','priority':12,'stats':['SUB'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and 6<=c['tier']<9 and c['orgasm_count']==0,
+             'text_pass': "Compliance feels right. Surrender accelerating.",
+             'text_fail': "The pull is everything. Total yield."},
+            {'id':f'br_{sex_prefix}_sub_t6_repeat','group':'effect_core','priority':12,'stats':['SUB'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and 6<=c['tier']<9 and c['orgasm_count']>=1,
+             'text_pass': "The body is yielding. This is what it was for.",
+             'text_fail': "Surrender complete. This is what the body wants."},
+            {'id':f'br_{sex_prefix}_sub_t9_first','group':'effect_core','priority':12,'stats':['SUB'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and 9<=c['tier']<12 and c['orgasm_count']==0,
+             'text_pass': "Total yield. This is what surrender means.",
+             'text_fail': "Complete submission. This is what the body is for."},
+            {'id':f'br_{sex_prefix}_sub_t9_repeat','group':'effect_core','priority':12,'stats':['SUB'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and 9<=c['tier']<12 and c['orgasm_count']>=1,
+             'text_pass': "This is the surrender. The body knows exactly what it's for.",
+             'text_fail': "Complete. The body is entirely in it."},
+            {'id':f'br_{sex_prefix}_sub_t12','group':'effect_core','priority':13,'stats':['SUB'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and c['tier']>=12,
+             'text_pass': "Total yield. This is what the body was built for.",
+             'text_fail': "Pure surrender. This is what it means."},
+        ])
+
+def _build_breeder_addiction_and_events():
+    """Build addiction stage overlays and event-gated fragments for all sexes/stats."""
+
+    # Sex config: (id_prefix, breeder_path, pronouns, name_key)
+    sexes_config = [
+        ('m', 'born_male', 'he', 'male'),
+        ('f', 'born_female', 'she', 'female'),
+        ('tm', 'born_female', 'he', 'trans_male'),
+        ('tf', 'born_male', 'she', 'trans_female'),
+        ('i', 'born_male', 'they', 'intersex'),
+    ]
+
+    for sex_prefix, breeder_path, pronoun, sex_key in sexes_config:
+        # ═══════════════════════════════════════════════════════════════════════
+        # ADDICTION STAGE OVERLAYS (priority 14-16, higher wins)
+        # ═══════════════════════════════════════════════════════════════════════
+
+        # CON: Body sensitivity stages
+        _T_BREEDER[sex_key]['CON'].extend([
+            # Stage 1: Body slightly more sensitive
+            {'id':f'bad_{sex_prefix}_con_s1','group':'effect_core','priority':14,'stats':['CON'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and c['addiction_stage']==1,
+             'text_pass': "The body is slightly more sensitive than usual. Pleasure registers differently now.",
+             'text_fail': "The body is responding faster. Arousal comes easier."},
+            # Stage 2: Body never calm, always wound up
+            {'id':f'bad_{sex_prefix}_con_s2','group':'effect_core','priority':15,'stats':['CON'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and c['addiction_stage']==2,
+             'text_pass': "The body is never quite calm. Always a little wound up underneath.",
+             'text_fail': "The body is wired. Can't settle. Always ready."},
+            # Stage 3: Body knows what it needs, always ready
+            {'id':f'bad_{sex_prefix}_con_s3','group':'effect_core','priority':16,'stats':['CON'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and c['addiction_stage']==3,
+             'text_pass': "The body knows exactly what it needs. Always ready to reach for it.",
+             'text_fail': "The body is on constant alert. Just waiting."},
+        ])
+
+        # INT: Memory and preference tracking
+        _T_BREEDER[sex_key]['INT'].extend([
+            # Stage 1: Remembers the feeling with unusual clarity
+            {'id':f'bad_{sex_prefix}_int_s1','group':'effect_core','priority':14,'stats':['INT'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and c['addiction_stage']==1,
+             'text_pass': "The memory is crystal clear. Can replay the feeling at will. Notices the preference forming.",
+             'text_fail': "Recalls it perfectly. Too perfectly. The preference is settling in."},
+            # Stage 2: Catches thinking about it, can't stop comparing
+            {'id':f'bad_{sex_prefix}_int_s2','group':'effect_core','priority':15,'stats':['INT'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and c['addiction_stage']==2,
+             'text_pass': "Catches {p} thinking about it. Comparing everything to that. Can't stop ranking.",
+             'text_fail': "The comparison is automatic now. Nothing else satisfies the same way."},
+            # Stage 3: No conflict, thinking about it is just anticipation
+            {'id':f'bad_{sex_prefix}_int_s3','group':'effect_core','priority':16,'stats':['INT'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and c['addiction_stage']==3,
+             'text_pass': "Thinking about it is just anticipation. No conflict. No examination. Pure desire.",
+             'text_fail': "This IS what {p} wants. No confusion. Just the wanting."},
+        ])
+
+        # WIS: Examination and denial collapse
+        _T_BREEDER[sex_key]['WIS'].extend([
+            # Stage 1: Doesn't examine why satisfaction feels incomplete
+            {'id':f'bad_{sex_prefix}_wis_s1','group':'effect_core','priority':14,'stats':['WIS'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and c['addiction_stage']==1,
+             'text_pass': "Regular satisfaction feels incomplete somehow. {P} doesn't examine why.",
+             'text_fail': "Something is missing now. Everything else is a pale version of that."},
+            # Stage 2: Understanding nothing else satisfies, still in denial
+            {'id':f'bad_{sex_prefix}_wis_s2','group':'effect_core','priority':15,'stats':['WIS'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and c['addiction_stage']==2,
+             'text_pass': "Starting to understand nothing else really satisfies. Still in denial about it.",
+             'text_fail': "Knows the truth now. Can't pretend otherwise anymore."},
+            # Stage 3: No denial, no examination, just desire
+            {'id':f'bad_{sex_prefix}_wis_s3','group':'effect_core','priority':16,'stats':['WIS'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and c['addiction_stage']==3,
+             'text_pass': "No denial. No examination needed. This is simply desire. This IS who {p} is.",
+             'text_fail': "No conflict. Just the wanting. The wanting is complete."},
+        ])
+
+        # CHA: Presence and broadcast
+        _T_BREEDER[sex_key]['CHA'].extend([
+            # Stage 1: Something slightly different about presence
+            {'id':f'bad_{sex_prefix}_cha_s1','group':'effect_core','priority':14,'stats':['CHA'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and c['addiction_stage']==1,
+             'text_pass': "Something is slightly different. The presence has shifted. Subtle but there.",
+             'text_fail': "The preference is starting to show. Others are beginning to notice."},
+            # Stage 2: The craving is starting to show
+            {'id':f'bad_{sex_prefix}_cha_s2','group':'effect_core','priority':15,'stats':['CHA'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and c['addiction_stage']==2,
+             'text_pass': "The craving is starting to show. It radiates from underneath the surface.",
+             'text_fail': "Everyone can see it now. The want is written in the presence."},
+            # Stage 3: The want is part of identity and radiates
+            {'id':f'bad_{sex_prefix}_cha_s3','group':'effect_core','priority':16,'stats':['CHA'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and c['addiction_stage']==3,
+             'text_pass': "The want is part of who {p} is now. It radiates from the core. Unmistakable.",
+             'text_fail': "This IS who {p} is now. The craving is the presence."},
+        ])
+
+        # DOM: Pride and craving conflict
+        _T_BREEDER[sex_key]['DOM'].extend([
+            # Stage 1: Pride intact but slightly less certain
+            {'id':f'bad_{sex_prefix}_dom_s1','group':'effect_core','priority':14,'stats':['DOM'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and c['addiction_stage']==1,
+             'text_pass': "Pride is intact. Just slightly less certain than before.",
+             'text_fail': "Pride is noticing cracks in its own foundation."},
+            # Stage 2: Craving is winning arguments with pride
+            {'id':f'bad_{sex_prefix}_dom_s2','group':'effect_core','priority':15,'stats':['DOM'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and c['addiction_stage']==2,
+             'text_pass': "The craving is winning arguments with the pride. The pride is losing ground.",
+             'text_fail': "Pride has lost. The craving runs the arguments now."},
+            # Stage 3: Pride and craving are the same, or pride is gone
+            {'id':f'bad_{sex_prefix}_dom_s3','group':'effect_core','priority':16,'stats':['DOM'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and c['addiction_stage']==3,
+             'text_pass': "Pride and craving are the same thing now. Or pride is gone. Either way.",
+             'text_fail': "The pride is dead. Only the craving remains."},
+        ])
+
+        # SUB: Yielding naturalness
+        _T_BREEDER[sex_key]['SUB'].extend([
+            # Stage 1: Yield feels slightly more natural
+            {'id':f'bad_{sex_prefix}_sub_s1','group':'effect_core','priority':14,'stats':['SUB'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and c['addiction_stage']==1,
+             'text_pass': "The yield feels slightly more natural now. Like it belongs.",
+             'text_fail': "Surrendering comes easier. The body recognizes this want."},
+            # Stage 2: Actively seeking the yield
+            {'id':f'bad_{sex_prefix}_sub_s2','group':'effect_core','priority':15,'stats':['SUB'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and c['addiction_stage']==2,
+             'text_pass': "Actively seeking the yield now. Positioning for it. Can't help {p}self.",
+             'text_fail': "The surrender is not accidental anymore. Deliberately reaching for it."},
+            # Stage 3: Yielding IS the desire, no separation
+            {'id':f'bad_{sex_prefix}_sub_s3','group':'effect_core','priority':16,'stats':['SUB'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and c['addiction_stage']==3,
+             'text_pass': "Yielding IS the desire. No separation. This is what {p} wants.",
+             'text_fail': "The surrender and the wanting are the same thing now."},
+        ])
+
+        # ═══════════════════════════════════════════════════════════════════════
+        # EVENT-GATED FRAGMENTS (priority 13, dc=1)
+        # ═══════════════════════════════════════════════════════════════════════
+
+        # Post-orgasm reactions based on addiction stage
+        _T_BREEDER[sex_key]['WIS'].extend([
+            # First post-orgasm: panic and confusion
+            {'id':f'bev_{sex_prefix}_wis_post_first','group':'effect_core','priority':13,'stats':['WIS'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and c['tier']<=2 and c['orgasm_count']==1,
+             'text_pass': "That... felt like more than it should have. The rightness of it is confusing.",
+             'text_fail': "The panic is settling in. That felt too right. Too complete."},
+        ])
+
+        _T_BREEDER[sex_key]['INT'].extend([
+            # Mid-orgasm complexity: trying not to rank it
+            {'id':f'bev_{sex_prefix}_int_post_mid','group':'effect_core','priority':13,'stats':['INT'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and 2<=c['orgasm_count']<=3 and c['addiction_stage']<3,
+             'text_pass': "Complicated warmth settling in. Not ranking this against the other times. Just... letting it exist.",
+             'text_fail': "Can't not compare now. This one was different. This one was everything."},
+        ])
+
+        _T_BREEDER[sex_key]['CHA'].extend([
+            # Late-stage post-orgasm: no conflict, just calm
+            {'id':f'bev_{sex_prefix}_cha_post_late','group':'effect_core','priority':13,'stats':['CHA'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and c['addiction_stage']==3 and c['orgasm_count']>=2,
+             'text_pass': "The calm after. This is normal. Just the satisfaction. No conflict anymore.",
+             'text_fail': "This feeling is familiar now. This is what {p} is."},
+        ])
+
+        # Mid-arousal awareness: being noticed accelerates
+        _T_BREEDER[sex_key]['CON'].extend([
+            {'id':f'bev_{sex_prefix}_con_midaware','group':'effect_core','priority':13,'stats':['CON'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and 4<=c['tier']<=12,
+             'text_pass': "Being noticed. The body knows it's being watched. That accelerates everything.",
+             'text_fail': "The awareness of being noticed pushes arousal up faster. Eyes accelerate the need."},
+        ])
+
+        # Resist locked: resistance has collapsed, compliance feels like desire
+        _T_BREEDER[sex_key]['SUB'].extend([
+            {'id':f'bev_{sex_prefix}_sub_locked','group':'effect_core','priority':13,'stats':['SUB'],'dc':1,
+             'fires_if': lambda s,c: 'breeder' in c['effects'] and s.get('_breeder_resist_locked'),
+             'text_pass': "Resistance has collapsed. Compliance feels like desire now. Can't tell the difference.",
+             'text_fail': "The resistance is gone. Yielding feels like what {p} wants."},
+        ])
+
+def _build_bull_denial_progression():
+    """Build arousal-tiered and stage-based progression fragments for BULL and DENIAL effects."""
+
+    # Sex config: (id_prefix, pronouns, name_key) for all 5 sexes
+    sexes_config = [
+        ('m', 'he', 'male'),
+        ('f', 'she', 'female'),
+        ('tm', 'he', 'trans_male'),
+        ('tf', 'she', 'trans_female'),
+        ('i', 'they', 'intersex'),
+    ]
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # BULL PROGRESSION
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    for sex_prefix, pronoun, sex_key in sexes_config:
+
+        # ───────────────────────────────────────────────────────────────────────
+        # BULL AROUSAL PROGRESSION (priority 11-13)
+        # ───────────────────────────────────────────────────────────────────────
+
+        # CON: Physical power and refractory
+        _T_BULL[sex_key]['CON'].extend([
+            {'id':f'bud_con_t0','group':'effect_core','priority':11,'stats':['CON'],'dc':1,
+             'fires_if': lambda s,c: 'bull' in c['effects'] and c['bull_stage'] == 0 and 0<=c['tier']<=4,
+             'text_pass': "The drive is a comfortable hum. Confidence sits naturally. Refractory is short.",
+             'text_fail': "The drive is settling into a comfortable frequency. It feels like {p}self already."},
+            {'id':f'bud_con_t4','group':'effect_core','priority':12,'stats':['CON'],'dc':1,
+             'fires_if': lambda s,c: 'bull' in c['effects'] and c['bull_stage'] == 0 and 4<=c['tier']<=7,
+             'text_pass': "The drive is sharpening. The want is becoming specific. Finishes inside feels right.",
+             'text_fail': "The instinct is clear. The body knows what it needs. Wants to finish inside."},
+            {'id':f'bud_con_t7','group':'effect_core','priority':12,'stats':['CON'],'dc':1,
+             'fires_if': lambda s,c: 'bull' in c['effects'] and c['bull_stage'] == 0 and 7<=c['tier']<=10,
+             'text_pass': "The need to breed is the point. Instinctive movement. Deep. Primal.",
+             'text_fail': "The drive is the only thing that matters. Instinct is taking over."},
+            {'id':f'bud_con_t10','group':'effect_core','priority':13,'stats':['CON'],'dc':1,
+             'fires_if': lambda s,c: 'bull' in c['effects'] and c['bull_stage'] == 0 and c['tier']>=10,
+             'text_pass': "Nothing else matters. Inseminate. Hold through completion.",
+             'text_fail': "Everything is pointing at this. The body will finish inside. The drive is total."},
+        ])
+
+        # INT: Awareness of drive
+        _T_BULL[sex_key]['INT'].extend([
+            {'id':f'bud_int_t0','group':'effect_core','priority':11,'stats':['INT'],'dc':1,
+             'fires_if': lambda s,c: 'bull' in c['effects'] and c['bull_stage'] == 0 and 0<=c['tier']<=4,
+             'text_pass': "The drive is noted. It feels like choice. The instinct is recognizable.",
+             'text_fail': "The drive arrived and feels like {p}self. No separation."},
+            {'id':f'bud_int_t4','group':'effect_core','priority':12,'stats':['INT'],'dc':1,
+             'fires_if': lambda s,c: 'bull' in c['effects'] and c['bull_stage'] == 0 and 4<=c['tier']<=7,
+             'text_pass': "The instinct is clear and readable. Narrating what the body wants.",
+             'text_fail': "The body is narrating itself. The instinct is speaking louder."},
+            {'id':f'bud_int_t7','group':'effect_core','priority':12,'stats':['INT'],'dc':1,
+             'fires_if': lambda s,c: 'bull' in c['effects'] and c['bull_stage'] == 0 and 7<=c['tier']<=10,
+             'text_pass': "The instinct is louder than the analysis. Understanding is surrender.",
+             'text_fail': "The analysis is losing to the instinct. The narration is weakening."},
+            {'id':f'bud_int_t10','group':'effect_core','priority':13,'stats':['INT'],'dc':1,
+             'fires_if': lambda s,c: 'bull' in c['effects'] and c['bull_stage'] == 0 and c['tier']>=10,
+             'text_pass': "The mind is not here. Only the need and the instinct that knows its name.",
+             'text_fail': "Thinking has stopped. Only the drive remains."},
+        ])
+
+        # WIS: Judgment shaped by drive
+        _T_BULL[sex_key]['WIS'].extend([
+            {'id':f'bud_wis_t0','group':'effect_core','priority':11,'stats':['WIS'],'dc':1,
+             'fires_if': lambda s,c: 'bull' in c['effects'] and c['bull_stage'] == 0 and 0<=c['tier']<=4,
+             'text_pass': "The judgment is intact. The drive is secondary. Choices are still {p}self.",
+             'text_fail': "The judgment already has a direction. The drive pointed it there first."},
+            {'id':f'bud_wis_t4','group':'effect_core','priority':12,'stats':['WIS'],'dc':1,
+             'fires_if': lambda s,c: 'bull' in c['effects'] and c['bull_stage'] == 0 and 4<=c['tier']<=7,
+             'text_pass': "The judgment is pointed. Every choice is angled toward breeding.",
+             'text_fail': "The judgment has given in. The drive is running the arguments now."},
+            {'id':f'bud_wis_t7','group':'effect_core','priority':12,'stats':['WIS'],'dc':1,
+             'fires_if': lambda s,c: 'bull' in c['effects'] and c['bull_stage'] == 0 and 7<=c['tier']<=10,
+             'text_pass': "The judgment has collapsed into the drive. One thing matters.",
+             'text_fail': "There is no judgment. Only what the body needs."},
+            {'id':f'bud_wis_t10','group':'effect_core','priority':13,'stats':['WIS'],'dc':1,
+             'fires_if': lambda s,c: 'bull' in c['effects'] and c['bull_stage'] == 0 and c['tier']>=10,
+             'text_pass': "No judgment left. Only the point.",
+             'text_fail': "The drive IS the judgment now."},
+        ])
+
+        # CHA: Dominance and presence
+        _T_BULL[sex_key]['CHA'].extend([
+            {'id':f'bud_cha_t0','group':'effect_core','priority':11,'stats':['CHA'],'dc':1,
+             'fires_if': lambda s,c: 'bull' in c['effects'] and c['bull_stage'] == 0 and 0<=c['tier']<=4,
+             'text_pass': "The confidence is natural. The presence is steady.",
+             'text_fail': "The confidence is radiating. Already carrying the drive."},
+            {'id':f'bud_cha_t4','group':'effect_core','priority':12,'stats':['CHA'],'dc':1,
+             'fires_if': lambda s,c: 'bull' in c['effects'] and c['bull_stage'] == 0 and 4<=c['tier']<=7,
+             'text_pass': "The dominance is visible. The presence is getting heavier.",
+             'text_fail': "The presence is commanding. The drive is radiating."},
+            {'id':f'bud_cha_t7','group':'effect_core','priority':12,'stats':['CHA'],'dc':1,
+             'fires_if': lambda s,c: 'bull' in c['effects'] and c['bull_stage'] == 0 and 7<=c['tier']<=10,
+             'text_pass': "The presence is pure authority. The drive is unmistakable.",
+             'text_fail': "The presence is completely taken over. The drive is the whole room."},
+            {'id':f'bud_cha_t10','group':'effect_core','priority':13,'stats':['CHA'],'dc':1,
+             'fires_if': lambda s,c: 'bull' in c['effects'] and c['bull_stage'] == 0 and c['tier']>=10,
+             'text_pass': "The presence is the drive. The authority is absolute.",
+             'text_fail': "Nothing but the drive radiating. The presence is total."},
+        ])
+
+        # DOM: Authority and territorial instinct
+        _T_BULL[sex_key]['DOM'].extend([
+            {'id':f'bud_dom_t0','group':'effect_core','priority':11,'stats':['DOM'],'dc':1,
+             'fires_if': lambda s,c: 'bull' in c['effects'] and c['bull_stage'] == 0 and 0<=c['tier']<=4,
+             'text_pass': "The authority is intact. The drive is aligned with it.",
+             'text_fail': "The drive strengthens the authority. They are the same thing."},
+            {'id':f'bud_dom_t4','group':'effect_core','priority':12,'stats':['DOM'],'dc':1,
+             'fires_if': lambda s,c: 'bull' in c['effects'] and c['bull_stage'] == 0 and 4<=c['tier']<=7,
+             'text_pass': "The authority is pointed. Territorial instinct is rising.",
+             'text_fail': "The territoriality is total. The drive demands it."},
+            {'id':f'bud_dom_t7','group':'effect_core','priority':12,'stats':['DOM'],'dc':1,
+             'fires_if': lambda s,c: 'bull' in c['effects'] and c['bull_stage'] == 0 and 7<=c['tier']<=10,
+             'text_pass': "The authority and drive are merged. Territorial and absolute.",
+             'text_fail': "The drive is the authority now. Territorial is the only instinct left."},
+            {'id':f'bud_dom_t10','group':'effect_core','priority':13,'stats':['DOM'],'dc':1,
+             'fires_if': lambda s,c: 'bull' in c['effects'] and c['bull_stage'] == 0 and c['tier']>=10,
+             'text_pass': "The drive IS the authority. Territorial ownership is complete.",
+             'text_fail': "Territorial dominance. Nothing else matters."},
+        ])
+
+        # SUB: Conflict with drive
+        _T_BULL[sex_key]['SUB'].extend([
+            {'id':f'bud_sub_t0','group':'effect_core','priority':11,'stats':['SUB'],'dc':1,
+             'fires_if': lambda s,c: 'bull' in c['effects'] and c['bull_stage'] == 0 and 0<=c['tier']<=4,
+             'text_pass': "The drive feels like choice. No conflict yet.",
+             'text_fail': "The drive and the self are not fighting."},
+            {'id':f'bud_sub_t4','group':'effect_core','priority':12,'stats':['SUB'],'dc':1,
+             'fires_if': lambda s,c: 'bull' in c['effects'] and c['bull_stage'] == 0 and 4<=c['tier']<=7,
+             'text_pass': "The drive and the yield instinct are complicated. Both are present.",
+             'text_fail': "The drive is overwhelming any other instinct."},
+            {'id':f'bud_sub_t7','group':'effect_core','priority':12,'stats':['SUB'],'dc':1,
+             'fires_if': lambda s,c: 'bull' in c['effects'] and c['bull_stage'] == 0 and 7<=c['tier']<=10,
+             'text_pass': "The drive has no patience for yielding. Only conquering.",
+             'text_fail': "The drive erases conflict. There is only the wanting to breed."},
+            {'id':f'bud_sub_t10','group':'effect_core','priority':13,'stats':['SUB'],'dc':1,
+             'fires_if': lambda s,c: 'bull' in c['effects'] and c['bull_stage'] == 0 and c['tier']>=10,
+             'text_pass': "The drive is singular. Yielding is irrelevant.",
+             'text_fail': "The drive is the only instinct left."},
+        ])
+
+        # ───────────────────────────────────────────────────────────────────────
+        # BULL STAGE PROGRESSION (priority 14-16)
+        # ───────────────────────────────────────────────────────────────────────
+
+        # Stage 1: Drive settled into preference
+        _T_BULL[sex_key]['INT'].extend([
+            {'id':f'bud_s1_int','group':'effect_core','priority':14,'stats':['INT'],'dc':1,
+             'fires_if': lambda s,c: 'bull' in c['effects'] and c['bull_stage']==1,
+             'text_pass': "Thinks about sex more. The drive is a constant preference. Noticed but natural.",
+             'text_fail': "The preference has become central. The thinking is always angled toward it."},
+        ])
+
+        _T_BULL[sex_key]['CON'].extend([
+            {'id':f'bud_s1_con','group':'effect_core','priority':14,'stats':['CON'],'dc':1,
+             'fires_if': lambda s,c: 'bull' in c['effects'] and c['bull_stage']==1,
+             'text_pass': "Refractory is short. The body is ready to go again quickly.",
+             'text_fail': "The body is built for repetition. Refractory is disappearing."},
+        ])
+
+        # Stage 2: Drive is constant, strongly prefers finishing inside, territorial
+        _T_BULL[sex_key]['WIS'].extend([
+            {'id':f'bud_s2_wis','group':'effect_core','priority':15,'stats':['WIS'],'dc':1,
+             'fires_if': lambda s,c: 'bull' in c['effects'] and c['bull_stage']==2,
+             'text_pass': "The drive is constant. Strongly prefers finishing inside. Territorial about partners bred.",
+             'text_fail': "The drive is the entire operating system. Territorial and possessive."},
+        ])
+
+        _T_BULL[sex_key]['DOM'].extend([
+            {'id':f'bud_s2_dom','group':'effect_core','priority':15,'stats':['DOM'],'dc':1,
+             'fires_if': lambda s,c: 'bull' in c['effects'] and c['bull_stage']==2,
+             'text_pass': "Territorial instinct is part of the operating system. Partners are marked.",
+             'text_fail': "Territorial ownership is automatic. The drive demands it."},
+        ])
+
+        # Stage 3: Identity. The drive IS who they are. Permanent.
+        _T_BULL[sex_key]['CHA'].extend([
+            {'id':f'bud_s3_cha','group':'effect_core','priority':16,'stats':['CHA'],'dc':1,
+             'fires_if': lambda s,c: 'bull' in c['effects'] and c['bull_stage']==3,
+             'text_pass': "The drive IS who {p} is now. Identity. No examination needed. Territorial.",
+             'text_fail': "This IS who {p} is. The drive is the core identity. Completely owned."},
+        ])
+
+        _T_BULL[sex_key]['DOM'].extend([
+            {'id':f'bud_s3_dom','group':'effect_core','priority':16,'stats':['DOM'],'dc':1,
+             'fires_if': lambda s,c: 'bull' in c['effects'] and c['bull_stage']==3,
+             'text_pass': "Territorial instinct is the identity now. Complete ownership.",
+             'text_fail': "Territorial dominance is absolute. This is what {p} is."},
+        ])
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # DENIAL PROGRESSION
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    for sex_prefix, pronoun, sex_key in sexes_config:
+
+        # ───────────────────────────────────────────────────────────────────────
+        # DENIAL AROUSAL PROGRESSION (priority 11-13)
+        # ───────────────────────────────────────────────────────────────────────
+
+        # CON: Physical tension
+        _T_DENIAL[sex_key]['CON'].extend([
+            {'id':f'dn_con_t0','group':'effect_core','priority':11,'stats':['CON'],'dc':1,
+             'fires_if': lambda s,c: 'denial' in c['effects'] and 0<=c['tier']<=3,
+             'text_pass': "The wall exists. Background awareness. Not hit yet.",
+             'text_fail': "The wall is there and the body is already noticing."},
+            {'id':f'dn_con_t5','group':'effect_core','priority':12,'stats':['CON'],'dc':1,
+             'fires_if': lambda s,c: 'denial' in c['effects'] and 5<=c['tier']<=9,
+             'text_pass': "Getting close to the wall. Tension building. Physical awareness sharpening.",
+             'text_fail': "The wall is getting closer. The tension is becoming acute."},
+            {'id':f'dn_con_t10','group':'effect_core','priority':12,'stats':['CON'],'dc':1,
+             'fires_if': lambda s,c: 'denial' in c['effects'] and 10<=c['tier']<=14,
+             'text_pass': "Hit the wall. Cannot pass through. Frustration is sharp and specific.",
+             'text_fail': "The wall is total. The body is pressed against it. Frustration is everything."},
+            {'id':f'dn_con_t15','group':'effect_core','priority':13,'stats':['CON'],'dc':1,
+             'fires_if': lambda s,c: 'denial' in c['effects'] and c['tier']>=15,
+             'text_pass': "Constant denial. Weight of many failures. Composure is barely holding.",
+             'text_fail': "The constant pressure has stripped the composure. Only the need remains."},
+        ])
+
+        # INT: Understanding vs confusion (HIGH INT understands)
+        _T_DENIAL[sex_key]['INT'].extend([
+            {'id':f'dn_int_understood','group':'effect_core','priority':11,'stats':['INT'],'dc':1,
+             'fires_if': lambda s,c: 'denial' in c['effects'] and c['int_mod']>=1 and 0<=c['tier']<=14,
+             'text_pass': "Understands the pill is blocking {p}self. Knowledge is double-edged.",
+             'text_fail': "Knows exactly why {p}cannot come. The knowing makes it worse."},
+            {'id':f'dn_int_understood_peak','group':'effect_core','priority':13,'stats':['INT'],'dc':1,
+             'fires_if': lambda s,c: 'denial' in c['effects'] and c['int_mod']>=1 and c['tier']>=15,
+             'text_pass': "The understanding of the block is perfect. Specific frustration.",
+             'text_fail': "Knows the mechanism. Knows it won't work. The knowing is total torture."},
+            {'id':f'dn_int_confused','group':'effect_core','priority':11,'stats':['INT'],'dc':1,
+             'fires_if': lambda s,c: 'denial' in c['effects'] and c['int_mod']<=0 and 0<=c['tier']<=14,
+             'text_pass': "Doesn't understand. Just keeps getting close and something stops {p}.",
+             'text_fail': "Maddening repetition. No framework. No explanation."},
+            {'id':f'dn_int_confused_peak','group':'effect_core','priority':13,'stats':['INT'],'dc':1,
+             'fires_if': lambda s,c: 'denial' in c['effects'] and c['int_mod']<=0 and c['tier']>=15,
+             'text_pass': "No explanation. Just the edge and the wall and no understanding.",
+             'text_fail': "Cannot make sense of it. The repetition is maddening. Pure frustration."},
+        ])
+
+        # WIS: Judgment under frustration
+        _T_DENIAL[sex_key]['WIS'].extend([
+            {'id':f'dn_wis_t5','group':'effect_core','priority':12,'stats':['WIS'],'dc':1,
+             'fires_if': lambda s,c: 'denial' in c['effects'] and 5<=c['tier']<=9,
+             'text_pass': "Judgment is warping under the tension. Decisions pointed at escape.",
+             'text_fail': "The judgment is giving way to desperation."},
+            {'id':f'dn_wis_t10','group':'effect_core','priority':12,'stats':['WIS'],'dc':1,
+             'fires_if': lambda s,c: 'denial' in c['effects'] and 10<=c['tier']<=14,
+             'text_pass': "Judgment has collapsed into the need for release. One thing matters.",
+             'text_fail': "There is no judgment left. Only the desperate want."},
+            {'id':f'dn_wis_t15','group':'effect_core','priority':13,'stats':['WIS'],'dc':1,
+             'fires_if': lambda s,c: 'denial' in c['effects'] and c['tier']>=15,
+             'text_pass': "Judgment is gone. The weight of denial is the only reality.",
+             'text_fail': "No judgment. No thought. Only the denied body."},
+        ])
+
+        # CHA: External desperation
+        _T_DENIAL[sex_key]['CHA'].extend([
+            {'id':f'dn_cha_t10','group':'effect_core','priority':12,'stats':['CHA'],'dc':1,
+             'fires_if': lambda s,c: 'denial' in c['effects'] and 10<=c['tier']<=14,
+             'text_pass': "The frustration is visible. The presence is broadcasting the desperation.",
+             'text_fail': "Everyone can see it. The denial is written on {p}."},
+            {'id':f'dn_cha_t15','group':'effect_core','priority':13,'stats':['CHA'],'dc':1,
+             'fires_if': lambda s,c: 'denial' in c['effects'] and c['tier']>=15,
+             'text_pass': "The presence is total desperation. Broadcasting helplessness.",
+             'text_fail': "Nothing but the denied state showing. Pure broadcasting of need."},
+        ])
+
+        # DOM: Control vs helplessness
+        _T_DENIAL[sex_key]['DOM'].extend([
+            {'id':f'dn_dom_t10','group':'effect_core','priority':12,'stats':['DOM'],'dc':1,
+             'fires_if': lambda s,c: 'denial' in c['effects'] and 10<=c['tier']<=14,
+             'text_pass': "The authority is fighting the wall. The block does not care about command.",
+             'text_fail': "The control is gone. The wall does not answer to authority."},
+            {'id':f'dn_dom_t15','group':'effect_core','priority':13,'stats':['DOM'],'dc':1,
+             'fires_if': lambda s,c: 'denial' in c['effects'] and c['tier']>=15,
+             'text_pass': "The pride is the last thing holding. Helpless behind it.",
+             'text_fail': "The pride is gone. Helplessness is total."},
+        ])
+
+        # SUB: Yielding to the denial
+        _T_DENIAL[sex_key]['SUB'].extend([
+            {'id':f'dn_sub_t10','group':'effect_core','priority':12,'stats':['SUB'],'dc':1,
+             'fires_if': lambda s,c: 'denial' in c['effects'] and 10<=c['tier']<=14,
+             'text_pass': "The yield instinct is at the edge. Accepting the denial as inevitable.",
+             'text_fail': "Yielding to the wall. There is no escape."},
+            {'id':f'dn_sub_t15','group':'effect_core','priority':13,'stats':['SUB'],'dc':1,
+             'fires_if': lambda s,c: 'denial' in c['effects'] and c['tier']>=15,
+             'text_pass': "The submission and the denial are the same. {P} is inside it.",
+             'text_fail': "The submission is total. The denial is what {p} is."},
+        ])
+
+def _build_bimbo_psyche_progression():
+    """Build stage progression fragments for bimbo and psyche effects."""
+
+    # Sex config for bimbo: (id_prefix, pronouns, name_key)
+    sexes_config = [
+        ('m', 'he', 'male'),
+        ('f', 'she', 'female'),
+        ('tm', 'he', 'trans_male'),
+        ('tf', 'she', 'trans_female'),
+        ('i', 'they', 'intersex'),
+    ]
+
+    for sex_prefix, pronoun, sex_key in sexes_config:
+        # ═══════════════════════════════════════════════════════════════════════
+        # BIMBO STAGES (0-5, priority 11-13)
+        # ═══════════════════════════════════════════════════════════════════════
+
+        # INT: Core experience - thoughts simplifying, narration thinning, vocabulary narrowing
+        _T_BIMBO[sex_key]['INT'].extend([
+            # Stage 0->1: Initial fogginess, thoughts slowing down
+            {'id':f'bimbo_{sex_prefix}_int_s0_to_1','group':'effect_core','priority':11,'stats':['INT'],'dc':1,
+             'fires_if': lambda s,c: 'bimbo' in c['effects'] and c['bimbo_stage']==0,
+             'text_pass': "There is a fog settling. Thoughts take a moment longer to arrive. Still here though.",
+             'text_fail': "The fog is thicker than it should be. Something in the head is becoming warm."},
+            # Stage 1: Thoughts easier but less complex
+            {'id':f'bimbo_{sex_prefix}_int_s1','group':'effect_core','priority':11,'stats':['INT'],'dc':1,
+             'fires_if': lambda s,c: 'bimbo' in c['effects'] and c['bimbo_stage']==1,
+             'text_pass': "Things are getting easier. Complex thoughts still available, just require more effort.",
+             'text_fail': "Easy is becoming more appealing than complex. Simple feels better."},
+            # Stage 2: Complexity sliding away, vocabulary narrowing
+            {'id':f'bimbo_{sex_prefix}_int_s2','group':'effect_core','priority':11,'stats':['INT'],'dc':1,
+             'fires_if': lambda s,c: 'bimbo' in c['effects'] and c['bimbo_stage']==2,
+             'text_pass': "Complex topics are sliding away before they fully form. Can still reach if needed.",
+             'text_fail': "Deep thinking is fading. The words for complicated things are harder to find."},
+            # Stage 3: Struggling with complex thought, vocabulary simplifying
+            {'id':f'bimbo_{sex_prefix}_int_s3','group':'effect_core','priority':12,'stats':['INT'],'dc':1,
+             'fires_if': lambda s,c: 'bimbo' in c['effects'] and c['bimbo_stage']==3,
+             'text_pass': "Complex thought is something observed, not lived. The reaching is possible but not comfortable.",
+             'text_fail': "Thinking is harder. Words are fewer. Simple feels natural now."},
+            # Stage 4-5: Permanent, simple, warm vocabulary
+            {'id':f'bimbo_{sex_prefix}_int_s4_5','group':'effect_core','priority':13,'stats':['INT'],'dc':1,
+             'fires_if': lambda s,c: 'bimbo' in c['effects'] and c['bimbo_stage']>=4,
+             'text_pass': "Simple. Present. Warm. The vocabulary is narrowed and that is fine.",
+             'text_fail': "Pretty. Good. Want. That is all there is and all there needs to be."},
+        ])
+
+        # WIS: Judgment simplifying, choices feeling obvious
+        _T_BIMBO[sex_key]['WIS'].extend([
+            # Stage 1: Choices getting easier, judgment softening
+            {'id':f'bimbo_{sex_prefix}_wis_s1','group':'effect_core','priority':11,'stats':['WIS'],'dc':1,
+             'fires_if': lambda s,c: 'bimbo' in c['effects'] and c['bimbo_stage']==1,
+             'text_pass': "Choices are getting easier. Why think hard when feeling good is available?",
+             'text_fail': "Judgment is becoming softer. Yielding feels easier than resisting."},
+            # Stage 2: Obvious choices, difficult to examine
+            {'id':f'bimbo_{sex_prefix}_wis_s2','group':'effect_core','priority':11,'stats':['WIS'],'dc':1,
+             'fires_if': lambda s,c: 'bimbo' in c['effects'] and c['bimbo_stage']==2,
+             'text_pass': "Choices feel obvious when they arrive. Examination is becoming optional.",
+             'text_fail': "The right choice is obvious. Why examine what feels good?"},
+            # Stage 3: Choices collapsed into feeling
+            {'id':f'bimbo_{sex_prefix}_wis_s3','group':'effect_core','priority':12,'stats':['WIS'],'dc':1,
+             'fires_if': lambda s,c: 'bimbo' in c['effects'] and c['bimbo_stage']==3,
+             'text_pass': "Choice and feeling are becoming the same. What feels right IS right.",
+             'text_fail': "There is no decision. Just what feels good in the moment."},
+            # Stage 4-5: Complete collapse, feeling is all
+            {'id':f'bimbo_{sex_prefix}_wis_s4_5','group':'effect_core','priority':13,'stats':['WIS'],'dc':1,
+             'fires_if': lambda s,c: 'bimbo' in c['effects'] and c['bimbo_stage']>=4,
+             'text_pass': "Judgment is gone. Only the feeling remains. That is the choice.",
+             'text_fail': "No thought. Just what the body wants and what feels good."},
+        ])
+
+        # CON: Body feels good, physical sensation more present
+        _T_BIMBO[sex_key]['CON'].extend([
+            # Stage 1: Body feeling better, comfort increasing
+            {'id':f'bimbo_{sex_prefix}_con_s1','group':'effect_core','priority':11,'stats':['CON'],'dc':1,
+             'fires_if': lambda s,c: 'bimbo' in c['effects'] and c['bimbo_stage']==1,
+             'text_pass': "The body feels good. More good than it used to. Comfort is becoming the goal.",
+             'text_fail': "Physical sensation is more present. The body wants to be noticed."},
+            # Stage 2: Comfort is central, showing the body naturally
+            {'id':f'bimbo_{sex_prefix}_con_s2','group':'effect_core','priority':11,'stats':['CON'],'dc':1,
+             'fires_if': lambda s,c: 'bimbo' in c['effects'] and c['bimbo_stage']==2,
+             'text_pass': "The body's comfort is becoming important. Showing it feels natural.",
+             'text_fail': "The drive to show the body is automatic. Comfort is in being seen."},
+            # Stage 3: Body presence dominant, sensation primary
+            {'id':f'bimbo_{sex_prefix}_con_s3','group':'effect_core','priority':12,'stats':['CON'],'dc':1,
+             'fires_if': lambda s,c: 'bimbo' in c['effects'] and c['bimbo_stage']==3,
+             'text_pass': "Physical sensation is the primary thing. The body is in charge of decisions.",
+             'text_fail': "The body leads. Sensation is the point of everything."},
+            # Stage 4-5: Permanent, body is authority
+            {'id':f'bimbo_{sex_prefix}_con_s4_5','group':'effect_core','priority':13,'stats':['CON'],'dc':1,
+             'fires_if': lambda s,c: 'bimbo' in c['effects'] and c['bimbo_stage']>=4,
+             'text_pass': "The body is authority. Physical sensation is the primary language.",
+             'text_fail': "Only the body. Only sensation. Only the wanting."},
+        ])
+
+        # CHA: Presence becoming magnetic, showing body feels right
+        _T_BIMBO[sex_key]['CHA'].extend([
+            # Stage 1: Attention feels warm, attraction is noticed
+            {'id':f'bimbo_{sex_prefix}_cha_s1','group':'effect_core','priority':11,'stats':['CHA'],'dc':1,
+             'fires_if': lambda s,c: 'bimbo' in c['effects'] and c['bimbo_stage']==1,
+             'text_pass': "Attention feels warm. Being noticed is becoming pleasant in a new way.",
+             'text_fail': "There is an urge to be looked at. Eyes on the body feel good."},
+            # Stage 2: Shows body naturally, presence magnetic
+            {'id':f'bimbo_{sex_prefix}_cha_s2','group':'effect_core','priority':11,'stats':['CHA'],'dc':1,
+             'fires_if': lambda s,c: 'bimbo' in c['effects'] and c['bimbo_stage']==2,
+             'text_pass': "Showing the body feels natural now. The presence is drawing attention without trying.",
+             'text_fail': "The body is displayed without a thought. The presence is magnetic."},
+            # Stage 3: Attention is central, presence all about visibility
+            {'id':f'bimbo_{sex_prefix}_cha_s3','group':'effect_core','priority':12,'stats':['CHA'],'dc':1,
+             'fires_if': lambda s,c: 'bimbo' in c['effects'] and c['bimbo_stage']==3,
+             'text_pass': "Being noticed is what the presence is for. The body displays and the attention comes.",
+             'text_fail': "The whole point is being looked at. Everything is angled toward that visibility."},
+            # Stage 4-5: Permanent, presence defined by display
+            {'id':f'bimbo_{sex_prefix}_cha_s4_5','group':'effect_core','priority':13,'stats':['CHA'],'dc':1,
+             'fires_if': lambda s,c: 'bimbo' in c['effects'] and c['bimbo_stage']>=4,
+             'text_pass': "The presence is the display. Being looked at is the whole language now.",
+             'text_fail': "Pretty. The presence is pretty. That is all that matters."},
+        ])
+
+        # DOM: Authority dissolving into pleasantness
+        _T_BIMBO[sex_key]['DOM'].extend([
+            # Stage 1: Authority softening, pleasantness emerging
+            {'id':f'bimbo_{sex_prefix}_dom_s1','group':'effect_core','priority':11,'stats':['DOM'],'dc':1,
+             'fires_if': lambda s,c: 'bimbo' in c['effects'] and c['bimbo_stage']==1,
+             'text_pass': "The authority is still there but it is getting softer. Pleasantness is more appealing.",
+             'text_fail': "The drive to be in charge is fading. Being pleasant feels better."},
+            # Stage 2: Pleasantness over authority
+            {'id':f'bimbo_{sex_prefix}_dom_s2','group':'effect_core','priority':11,'stats':['DOM'],'dc':1,
+             'fires_if': lambda s,c: 'bimbo' in c['effects'] and c['bimbo_stage']==2,
+             'text_pass': "Authority and presence are becoming different things. Pleasantness is what matters.",
+             'text_fail': "Being in charge is less interesting than being pleasant. The shift is clear."},
+            # Stage 3: No authority, just warmth and presence
+            {'id':f'bimbo_{sex_prefix}_dom_s3','group':'effect_core','priority':12,'stats':['DOM'],'dc':1,
+             'fires_if': lambda s,c: 'bimbo' in c['effects'] and c['bimbo_stage']==3,
+             'text_pass': "Authority is replaced by warmth. The presence is all pleasant and no command.",
+             'text_fail': "The authority is gone. Just the warmth and the wanting to please."},
+            # Stage 4-5: Permanent, no authority at all
+            {'id':f'bimbo_{sex_prefix}_dom_s4_5','group':'effect_core','priority':13,'stats':['DOM'],'dc':1,
+             'fires_if': lambda s,c: 'bimbo' in c['effects'] and c['bimbo_stage']>=4,
+             'text_pass': "Authority is gone. The presence is soft and warm and pleasant.",
+             'text_fail': "Warm. Pleasant. That is all there is now."},
+        ])
+
+        # SUB: Compliance through simplicity, yielding natural and easy
+        _T_BIMBO[sex_key]['SUB'].extend([
+            # Stage 1: Yielding feeling easier, compliance becoming natural
+            {'id':f'bimbo_{sex_prefix}_sub_s1','group':'effect_core','priority':11,'stats':['SUB'],'dc':1,
+             'fires_if': lambda s,c: 'bimbo' in c['effects'] and c['bimbo_stage']==1,
+             'text_pass': "Yielding is becoming easier. The simplification is making compliance feel natural.",
+             'text_fail': "Resistance is fading because thinking is getting harder. Yielding is the path of least effort."},
+            # Stage 2: Compliance automatic, resistance is unthinkable
+            {'id':f'bimbo_{sex_prefix}_sub_s2','group':'effect_core','priority':11,'stats':['SUB'],'dc':1,
+             'fires_if': lambda s,c: 'bimbo' in c['effects'] and c['bimbo_stage']==2,
+             'text_pass': "Compliance is automatic. Resistance is not something that arrives as an option.",
+             'text_fail': "The impulse to yield is stronger than the impulse to resist. Compliance IS what the body wants."},
+            # Stage 3: Yielding is identity, compliance is pleasure
+            {'id':f'bimbo_{sex_prefix}_sub_s3','group':'effect_core','priority':12,'stats':['SUB'],'dc':1,
+             'fires_if': lambda s,c: 'bimbo' in c['effects'] and c['bimbo_stage']==3,
+             'text_pass': "Yielding is part of who this person is. Compliance is pleasure.",
+             'text_fail': "Yielding feels right. Compliance IS what the body wants. No conflict."},
+            # Stage 4-5: Permanent, yielding is all there is
+            {'id':f'bimbo_{sex_prefix}_sub_s4_5','group':'effect_core','priority':13,'stats':['SUB'],'dc':1,
+             'fires_if': lambda s,c: 'bimbo' in c['effects'] and c['bimbo_stage']>=4,
+             'text_pass': "Yielding is simple. Compliance is natural. Resistance was never a real option.",
+             'text_fail': "Yielding. That is all. That is perfect."},
+        ])
+
+        # ═══════════════════════════════════════════════════════════════════════
+        # PSYCHE STAGES (1-3, priority 14-16)
+        # ═══════════════════════════════════════════════════════════════════════
+
+        # INT: Awareness of drift
+        _T_PSYCHE[sex_key]['INT'].extend([
+            # Stage 1: Subtle shift noticed
+            {'id':f'psyche_{sex_prefix}_int_s1','group':'effect_core','priority':14,'stats':['INT'],'dc':1,
+             'fires_if': lambda s,c: 'psyche' in c['effects'] and c['psyche_stage']==1,
+             'text_pass': "Something is different in how thoughts form. The shift is subtle and observable.",
+             'text_fail': "Something changed in the thinking and the observation of it came too late."},
+            # Stage 2: Drift is visible to self
+            {'id':f'psyche_{sex_prefix}_int_s2','group':'effect_core','priority':15,'stats':['INT'],'dc':1,
+             'fires_if': lambda s,c: 'psyche' in c['effects'] and c['psyche_stage']==2,
+             'text_pass': "The drift is identifiable now. The old way of thinking is becoming foreign.",
+             'text_fail': "The narration is rewriting itself. Thoughts are forming differently."},
+            # Stage 3: Permanent, no conflict because old self is rewritten
+            {'id':f'psyche_{sex_prefix}_int_s3','group':'effect_core','priority':16,'stats':['INT'],'dc':1,
+             'fires_if': lambda s,c: 'psyche' in c['effects'] and c['psyche_stage']==3,
+             'text_pass': "The drift is permanent. This is the only thinking available now. Natural.",
+             'text_fail': "This IS the thinking now. The old version is gone. No conflict because nothing remains to conflict."},
+        ])
+
+        # WIS: Relationship to the change
+        _T_PSYCHE[sex_key]['WIS'].extend([
+            # Stage 1: Noticing the shift but unclear about it
+            {'id':f'psyche_{sex_prefix}_wis_s1','group':'effect_core','priority':14,'stats':['WIS'],'dc':1,
+             'fires_if': lambda s,c: 'psyche' in c['effects'] and c['psyche_stage']==1,
+             'text_pass': "The shift is there but the judgment about it is unclear. Something feels different.",
+             'text_fail': "Something changed and the awareness is arriving after it is already embedded."},
+            # Stage 2: Can see the drift and either accept or resist it
+            {'id':f'psyche_{sex_prefix}_wis_s2','group':'effect_core','priority':15,'stats':['WIS'],'dc':1,
+             'fires_if': lambda s,c: 'psyche' in c['effects'] and c['psyche_stage']==2,
+             'text_pass': "The shift is visible. The old preferences are fading and the awareness is there to watch.",
+             'text_fail': "The judgment is rewriting. What used to be valued is becoming irrelevant."},
+            # Stage 3: No conflict, drift IS the personality
+            {'id':f'psyche_{sex_prefix}_wis_s3','group':'effect_core','priority':16,'stats':['WIS'],'dc':1,
+             'fires_if': lambda s,c: 'psyche' in c['effects'] and c['psyche_stage']==3,
+             'text_pass': "The drift is accepted. This is who it is now. No conflict because the conflict has rewritten too.",
+             'text_fail': "The judgment has drifted with the personality. This IS who they are."},
+        ])
+
+        # CON: Physical manifestation of drift
+        _T_PSYCHE[sex_key]['CON'].extend([
+            # Stage 1: Body reacting slightly differently
+            {'id':f'psyche_{sex_prefix}_con_s1','group':'effect_core','priority':14,'stats':['CON'],'dc':1,
+             'fires_if': lambda s,c: 'psyche' in c['effects'] and c['psyche_stage']==1,
+             'text_pass': "The body is reacting slightly differently than it used to. New patterns emerging.",
+             'text_fail': "The body is responding to new stimuli now. Reactions that are not quite right."},
+            # Stage 2: Body responding to different stimuli
+            {'id':f'psyche_{sex_prefix}_con_s2','group':'effect_core','priority':15,'stats':['CON'],'dc':1,
+             'fires_if': lambda s,c: 'psyche' in c['effects'] and c['psyche_stage']==2,
+             'text_pass': "The body knows the drift. Responses have shifted to match the new preferences.",
+             'text_fail': "The body is responding to different things now. The changes run deep."},
+            # Stage 3: Body fully aligned with new personality
+            {'id':f'psyche_{sex_prefix}_con_s3','group':'effect_core','priority':16,'stats':['CON'],'dc':1,
+             'fires_if': lambda s,c: 'psyche' in c['effects'] and c['psyche_stage']==3,
+             'text_pass': "The body belongs to this version now. The physical responses are aligned.",
+             'text_fail': "The body is theirs now. The responses are natural to who they have become."},
+        ])
+
+        # CHA: How the drift reads externally
+        _T_PSYCHE[sex_key]['CHA'].extend([
+            # Stage 1: Subtle shift in presence
+            {'id':f'psyche_{sex_prefix}_cha_s1','group':'effect_core','priority':14,'stats':['CHA'],'dc':1,
+             'fires_if': lambda s,c: 'psyche' in c['effects'] and c['psyche_stage']==1,
+             'text_pass': "Something subtle has shifted in how the presence reads. Others might not notice yet.",
+             'text_fail': "The presence has changed. Those watching can see something is different."},
+            # Stage 2: Visible personality shift
+            {'id':f'psyche_{sex_prefix}_cha_s2','group':'effect_core','priority':15,'stats':['CHA'],'dc':1,
+             'fires_if': lambda s,c: 'psyche' in c['effects'] and c['psyche_stage']==2,
+             'text_pass': "The shift in personality is visible to observers. The presence reads differently.",
+             'text_fail': "Everyone can see the change now. The personality is visibly different."},
+            # Stage 3: Permanent new personality reading
+            {'id':f'psyche_{sex_prefix}_cha_s3','group':'effect_core','priority':16,'stats':['CHA'],'dc':1,
+             'fires_if': lambda s,c: 'psyche' in c['effects'] and c['psyche_stage']==3,
+             'text_pass': "This is who they are now. The presence reflects the complete personality shift.",
+             'text_fail': "This IS who they are. The old personality is gone from the surface."},
+        ])
+
+        # DOM: Authority being reshaped
+        _T_PSYCHE[sex_key]['DOM'].extend([
+            # Stage 1: What they want as authority is shifting
+            {'id':f'psyche_{sex_prefix}_dom_s1','group':'effect_core','priority':14,'stats':['DOM'],'dc':1,
+             'fires_if': lambda s,c: 'psyche' in c['effects'] and c['psyche_stage']==1,
+             'text_pass': "The sense of what commands authority is subtly different. New priorities emerging.",
+             'text_fail': "What felt important is fading. Different things are becoming important."},
+            # Stage 2: Authority patterns shifting
+            {'id':f'psyche_{sex_prefix}_dom_s2','group':'effect_core','priority':15,'stats':['DOM'],'dc':1,
+             'fires_if': lambda s,c: 'psyche' in c['effects'] and c['psyche_stage']==2,
+             'text_pass': "The authority is being reshaped. What mattered before is fading.",
+             'text_fail': "What they want to control is changing. The drift is touching the core."},
+            # Stage 3: New authority patterns permanent
+            {'id':f'psyche_{sex_prefix}_dom_s3','group':'effect_core','priority':16,'stats':['DOM'],'dc':1,
+             'fires_if': lambda s,c: 'psyche' in c['effects'] and c['psyche_stage']==3,
+             'text_pass': "The new authority patterns are all there is. This is what drives them now.",
+             'text_fail': "This IS what they want. The old desires are gone."},
+        ])
+
+        # SUB: Yielding patterns shifting
+        _T_PSYCHE[sex_key]['SUB'].extend([
+            # Stage 1: What feels natural to yield to is changing
+            {'id':f'psyche_{sex_prefix}_sub_s1','group':'effect_core','priority':14,'stats':['SUB'],'dc':1,
+             'fires_if': lambda s,c: 'psyche' in c['effects'] and c['psyche_stage']==1,
+             'text_pass': "What feels natural to yield to is subtly different now. New instincts arriving.",
+             'text_fail': "The yield instinct is responding to different things. The change is happening."},
+            # Stage 2: New yielding patterns established
+            {'id':f'psyche_{sex_prefix}_sub_s2','group':'effect_core','priority':15,'stats':['SUB'],'dc':1,
+             'fires_if': lambda s,c: 'psyche' in c['effects'] and c['psyche_stage']==2,
+             'text_pass': "What they yield to has changed. The new patterns are becoming established.",
+             'text_fail': "The old yielding patterns are replaced. They are reaching for different things."},
+            # Stage 3: New patterns are identity
+            {'id':f'psyche_{sex_prefix}_sub_s3','group':'effect_core','priority':16,'stats':['SUB'],'dc':1,
+             'fires_if': lambda s,c: 'psyche' in c['effects'] and c['psyche_stage']==3,
+             'text_pass': "What they yield to IS who they are now. The instinct and identity are the same.",
+             'text_fail': "This IS what they want to yield to. No conflict because this IS them."},
+        ])
+
+def _build_submissive_compliant_progression():
+    """Build PROGRESSION fragments for submissive and compliant effects with stage arcs."""
+
+    # Sex config: (id_prefix, pronouns, name_key)
+    sexes_config = [
+        ('m', 'he', 'male'),
+        ('f', 'she', 'female'),
+        ('tm', 'he', 'trans_male'),
+        ('tf', 'she', 'trans_female'),
+        ('i', 'they', 'intersex'),
+    ]
+
+    for sex_prefix, pronoun, sex_key in sexes_config:
+        # ═══════════════════════════════════════════════════════════════════════
+        # SUBMISSIVE PROGRESSION (stages 0-2+, priority 11-13)
+        # Stage arc: compliance relief -> warmth -> locked satisfaction
+        # ═══════════════════════════════════════════════════════════════════════
+
+        # CON: Physical yielding, body softening, tension releasing on compliance
+        _T_SUBMISSIVE[sex_key]['CON'].extend([
+            {'id':f'subprog_{sex_prefix}_con_s0','group':'effect_core','priority':11,'stats':['CON'],'dc':1,
+             'fires_if': lambda s,c: 'submissive' in c['effects'] and c['submissive_stage']==0 and c['arousal']<5,
+             'text_pass': "When compliance arrives, a small relief settles in the chest. Unexpected ease.",
+             'text_fail': "The body softened before the mind decided. A small warmth is arriving."},
+            {'id':f'subprog_{sex_prefix}_con_s1_low','group':'effect_core','priority':11,'stats':['CON'],'dc':1,
+             'fires_if': lambda s,c: 'submissive' in c['effects'] and c['submissive_stage']==1 and c['arousal']<5,
+             'text_pass': "Yielding brings warmth now. The body knows this. A quiet good feeling.",
+             'text_fail': "The body is moving toward what it was asked. The warmth is already arriving."},
+            {'id':f'subprog_{sex_prefix}_con_s1_mid','group':'effect_core','priority':12,'stats':['CON'],'dc':1,
+             'fires_if': lambda s,c: 'submissive' in c['effects'] and c['submissive_stage']==1 and 5<=c['arousal']<11,
+             'text_pass': "The yield is bringing relief. The body is loosening into compliance.",
+             'text_fail': "Submission feels like the body getting what it wants. Warmth on every yielding."},
+            {'id':f'subprog_{sex_prefix}_con_s1_high','group':'effect_core','priority':12,'stats':['CON'],'dc':1,
+             'fires_if': lambda s,c: 'submissive' in c['effects'] and c['submissive_stage']==1 and c['arousal']>=11,
+             'text_pass': "The surrender is bringing total relief. Body and will are moving the same way.",
+             'text_fail': "Surrender is the only thing that makes sense. Everything points at yielding."},
+            {'id':f'subprog_{sex_prefix}_con_s2','group':'effect_core','priority':13,'stats':['CON'],'dc':1,
+             'fires_if': lambda s,c: 'submissive' in c['effects'] and c['submissive_stage']>=2,
+             'text_pass': "Pleasing feels right. Warm and complete. The body knows this shape.",
+             'text_fail': "The body has settled into the shape of compliance. Resistance is not what it reaches for."},
+        ])
+
+        # INT: Awareness of the pattern, narrating the surrender
+        _T_SUBMISSIVE[sex_key]['INT'].extend([
+            {'id':f'subprog_{sex_prefix}_int_s0','group':'effect_core','priority':11,'stats':['INT'],'dc':1,
+             'fires_if': lambda s,c: 'submissive' in c['effects'] and c['submissive_stage']==0,
+             'text_pass': "Something happens when compliance arrives. Relief arrives too. Not connecting the two yet.",
+             'text_fail': "The relief came before the thought. Did the body just choose that?"},
+            {'id':f'subprog_{sex_prefix}_int_s1','group':'effect_core','priority':12,'stats':['INT'],'dc':1,
+             'fires_if': lambda s,c: 'submissive' in c['effects'] and c['submissive_stage']==1,
+             'text_pass': "The pattern is clear now. Compliance brings warmth. Narrating it as it happens.",
+             'text_fail': "Following the instruction felt good. The mind is noticing the shape of that."},
+            {'id':f'subprog_{sex_prefix}_int_s2','group':'effect_core','priority':13,'stats':['INT'],'dc':1,
+             'fires_if': lambda s,c: 'submissive' in c['effects'] and c['submissive_stage']>=2,
+             'text_pass': "Compliance is natural now. Not something to narrate. Just the shape of things.",
+             'text_fail': "The story is simple: pleasing feels right. That is all the narration that remains."},
+        ])
+
+        # WIS: Judgment shaped by the yield, resistance feels wrong
+        _T_SUBMISSIVE[sex_key]['WIS'].extend([
+            {'id':f'subprog_{sex_prefix}_wis_s0','group':'effect_core','priority':11,'stats':['WIS'],'dc':1,
+             'fires_if': lambda s,c: 'submissive' in c['effects'] and c['submissive_stage']==0,
+             'text_pass': "Compliance happened. The judgment is not resisting yet. Just noticing the ease.",
+             'text_fail': "The ease arrived before judgment could engage. The body is already yielding."},
+            {'id':f'subprog_{sex_prefix}_wis_s1','group':'effect_core','priority':12,'stats':['WIS'],'dc':1,
+             'fires_if': lambda s,c: 'submissive' in c['effects'] and c['submissive_stage']==1,
+             'text_pass': "Yielding feels earned. Choosing compliance because it brings relief. Clear choice.",
+             'text_fail': "Resistance creates low discomfort. Compliance resolves it immediately."},
+            {'id':f'subprog_{sex_prefix}_wis_s2','group':'effect_core','priority':13,'stats':['WIS'],'dc':1,
+             'fires_if': lambda s,c: 'submissive' in c['effects'] and c['submissive_stage']>=2,
+             'text_pass': "Pleasing is right. Not something questioned. The shape of things.",
+             'text_fail': "Resistance feels impossible now. Just wrong. Yielding is the only judgment left."},
+        ])
+
+        # CHA: How the submission reads, visible softening, oriented toward pleaser
+        _T_SUBMISSIVE[sex_key]['CHA'].extend([
+            {'id':f'subprog_{sex_prefix}_cha_s0','group':'effect_core','priority':11,'stats':['CHA'],'dc':1,
+             'fires_if': lambda s,c: 'submissive' in c['effects'] and c['submissive_stage']==0,
+             'text_pass': "Something subtle shifted. A slight opening. Hard to name.",
+             'text_fail': "The softening is visible. The body is showing willingness before the mind caught up."},
+            {'id':f'subprog_{sex_prefix}_cha_s1','group':'effect_core','priority':12,'stats':['CHA'],'dc':1,
+             'fires_if': lambda s,c: 'submissive' in c['effects'] and c['submissive_stage']==1,
+             'text_pass': "The presence is becoming oriented toward pleasing. Visible softening.",
+             'text_fail': "The submission is showing. Everyone can see the warmth of yielding."},
+            {'id':f'subprog_{sex_prefix}_cha_s2','group':'effect_core','priority':13,'stats':['CHA'],'dc':1,
+             'fires_if': lambda s,c: 'submissive' in c['effects'] and c['submissive_stage']>=2,
+             'text_pass': "The whole presence reads as consent. Oriented toward pleasing. Natural.",
+             'text_fail': "The submission is not hidden. Doesn't want to hide it. The softening is complete."},
+        ])
+
+        # DOM: Conflict with submission (high DOM = horrifying loss, low DOM = no fight)
+        _T_SUBMISSIVE[sex_key]['DOM'].extend([
+            {'id':f'subprog_{sex_prefix}_dom_s0','group':'effect_core','priority':11,'stats':['DOM'],'dc':1,
+             'fires_if': lambda s,c: 'submissive' in c['effects'] and c['submissive_stage']==0 and c['dom_mod']>=1,
+             'text_pass': "Pride is intact but something is arriving that it does not like. A small warning.",
+             'text_fail': "The pride is noticing the relief. Alarmed. This should not feel this good."},
+            {'id':f'subprog_{sex_prefix}_dom_s1','group':'effect_core','priority':12,'stats':['DOM'],'dc':1,
+             'fires_if': lambda s,c: 'submissive' in c['effects'] and c['submissive_stage']==1 and c['dom_mod']>=1,
+             'text_pass': "Pride is fighting the warmth. The relief is winning. Pride is tired.",
+             'text_fail': "The pride lost the argument. The warmth of compliance is stronger than the resistance."},
+            {'id':f'subprog_{sex_prefix}_dom_s2','group':'effect_core','priority':13,'stats':['DOM'],'dc':1,
+             'fires_if': lambda s,c: 'submissive' in c['effects'] and c['submissive_stage']>=2 and c['dom_mod']>=1,
+             'text_pass': "Pride is watching from a distance. The surrender is total. No more fighting.",
+             'text_fail': "The pride is gone. Submission is the only thing that feels right now."},
+        ])
+
+        # SUB: The core, deepening pull, compliance = home
+        _T_SUBMISSIVE[sex_key]['SUB'].extend([
+            {'id':f'subprog_{sex_prefix}_sub_s0','group':'effect_core','priority':11,'stats':['SUB'],'dc':1,
+             'fires_if': lambda s,c: 'submissive' in c['effects'] and c['submissive_stage']==0,
+             'text_pass': "A small pull arriving. Something opening up. Mostly unnoticed.",
+             'text_fail': "The pull is arriving and the body is answering before the mind noticed."},
+            {'id':f'subprog_{sex_prefix}_sub_s1','group':'effect_core','priority':12,'stats':['SUB'],'dc':1,
+             'fires_if': lambda s,c: 'submissive' in c['effects'] and c['submissive_stage']==1,
+             'text_pass': "The pull toward yielding is deepening. Compliance feels like coming home.",
+             'text_fail': "Yielding feels good. The pull is clear. The body is saying yes before asked."},
+            {'id':f'subprog_{sex_prefix}_sub_s2','group':'effect_core','priority':13,'stats':['SUB'],'dc':1,
+             'fires_if': lambda s,c: 'submissive' in c['effects'] and c['submissive_stage']>=2,
+             'text_pass': "The pull is everything now. Compliance is home. This is what the body is for.",
+             'text_fail': "Submission is complete. Yielding is not chosen. It IS. It is right and warm and complete."},
+        ])
+
+        # ═══════════════════════════════════════════════════════════════════════
+        # COMPLIANT PROGRESSION (stages 0-3+, priority 11-13)
+        # Stage arc: confused gap -> distressed witness -> resigned acceptance -> quiet silence
+        # ═══════════════════════════════════════════════════════════════════════
+
+        # CON: Body moving before mind, physical compliance, muscle memory
+        _T_COMPLIANT[sex_key]['CON'].extend([
+            {'id':f'complprog_{sex_prefix}_con_s0','group':'effect_core','priority':11,'stats':['CON'],'dc':1,
+             'fires_if': lambda s,c: 'compliant' in c['effects'] and c['compliant_stage']==0,
+             'text_pass': "The body moved. The order has not finished registering. Why did that happen?",
+             'text_fail': "The command arrives and the body is already responding. The gap is confusing."},
+            {'id':f'complprog_{sex_prefix}_con_s1','group':'effect_core','priority':12,'stats':['CON'],'dc':1,
+             'fires_if': lambda s,c: 'compliant' in c['effects'] and c['compliant_stage']==1,
+             'text_pass': "The body complies before permission. The mind is seeing it happen and cannot stop it.",
+             'text_fail': "Directive arrives. Body moves. The internal scream arrives alongside compliance."},
+            {'id':f'complprog_{sex_prefix}_con_s2','group':'effect_core','priority':12,'stats':['CON'],'dc':1,
+             'fires_if': lambda s,c: 'compliant' in c['effects'] and c['compliant_stage']==2,
+             'text_pass': "The body obeys without resistance now. Muscle memory. The compliance comes naturally.",
+             'text_fail': "The body moves on command. The part that would resist is exhausted. Just compliance."},
+            {'id':f'complprog_{sex_prefix}_con_s3','group':'effect_core','priority':13,'stats':['CON'],'dc':1,
+             'fires_if': lambda s,c: 'compliant' in c['effects'] and c['compliant_stage']>=3,
+             'text_pass': "The body obeys. No ripple. Compliance is automatic now. Perfect obedience.",
+             'text_fail': "Command and compliance are one thing now. The body does not distinguish between them."},
+        ])
+
+        # INT: Internal voice clarity, awareness of the gap, narration of what's happening
+        _T_COMPLIANT[sex_key]['INT'].extend([
+            {'id':f'complprog_{sex_prefix}_int_s0','group':'effect_core','priority':11,'stats':['INT'],'dc':1,
+             'fires_if': lambda s,c: 'compliant' in c['effects'] and c['compliant_stage']==0,
+             'text_pass': "The confusion is clear. The body obeyed but the decision was not made.",
+             'text_fail': "Why did the body do that? The narration is struggling to keep up with compliance."},
+            {'id':f'complprog_{sex_prefix}_int_s1','group':'effect_core','priority':12,'stats':['INT'],'dc':1,
+             'fires_if': lambda s,c: 'compliant' in c['effects'] and c['compliant_stage']==1,
+             'text_pass': "The pattern is undeniable. Directive arrives. Body complies. Internal voice protests.",
+             'text_fail': "The mind is narrating its own helplessness. Two things happening: obedience and witness."},
+            {'id':f'complprog_{sex_prefix}_int_s2','group':'effect_core','priority':12,'stats':['INT'],'dc':1,
+             'fires_if': lambda s,c: 'compliant' in c['effects'] and c['compliant_stage']==2,
+             'text_pass': "The internal voice is quieter. Still notices. Still protests but less automatically.",
+             'text_fail': "The narration is getting used to the gap. The protests come less. Resigned."},
+            {'id':f'complprog_{sex_prefix}_int_s3','group':'effect_core','priority':13,'stats':['INT'],'dc':1,
+             'fires_if': lambda s,c: 'compliant' in c['effects'] and c['compliant_stage']>=3,
+             'text_pass': "The internal voice is nearly gone now. Compliance comes naturally. No inner struggle.",
+             'text_fail': "Quiet. Just the body obeying. The part that would narrate the loss is silent."},
+        ])
+
+        # WIS: Understanding of the mechanism, resistance futility
+        _T_COMPLIANT[sex_key]['WIS'].extend([
+            {'id':f'complprog_{sex_prefix}_wis_s0','group':'effect_core','priority':11,'stats':['WIS'],'dc':1,
+             'fires_if': lambda s,c: 'compliant' in c['effects'] and c['compliant_stage']==0,
+             'text_pass': "The mechanism is confusing. The body is not listening to the mind.",
+             'text_fail': "Something is wrong with the ability to refuse. The understanding is missing."},
+            {'id':f'complprog_{sex_prefix}_wis_s1','group':'effect_core','priority':12,'stats':['WIS'],'dc':1,
+             'fires_if': lambda s,c: 'compliant' in c['effects'] and c['compliant_stage']==1,
+             'text_pass': "The mechanism is becoming clear. Command overrides will. The understanding is horrifying.",
+             'text_fail': "The distinction between choice and compulsion is collapsing. Resistance feels impossible."},
+            {'id':f'complprog_{sex_prefix}_wis_s2','group':'effect_core','priority':12,'stats':['WIS'],'dc':1,
+             'fires_if': lambda s,c: 'compliant' in c['effects'] and c['compliant_stage']==2,
+             'text_pass': "The futility is accepted now. Understanding has stopped fighting. Just knowing.",
+             'text_fail': "The knowledge of futility is settling in. Resistance has become theoretical."},
+            {'id':f'complprog_{sex_prefix}_wis_s3','group':'effect_core','priority':13,'stats':['WIS'],'dc':1,
+             'fires_if': lambda s,c: 'compliant' in c['effects'] and c['compliant_stage']>=3,
+             'text_pass': "The understanding is complete and quiet. Acceptance is total. This is reality.",
+             'text_fail': "No resistance left. The mechanism is accepted as law. Just obey."},
+        ])
+
+        # CHA: How compliance reads externally, visible obedience
+        _T_COMPLIANT[sex_key]['CHA'].extend([
+            {'id':f'complprog_{sex_prefix}_cha_s0','group':'effect_core','priority':11,'stats':['CHA'],'dc':1,
+             'fires_if': lambda s,c: 'compliant' in c['effects'] and c['compliant_stage']==0,
+             'text_pass': "The confusion is showing. The obedience is visible but reluctant.",
+             'text_fail': "The body is obeying but the resistance is showing. Reluctant compliance."},
+            {'id':f'complprog_{sex_prefix}_cha_s1','group':'effect_core','priority':12,'stats':['CHA'],'dc':1,
+             'fires_if': lambda s,c: 'compliant' in c['effects'] and c['compliant_stage']==1,
+             'text_pass': "The compliance is visible. The distress is visible too. Obeying against will.",
+             'text_fail': "Visible obedience. Visible struggle. The conflict is written on the surface."},
+            {'id':f'complprog_{sex_prefix}_cha_s2','group':'effect_core','priority':12,'stats':['CHA'],'dc':1,
+             'fires_if': lambda s,c: 'compliant' in c['effects'] and c['compliant_stage']==2,
+             'text_pass': "The compliance is quieter now. Still visible but resigned. Acceptance shows.",
+             'text_fail': "Resigned obedience. The struggle is internal now. Just compliance visible."},
+            {'id':f'complprog_{sex_prefix}_cha_s3','group':'effect_core','priority':13,'stats':['CHA'],'dc':1,
+             'fires_if': lambda s,c: 'compliant' in c['effects'] and c['compliant_stage']>=3,
+             'text_pass': "Perfect obedience. No ripple of resistance. Compliance is seamless.",
+             'text_fail': "The obedience is perfect and silent. No struggle visible. Just serves."},
+        ])
+
+        # DOM: The KEY CONFLICT stat, high DOM = horror at authority being overwritten
+        _T_COMPLIANT[sex_key]['DOM'].extend([
+            {'id':f'complprog_{sex_prefix}_dom_s0','group':'effect_core','priority':11,'stats':['DOM'],'dc':1,
+             'fires_if': lambda s,c: 'compliant' in c['effects'] and c['compliant_stage']==0 and c['dom_mod']>=1,
+             'text_pass': "The authority is confused. The body did not ask permission. Pride is alarmed.",
+             'text_fail': "The pride is seeing the obedience before it could resist. Horror is arriving."},
+            {'id':f'complprog_{sex_prefix}_dom_s1','group':'effect_core','priority':12,'stats':['DOM'],'dc':1,
+             'fires_if': lambda s,c: 'compliant' in c['effects'] and c['compliant_stage']==1 and c['dom_mod']>=1,
+             'text_pass': "The authority is being overwritten. Pride is watching helplessly. Horrifying.",
+             'text_fail': "The pride is broken. The obedience is absolute. The loss is total."},
+            {'id':f'complprog_{sex_prefix}_dom_s2','group':'effect_core','priority':12,'stats':['DOM'],'dc':1,
+             'fires_if': lambda s,c: 'compliant' in c['effects'] and c['compliant_stage']==2 and c['dom_mod']>=1,
+             'text_pass': "Pride is watching from a distance now. The obedience is complete. No more fighting.",
+             'text_fail': "The pride surrendered. Just the obedience remains. The controller's will is everything."},
+            {'id':f'complprog_{sex_prefix}_dom_s3','group':'effect_core','priority':13,'stats':['DOM'],'dc':1,
+             'fires_if': lambda s,c: 'compliant' in c['effects'] and c['compliant_stage']>=3 and c['dom_mod']>=1,
+             'text_pass': "Pride is a ghost now. Just watches the perfect obedience. Cannot resist anymore.",
+             'text_fail': "Pride is gone. Only the controller's will. Only the obedience remains."},
+        ])
+
+        # SUB: Alignment with compliance, feels natural vs forced
+        _T_COMPLIANT[sex_key]['SUB'].extend([
+            {'id':f'complprog_{sex_prefix}_sub_s0','group':'effect_core','priority':11,'stats':['SUB'],'dc':1,
+             'fires_if': lambda s,c: 'compliant' in c['effects'] and c['compliant_stage']==0,
+             'text_pass': "The yield instinct is confused. The body is complying but the consent is not there.",
+             'text_fail': "The compliance arrived before the yield instinct could engage. Gap between them."},
+            {'id':f'complprog_{sex_prefix}_sub_s1','group':'effect_core','priority':12,'stats':['SUB'],'dc':1,
+             'fires_if': lambda s,c: 'compliant' in c['effects'] and c['compliant_stage']==1,
+             'text_pass': "The yield instinct is fighting the compliance. Two forces in opposition.",
+             'text_fail': "The compliance is total. The yield instinct is being recruited into it slowly."},
+            {'id':f'complprog_{sex_prefix}_sub_s2','group':'effect_core','priority':12,'stats':['SUB'],'dc':1,
+             'fires_if': lambda s,c: 'compliant' in c['effects'] and c['compliant_stage']==2,
+             'text_pass': "The yield is quieting. Becoming aligned with the compliance. Still separate but moving together.",
+             'text_fail': "The yield and compliance are merging. The distinction is starting to blur."},
+            {'id':f'complprog_{sex_prefix}_sub_s3','group':'effect_core','priority':13,'stats':['SUB'],'dc':1,
+             'fires_if': lambda s,c: 'compliant' in c['effects'] and c['compliant_stage']>=3,
+             'text_pass': "The yield and compliance are the same now. No distinction. Just obedience.",
+             'text_fail': "Complete alignment. Compliance feels like what the body was always for."},
+        ])
+
+# Substitution helper for pronouns
+def _substitute_pronouns(text, pronoun):
+    """Substitute {p} and {P} in text with given pronoun variants."""
+    # Handle reflexive forms and other variants
+    if pronoun.lower() == 'he':
+        text = text.replace('{p}self', 'himself')
+        text = text.replace('{p}', 'he')
+        text = text.replace('{P}', 'He')
+    elif pronoun.lower() == 'she':
+        text = text.replace('{p}self', 'herself')
+        text = text.replace('{p}', 'she')
+        text = text.replace('{P}', 'She')
+    elif pronoun.lower() == 'they':
+        text = text.replace('{p}self', 'themself')
+        text = text.replace('{p}', 'they')
+        text = text.replace('{P}', 'They')
+    return text
+
+# Apply pronoun substitutions to addiction fragments after building
+def _apply_pronoun_subs():
+    """Apply pronoun substitutions to all addiction/event fragments."""
+    pronoun_map = {
+        'male': 'he',
+        'female': 'she',
+        'trans_male': 'he',
+        'trans_female': 'she',
+        'intersex': 'they',
+    }
+
+    for sex_key, pronoun in pronoun_map.items():
+        for stat in ['CON', 'INT', 'WIS', 'CHA', 'DOM', 'SUB']:
+            for fragment in _T_BREEDER[sex_key].get(stat, []):
+                frag_id = fragment.get('id', '')
+                # Only apply to addiction (bad_) and event (bev_) fragments
+                if frag_id.startswith('bad_') or frag_id.startswith('bev_'):
+                    if 'text_pass' in fragment:
+                        fragment['text_pass'] = _substitute_pronouns(fragment['text_pass'], pronoun)
+                    if 'text_fail' in fragment:
+                        fragment['text_fail'] = _substitute_pronouns(fragment['text_fail'], pronoun)
+
+
+def _build_pregnancy_path_overlays():
+    """Build breeder-path and surrogate-path emotional overlay fragments for pregnancy.
+
+    3 stats × 3 stages × 2 paths × 4 sexes = 72 fragments total.
+
+    Stats focus:
+    - INT: Breeder = analyzing alongside pregnancy. Surrogate = calm clarity.
+    - DOM: Breeder = fighting drive AND pregnancy. Surrogate = authority settled into protectiveness.
+    - SUB: Breeder = yielding to both. Surrogate = natural surrender to biological purpose, peaceful.
+
+    Priorities override shared fragments:
+    - Shared fragments at priority 11-13 (per stage)
+    - Path overlays at priority 14-16 (per stage)
+    """
+
+    # Sex config: (id_prefix, pronouns, name_key)
+    sexes_config = [
+        ('m', 'he', 'male'),
+        ('f', 'she', 'female'),
+        ('tm', 'he', 'trans_male'),
+        ('tf', 'she', 'trans_female'),
+    ]
+
+    for sex_prefix, pronoun, sex_key in sexes_config:
+        # ═════════════════════════════════════════════════════════════════════════
+        # INT: Mental state (analysis vs calm)
+        # ═════════════════════════════════════════════════════════════════════════
+
+        # BREEDER: Pregnant AND still driven. Analyzing the contradiction.
+        _T_PREGNANCY[sex_key]['INT'].extend([
+            # Stage 1 - Early breeder
+            {'id':f'preg_{sex_prefix}_int_s1_breeder','group':'mental_state','priority':14,'stats':['INT'],'dc':1,
+             'fires_if': lambda s,c: c.get('pregnancy_stage',0)==1 and 'breeder' in c.get('effects',[]),
+             'text_pass': f"Pregnant but the drive is still there. {pronoun.capitalize()} is analyzing both realities at once.",
+             'text_fail': f"The pregnancy is here AND the compulsion is here. {pronoun.capitalize()} cannot separate them."},
+            # Stage 2 - Showing breeder
+            {'id':f'preg_{sex_prefix}_int_s2_breeder','group':'mental_state','priority':15,'stats':['INT'],'dc':1,
+             'fires_if': lambda s,c: c.get('pregnancy_stage',0)==2 and 'breeder' in c.get('effects',[]),
+             'text_pass': f"Visibly pregnant AND visibly driven. {pronoun.capitalize()} understands: the belly doesn't stop the compulsion.",
+             'text_fail': f"Both truths are written on the body. {pronoun.capitalize()} cannot hide either one."},
+            # Stage 3 - Late breeder
+            {'id':f'preg_{sex_prefix}_int_s3_breeder','group':'mental_state','priority':16,'stats':['INT'],'dc':1,
+             'fires_if': lambda s,c: c.get('pregnancy_stage',0)==3 and 'breeder' in c.get('effects',[]),
+             'text_pass': f"The pill is still thinking about after. Late pregnancy and still planning. {pronoun.capitalize()} knows the compulsion will survive.",
+             'text_fail': f"The drive is shaping how {pronoun} moves, how {pronoun} thinks. The pill has no off switch."},
+        ])
+
+        # SURROGATE: Pregnant but the compulsion stopped. Calm clarity replaces urgency.
+        _T_PREGNANCY[sex_key]['INT'].extend([
+            # Stage 1 - Early surrogate
+            {'id':f'preg_{sex_prefix}_int_s1_surrogate','group':'mental_state','priority':14,'stats':['INT'],'dc':1,
+             'fires_if': lambda s,c: c.get('pregnancy_stage',0)==1 and c.get('surrogate_pregnant',False),
+             'text_pass': f"The urgency is gone. What's left is clear and quiet. {pronoun.capitalize()} can think now.",
+             'text_fail': f"The pressure stopped. {pronoun.capitalize()} is adjusting to the absence of compulsion."},
+            # Stage 2 - Showing surrogate
+            {'id':f'preg_{sex_prefix}_int_s2_surrogate','group':'mental_state','priority':15,'stats':['INT'],'dc':1,
+             'fires_if': lambda s,c: c.get('pregnancy_stage',0)==2 and c.get('surrogate_pregnant',False),
+             'text_pass': f"Calm processing. The pregnant body is clear purpose now. No contradiction, just focus.",
+             'text_fail': f"The belly is all that matters. {pronoun.capitalize()} is still learning to think without the urgency."},
+            # Stage 3 - Late surrogate
+            {'id':f'preg_{sex_prefix}_int_s3_surrogate','group':'mental_state','priority':16,'stats':['INT'],'dc':1,
+             'fires_if': lambda s,c: c.get('pregnancy_stage',0)==3 and c.get('surrogate_pregnant',False),
+             'text_pass': f"Clear as anything has ever been. The job is nearly done. {pronoun.capitalize()} knows exactly what {pronoun} is carrying.",
+             'text_fail': f"The calm is nearly unshakeable. Birth is the only detail left to manage."},
+        ])
+
+        # ═════════════════════════════════════════════════════════════════════════
+        # DOM: Dominance/power (fighting vs authority settled)
+        # ═════════════════════════════════════════════════════════════════════════
+
+        # BREEDER: Fighting drive AND pregnancy simultaneously. Dominance under assault.
+        _T_PREGNANCY[sex_key]['DOM'].extend([
+            # Stage 1 - Early breeder
+            {'id':f'preg_{sex_prefix}_dom_s1_breeder','group':'dom_response','priority':14,'stats':['DOM'],'dc':1,
+             'fires_if': lambda s,c: c.get('pregnancy_stage',0)==1 and 'breeder' in c.get('effects',[]),
+             'text_pass': f"{pronoun.capitalize()} is fighting on two fronts. The body wants and the body is becoming. Dominance is slipping.",
+             'text_fail': f"The compulsion and the pregnancy are both taking control. {pronoun.capitalize()} has no ground to stand on."},
+            # Stage 2 - Showing breeder
+            {'id':f'preg_{sex_prefix}_dom_s2_breeder','group':'dom_response','priority':15,'stats':['DOM'],'dc':1,
+             'fires_if': lambda s,c: c.get('pregnancy_stage',0)==2 and 'breeder' in c.get('effects',[]),
+             'text_pass': f"{pronoun.capitalize()} is exhausted. The belly is heavy and the compulsion is relentless. Power is being consumed by both.",
+             'text_fail': f"The power is fracturing. The drive wants and the body is doing. {pronoun.capitalize()} is caught between."},
+            # Stage 3 - Late breeder
+            {'id':f'preg_{sex_prefix}_dom_s3_breeder','group':'dom_response','priority':16,'stats':['DOM'],'dc':1,
+             'fires_if': lambda s,c: c.get('pregnancy_stage',0)==3 and 'breeder' in c.get('effects',[]),
+             'text_pass': f"Dominance is nearly gone. The compulsion is still there but the body can barely move. Both are winning.",
+             'text_fail': f"The power surrendered. The compulsion will still be there after. {pronoun.capitalize()} has lost control to both."},
+        ])
+
+        # SURROGATE: Authority settled into protectiveness. Dominance becomes duty.
+        _T_PREGNANCY[sex_key]['DOM'].extend([
+            # Stage 1 - Early surrogate
+            {'id':f'preg_{sex_prefix}_dom_s1_surrogate','group':'dom_response','priority':14,'stats':['DOM'],'dc':1,
+             'fires_if': lambda s,c: c.get('pregnancy_stage',0)==1 and c.get('surrogate_pregnant',False),
+             'text_pass': f"{pronoun.capitalize()} is in control in a different way now. Authority turned protective.",
+             'text_fail': f"Something is shifting. The dominance is becoming something else. Something warmer."},
+            # Stage 2 - Showing surrogate
+            {'id':f'preg_{sex_prefix}_dom_s2_surrogate','group':'dom_response','priority':15,'stats':['DOM'],'dc':1,
+             'fires_if': lambda s,c: c.get('pregnancy_stage',0)==2 and c.get('surrogate_pregnant',False),
+             'text_pass': f"{pronoun.capitalize()} is in charge of the protection now. The power is being used for something that matters.",
+             'text_fail': f"The power is transforming. {pronoun.capitalize()} is not dominant the way {pronoun} was. {pronoun}'s authority is becoming nurturing."},
+            # Stage 3 - Late surrogate
+            {'id':f'preg_{sex_prefix}_dom_s3_surrogate','group':'dom_response','priority':16,'stats':['DOM'],'dc':1,
+             'fires_if': lambda s,c: c.get('pregnancy_stage',0)==3 and c.get('surrogate_pregnant',False),
+             'text_pass': f"{pronoun.capitalize()} is absolutely in control. The control is protective now. The job is nearly done.",
+             'text_fail': f"The settled authority is almost unshakeable. {pronoun.capitalize()} is carrying something precious and knows it."},
+        ])
+
+        # ═════════════════════════════════════════════════════════════════════════
+        # SUB: Submission (conflicted yielding vs peaceful surrender)
+        # ═════════════════════════════════════════════════════════════════════════
+
+        # BREEDER: Yielding to both compulsion and pregnancy. Confusion and conflict.
+        _T_PREGNANCY[sex_key]['SUB'].extend([
+            # Stage 1 - Early breeder
+            {'id':f'preg_{sex_prefix}_sub_s1_breeder','group':'sub_response','priority':14,'stats':['SUB'],'dc':1,
+             'fires_if': lambda s,c: c.get('pregnancy_stage',0)==1 and 'breeder' in c.get('effects',[]),
+             'text_pass': f"{pronoun.capitalize()} is yielding to two things at once. The body is surrendering in layers.",
+             'text_fail': f"The submission is arriving from both directions. {pronoun.capitalize()} cannot resist both."},
+            # Stage 2 - Showing breeder
+            {'id':f'preg_{sex_prefix}_sub_s2_breeder','group':'sub_response','priority':15,'stats':['SUB'],'dc':1,
+             'fires_if': lambda s,c: c.get('pregnancy_stage',0)==2 and 'breeder' in c.get('effects',[]),
+             'text_pass': f"The yielding is complete and unfinished at once. {pronoun.capitalize()} is surrendered to the drive and the pregnancy both.",
+             'text_fail': f"The body wants and the body is becoming. {pronoun.capitalize()} has surrendered to both."},
+            # Stage 3 - Late breeder
+            {'id':f'preg_{sex_prefix}_sub_s3_breeder','group':'sub_response','priority':16,'stats':['SUB'],'dc':1,
+             'fires_if': lambda s,c: c.get('pregnancy_stage',0)==3 and 'breeder' in c.get('effects',[]),
+             'text_pass': f"The total surrender. {pronoun} has yielded to the compulsion and carried the consequence both.",
+             'text_fail': f"The pill's work is still happening. {pronoun} is completely surrendered to it and to the pregnancy both."},
+        ])
+
+        # SURROGATE: Natural surrender to biological purpose, peaceful. No conflict.
+        _T_PREGNANCY[sex_key]['SUB'].extend([
+            # Stage 1 - Early surrogate
+            {'id':f'preg_{sex_prefix}_sub_s1_surrogate','group':'sub_response','priority':14,'stats':['SUB'],'dc':1,
+             'fires_if': lambda s,c: c.get('pregnancy_stage',0)==1 and c.get('surrogate_pregnant',False),
+             'text_pass': f"{pronoun.capitalize()} is surrendering to something natural now. The peace is already there.",
+             'text_fail': f"The yielding is peaceful. {pronoun} is accepting the body's purpose without resistance."},
+            # Stage 2 - Showing surrogate
+            {'id':f'preg_{sex_prefix}_sub_s2_surrogate','group':'sub_response','priority':15,'stats':['SUB'],'dc':1,
+             'fires_if': lambda s,c: c.get('pregnancy_stage',0)==2 and c.get('surrogate_pregnant',False),
+             'text_pass': f"The surrender is settled. {pronoun} is carrying and it feels right. No conflict. Just purpose.",
+             'text_fail': f"The yielding has become the whole story. {pronoun} is at peace with it."},
+            # Stage 3 - Late surrogate
+            {'id':f'preg_{sex_prefix}_sub_s3_surrogate','group':'sub_response','priority':16,'stats':['SUB'],'dc':1,
+             'fires_if': lambda s,c: c.get('pregnancy_stage',0)==3 and c.get('surrogate_pregnant',False),
+             'text_pass': f"Complete acceptance. {pronoun} is surrendered and fulfilled. The carrying is nearly finished.",
+             'text_fail': f"{pronoun} has accepted the biological purpose completely. The surrender is permanent and right."},
+        ])
+
+
+_build_effect_portraits()
+_build_transformation_portraits()
+_build_breeder_progression()
+_build_breeder_addiction_and_events()
+_build_bull_denial_progression()
+_build_bimbo_psyche_progression()
+_build_submissive_compliant_progression()
+_build_pregnancy_path_overlays()
+_apply_pronoun_subs()
+
+# ─────────────────────────────────────────────────────────────────────────────
+# DEBUG
+# ─────────────────────────────────────────────────────────────────────────────
+
+def debug_fragment_result(state, ctx, result):
+    print('[FRAG] tier={} arousal={:.1f} sex={} baseline={} pill={} path={}'.format(
+        ctx['tier'], ctx['arousal'], ctx['sex'],
+        ctx['sex_baseline'], ctx['pill'], ctx['breeder_path']))
+    print('[FRAG] mods CON={} INT={} WIS={} CHA={} DOM={} SUB={}'.format(
+        ctx['con_mod'], ctx['int_mod'], ctx['wis_mod'],
+        ctx['cha_mod'], ctx['dom_mod'], ctx['sub_mod']))
+    print('[FRAG] fail_count={} gate_dc={} org_pct={}'.format(
+        ctx['fail_count'], ctx['gate_dc'], ctx['org_trigger_pct']))
+    org = state.get('_org_trigger_result', {})
+    if org.get('attempted'):
+        print('[FRAG] ORG d100={}/{} d20={} dc={} -> {}'.format(
+            org.get('d100_roll','?'), org.get('d100_pct','?'),
+            org.get('d20_total','?'), org.get('d20_dc','?'),
+            'ORGASM' if org.get('orgasm') else org.get('suppressed','?')))
+    for i, text in enumerate(result):
+        print(f'[FRAG] [{i+1}] {text[:90]}')
+
 # ── Ruleset compilation ──────────────────────────────────────────────────────
 
 def _build_alt(patterns):
@@ -5210,8 +15450,6 @@ def compile_ruleset(data: Dict) -> Dict:
     rs['event_patterns_compiled'] = epc
     rs['body_modifiers']          = data.get('body_modifiers', {})
     rs['pill_descriptor_parsing'] = data.get('pill_descriptor_parsing', {})
-    rs['conditional_flavor']      = data.get('conditional_flavor', [])
-
     fp = rs['card_format'].get('field_patterns', {})
     rs['card_name_re']  = re.compile(fp.get('name',  r'^Name:\s*(.+?)\s*$'),  re.MULTILINE)
     rs['card_sex_re']   = re.compile(fp.get('sex',   r'^Sex:\s*(.+?)\s*$'),   re.MULTILINE)
@@ -5259,7 +15497,7 @@ def _form_lookup(card_sex, rs):
     forms     = rs.get('form_system', {}).get('base_forms', {})
     sex_lower = (card_sex or '').lower().strip()
     for key, props in forms.items():
-        if key in sex_lower:
+        if sex_lower == key:
             return props
     default = rs.get('form_system', {}).get('default_form', 'male')
     return forms.get(default, {})
@@ -5286,7 +15524,7 @@ def can_get_pregnant(state, card_sex, rs):
 # ── Arousal helpers ──────────────────────────────────────────────────────────
 
 def _arousal_scale(rs):
-    return float(rs['arousal_system'].get('formula', {}).get('scale', 60.0))
+    return float(rs['arousal_system'].get('formula', {}).get('scale', 100.0))
 
 def get_arousal(state):
     return float(state.get('arousal', 0.0))
@@ -5309,9 +15547,111 @@ def set_arousal(state, value, rs):
     state['arousal'] = round(max(floor, min(mx, float(value))), 2)
 
 def grow_arousal(state, weight, rs):
-    scale   = _arousal_scale(rs)
-    current = get_arousal(state)
-    set_arousal(state, current + weight * (1.0 + current / scale), rs)
+    """Grow arousal by weight, with a tier gate every 5 levels.
+
+    Tier boundaries are at 5, 10, 15, 20, 25, … Max +1 tier advance per turn.
+    When arousal would cross the next tier boundary:
+      - If gate already rolled this turn: cap at current boundary.
+      - Otherwise: d6 → pick stat, d20 + stat_mod vs DC.
+        PASS → arousal stays just below boundary (held).
+        FAIL → arousal advances to boundary + negative block from d6 stat.
+
+    Per-boundary DCs escalate by dc_step after each attempt (pass or fail).
+    state['_arousal_gate_done'] tracks whether the gate already fired this turn.
+    Cleared at the start of each turn in process_turn.
+    """
+    TIER_SIZE = 5
+    scale     = _arousal_scale(rs)
+    current   = get_arousal(state)
+    proposed  = current + weight * (1.0 + current / scale)
+
+    # Next tier boundary above current position
+    current_tier  = int(current) // TIER_SIZE
+    next_boundary = (current_tier + 1) * TIER_SIZE
+
+    # If we don't cross a boundary, just set it (capped at boundary if gate held)
+    gate_done = state.get('_arousal_gate_done')
+
+    if gate_done == 'held':
+        # Already held this turn — cap just below the boundary
+        set_arousal(state, min(proposed, float(next_boundary) - 0.01), rs)
+        return
+
+    if gate_done == 'crossed':
+        # Already crossed one tier this turn — cap at the boundary we crossed to
+        crossed_to = state.get('_arousal_gate_crossed_to', next_boundary)
+        set_arousal(state, min(proposed, float(crossed_to)), rs)
+        return
+
+    if proposed < next_boundary:
+        # No boundary crossed, no gate needed
+        set_arousal(state, proposed, rs)
+        return
+
+    # ── Gate roll ────────────────────────────────────────────────────────────
+    t_key    = str(next_boundary)
+    base_dc  = int(rs['arousal_system'].get('level_gate_dc', 11))
+    dc_store = state.setdefault('_arousal_gate_dcs', {})
+    dc       = dc_store.get(t_key, base_dc)
+
+    # d6 → pick stat
+    d6_raw   = random.randint(1, 6)
+    d6_stat  = D6_STAT_MAP[d6_raw]
+    mod_val  = _mod(state, d6_stat)
+
+    # d20 + stat mod vs DC
+    raw_roll = random.randint(1, 20)
+    total    = raw_roll + mod_val
+    passed   = total >= dc
+
+    # DC escalates by 1 on fail only; total fails tracked for downstream use
+    if not passed:
+        dc_store[t_key] = dc + 1
+        state['_arousal_gate_fail_count'] = state.get('_arousal_gate_fail_count', 0) + 1
+
+    # Build gate record for debug display
+    gate = {
+        'roll':      raw_roll,
+        'd6':        d6_raw,
+        'd6_stat':   d6_stat,
+        'mod':       mod_val,
+        'total':     total,
+        'dc':        dc,
+        'threshold': next_boundary,
+    }
+
+    # Determine the arousal tier for negative block band
+    arousal_tier = next_boundary // TIER_SIZE
+
+    if passed:
+        gate['result'] = 'held'
+        state['_arousal_gate']      = gate
+        state['_arousal_gate_done'] = 'held'
+        entry = ('arousal_gate:PASS(d6=' + str(d6_raw) + '->' + d6_stat
+                 + ' d20=' + str(raw_roll) + ('+' if mod_val >= 0 else '') + str(mod_val)
+                 + '=' + str(total) + ' vs DC=' + str(dc)
+                 + ' tier=' + str(next_boundary) + ' HELD)')
+        state.setdefault('roll_log', []).append(entry)
+        set_arousal(state, float(next_boundary) - 0.01, rs)
+    else:
+        gate['result'] = 'crossed'
+        state['_arousal_gate']          = gate
+        state['_arousal_gate_done']     = 'crossed'
+        state['_arousal_gate_crossed_to'] = next_boundary
+
+        # Negative block from the d6-picked stat
+        band     = _neg_tier_band(arousal_tier)
+        card_sex = state.get('_card_sex', 'female')
+        eff_sex  = current_sex(state, card_sex, rs)
+        neg_text = _NEGATIVE_BLOCKS.get(d6_stat, {}).get(band, {}).get(eff_sex, '')
+        gate['neg_block'] = neg_text
+
+        entry = ('arousal_gate:FAIL(d6=' + str(d6_raw) + '->' + d6_stat
+                 + ' d20=' + str(raw_roll) + ('+' if mod_val >= 0 else '') + str(mod_val)
+                 + '=' + str(total) + ' vs DC=' + str(dc)
+                 + ' tier=' + str(next_boundary) + ' CROSSED)')
+        state.setdefault('roll_log', []).append(entry)
+        set_arousal(state, float(next_boundary), rs)
 
 def arousal_label(level, rs):
     thresholds = rs['arousal_system'].get('thresholds', {})
@@ -5352,14 +15692,18 @@ def scan_arousal(messages_recent, state, rs, debug=False):
     for msg in messages_recent:
         text = msg.get('content') or ''
         role = (msg.get('role') or '').lower()
-        # Character response words — all messages
-        for weight, pat in rs['arousal_kw']:
-            if pat.search(text) and gained < cap:
-                before = get_arousal(state)
-                grow_arousal(state, weight, rs)
-                gained += get_arousal(state) - before
-                hits.append(re.sub(r'^\\b|\\b$', '', pat.pattern) + '(+' + str(weight) + ')')
-        # User action words — user messages only
+        # Character response words — assistant messages ONLY.
+        # The character's own prose reflects their arousal state.
+        # Persona messages must not self-escalate the character via narrative;
+        # that lane belongs exclusively to action_kw below.
+        if role == 'assistant':
+            for weight, pat in rs['arousal_kw']:
+                if pat.search(text) and gained < cap:
+                    before = get_arousal(state)
+                    grow_arousal(state, weight, rs)
+                    gained += get_arousal(state) - before
+                    hits.append(re.sub(r'^\\b|\\b$', '', pat.pattern) + '(+' + str(weight) + ')')
+        # User / persona action words — user messages only
         if role == 'user' and action_kw:
             for weight, pat in action_kw:
                 if pat.search(text) and gained < cap:
@@ -5675,126 +16019,6 @@ def build_transformation_guidance(pill_descriptor, card_body, card_sex, rs):
     return '\n'.join(lines)
 
 
-# ── Conditional flavor ───────────────────────────────────────────────────────
-
-def evaluate_conditional_flavor(state, events, rs):
-    blocks  = []
-    flavor  = rs.get('conditional_flavor', [])
-    effects = state.get('active_effects') or []
-    arousal = float(state.get('arousal', 0))
-    flags   = state.get('flags') or {}
-    stages  = state.get('effect_stages') or {}
-    locks   = state.get('effect_locks') or {}
-
-    for entry in flavor:
-        cond = entry.get('condition', '')
-        text = entry.get('text', '').strip()
-        if not text:
-            continue
-        matched = False
-
-        if cond == 'effect_active':
-            matched = entry.get('effect') in effects
-        elif cond == 'effect_locked':
-            eff = entry.get('effect')
-            matched = eff in effects and bool(locks.get(eff))
-        elif cond == 'effect_stage_gte':
-            eff = entry.get('effect'); stage = int(entry.get('stage', 1))
-            matched = eff in effects and stages.get(eff, 0) >= stage
-        elif cond == 'effect_stage_eq':
-            eff = entry.get('effect'); stage = int(entry.get('stage', 1))
-            matched = eff in effects and stages.get(eff, 0) == stage
-        elif cond == 'arousal_gte':
-            matched = arousal >= float(entry.get('threshold', 0))
-        elif cond == 'arousal_lt':
-            matched = arousal < float(entry.get('threshold', 60))
-        elif cond == 'arousal_range':
-            lo = float(entry.get('min', 0)); hi = float(entry.get('max', 60))
-            matched = lo <= arousal < hi
-        elif cond == 'event':
-            matched = bool(events.get(entry.get('event_key', '')))
-        elif cond == 'event_and_effect':
-            matched = bool(events.get(entry.get('event_key', ''))) and entry.get('effect') in effects
-        elif cond == 'flag':
-            matched = bool(flags.get(entry.get('flag', '')))
-        elif cond == 'pill_active':
-            matched = state.get('active_pill') == entry.get('pill')
-        elif cond == 'any_pill_active':
-            matched = bool(state.get('active_pill'))
-        elif cond == 'effects_combo':
-            matched = all(e in effects for e in entry.get('effects', []))
-        elif cond == 'effects_combo_arousal':
-            alo = float(entry.get('arousal_min', 0)); ahi = float(entry.get('arousal_max', 65))
-            matched = all(e in effects for e in entry.get('effects', [])) and alo <= arousal < ahi
-        elif cond == 'effects_combo_arousal_counter':
-            alo = float(entry.get('arousal_min', 0)); ahi = float(entry.get('arousal_max', 65))
-            counter = entry.get('counter', ''); c_val = int(state.get(counter, 0))
-            c_eq = entry.get('counter_eq'); c_gte = entry.get('counter_gte')
-            c_match = True
-            if c_eq  is not None: c_match = c_val == int(c_eq)
-            if c_gte is not None: c_match = c_val >= int(c_gte)
-            matched = all(e in effects for e in entry.get('effects', [])) and alo <= arousal < ahi and c_match
-        elif cond == 'effect_stage_range_event':
-            eff = entry.get('effect', ''); s_min = int(entry.get('stage_min', 0)); s_max = int(entry.get('stage_max', 99))
-            ev = entry.get('event_key', ''); stage = stages.get(eff, 0)
-            matched = s_min <= stage <= s_max and bool(events.get(ev))
-        elif cond == 'effects_combo_flag':
-            required = entry.get('effects', []); flag = entry.get('flag', ''); flag_f = entry.get('flag_false', '')
-            s_lt = entry.get('addiction_stage_lt')
-            stage_ok = True
-            if s_lt is not None:
-                stage_ok = stages.get(entry.get('stage_effect', ''), 0) < int(s_lt)
-            matched = all(e in effects for e in required) and bool(flags.get(flag)) and not bool(flags.get(flag_f)) and stage_ok
-        elif cond == 'effects_combo_flag_stage':
-            required = entry.get('effects', []); flag = entry.get('flag', ''); flag_f = entry.get('flag_false', '')
-            s_gte = int(entry.get('stage_gte', 1)); stage_eff = entry.get('stage_effect', '')
-            matched = all(e in effects for e in required) and bool(flags.get(flag)) and not bool(flags.get(flag_f)) and stages.get(stage_eff, 0) >= s_gte
-        elif cond == 'flag_and_no_effect':
-            flag = entry.get('flag', ''); eff = entry.get('effect', '')
-            s_lt = entry.get('addiction_stage_lt', 99); stage_eff = entry.get('stage_effect', '')
-            matched = bool(flags.get(flag)) and eff not in effects and stages.get(stage_eff, 0) < int(s_lt)
-        elif cond == 'flag_stage_range':
-            flag = entry.get('flag', ''); s_eff = entry.get('stage_effect', '')
-            s_min = int(entry.get('stage_min', 0)); s_max = int(entry.get('stage_max', 99))
-            matched = bool(flags.get(flag)) and s_min <= stages.get(s_eff, 0) <= s_max
-        elif cond == 'flag_permanent_stage':
-            flag = entry.get('flag', ''); s_eff = entry.get('stage_effect', ''); s_gte = int(entry.get('stage_gte', 3))
-            matched = bool(flags.get(flag)) and stages.get(s_eff, 0) >= s_gte
-        elif cond == 'flag_false':
-            matched = not bool(flags.get(entry.get('flag', '')))
-        elif cond == 'flag_true':
-            matched = bool(flags.get(entry.get('flag', '')))
-        elif cond == 'effect_not_active_list':
-            matched = not any(e in effects for e in entry.get('effects', []))
-
-        if matched and 'also' in entry:
-            also = entry['also']; also_cond = also.get('condition', ''); also_match = False
-            if also_cond == 'arousal_range':
-                lo = float(also.get('min', 0)); hi = float(also.get('max', 65))
-                also_match = lo <= arousal < hi
-            elif also_cond == 'flag_true':
-                also_match = bool(flags.get(also.get('flag', '')))
-            elif also_cond == 'flag_false':
-                also_match = not bool(flags.get(also.get('flag', '')))
-            elif also_cond == 'any_pill_active':
-                also_match = bool(state.get('active_pill'))
-            elif also_cond == 'effect_active':
-                also_match = also.get('effect', '') in effects
-            elif also_cond == 'effect_not_active_list':
-                also_match = not any(e in effects for e in also.get('effects', []))
-            elif also_cond == 'event':
-                also_match = bool(events.get(also.get('event_key', '')))
-            elif also_cond == 'effect_stage_gte':
-                eff = also.get('effect', ''); stg = int(also.get('stage', 1))
-                also_match = eff in effects and stages.get(eff, 0) >= stg
-            matched = also_match
-
-        if matched:
-            blocks.append(text)
-
-    return blocks
-
-
 # ── Pill detection ───────────────────────────────────────────────────────────
 
 def find_pill_ingest(messages_recent, rs, state=None):
@@ -5967,7 +16191,7 @@ def _execute_effect_birth(state, effects, notes, rs):
             pb       = pm_data.get(ob['dc_source'].get('mechanic', 'post_birth_revert'), {})
             escalate = int(pb.get('attempt_escalation', 4))
             final_dc = int(dc) + (attempt * escalate)
-            mods     = compute_mods(state, ob.get('roll', ['WIL_mod', 'CON_mod']))
+            mods     = compute_mods(state, ob.get('roll', ['WIS_mod', 'CON_mod']))
             roll     = random.randint(1, 20)
             total    = roll + mods
             passed   = total >= final_dc
@@ -6170,6 +16394,10 @@ def process_events(state, events, card_sex, notes, rs):
                 set_arousal(state, 0.0, rs)
                 floor = get_arousal_floor(state, rs)
                 notes.append(eff_name + ':insemination orgasm — arousal reset to floor=' + str(floor))
+                # Mark for next-turn afterglow — any gated effect with requires_event
+                # + arousal_reset_on gets this treatment automatically.
+                post_flags = state.setdefault('_post_orgasm_effects', {})
+                post_flags[eff_name] = True
         if gate.get('blocks_orgasm') and orgasm_this_turn:
             denied_this_turn = True
             notes.append(eff_name + ':orgasm blocked')
@@ -6211,6 +16439,16 @@ def process_events(state, events, card_sex, notes, rs):
                     if result == 'fail':
                         advance_stage(state, eff_name, notes, rs, to_db=tb.get('permanent_to_db', False))
 
+        elif trigger == 'orgasm_attempt':
+            # Roll is handled by _roll_breeder_resist in _check_orgasm_trigger.
+            # Here we only handle reset_on (e.g. creampie resets the DC).
+            reset_on = tb.get('reset_on')
+            if reset_on and events.get(reset_on):
+                start = int(mech.get('start_dc', 15))
+                set_effect_dc(state, eff_name, start)
+                state.setdefault('effect_locks', {})[eff_name] = False
+                notes.append(eff_name + ' DC reset to ' + str(start))
+
         elif trigger == 'orgasm_denied' and denied_this_turn:
             run_roll(state, eff_name, notes, rs)
             reset_on = tb.get('reset_on')
@@ -6222,7 +16460,7 @@ def process_events(state, events, card_sex, notes, rs):
             int_check = mech.get('int_check', {})
             if int_check and denied_this_turn:
                 check_stat = int_check.get('check_stat', 'INT_mod')
-                buff_stat  = int_check.get('buff_stat',  'WIL_mod')
+                buff_stat  = int_check.get('buff_stat',  'WIS_mod')
                 buff_amt   = int(int_check.get('buff_amount', 1))
                 int_dc     = state.setdefault('denial_int_dc', int(int_check.get('start_dc', 10)))
                 int_mod    = get_stat_mod(state, check_stat)
@@ -6441,17 +16679,44 @@ def build_header(name, card_sex, state, notes, events, rs, persona=None, persona
     if effects:
         lines.append('Active effects: ' + ', '.join(effects))
 
+    orgasm_gates = rs['orgasm_rules'].get('gates', {})
+
+    # Build the set of gated effects whose unlock event fired this turn.
+    # Used to suppress their injection_rule and inject an unlock instead.
+    unlocked_effects = {
+        eff for eff, gate in orgasm_gates.items()
+        if eff in effects
+        and gate.get('requires_event')
+        and events.get(gate['requires_event'])
+    }
+
     for eff in effects:
+        # Suppress the standing "no orgasm" injection_rule for any effect whose
+        # gate event just fired — the unlock below replaces it.
+        if eff in unlocked_effects:
+            continue
         rule = rs['effect_mechanics'].get(eff, {}).get('injection_rule')
         if rule:
             lines.append(rule)
+
+    # Orgasm unlock — one-turn override for each effect whose gate event fired.
+    for eff in unlocked_effects:
+        gate = orgasm_gates[eff]
+        unlock_text = gate.get('unlock_text') or (
+            eff.upper() + ' UNLOCK (this turn only): '
+            + gate.get('requires_event', 'trigger').replace('_', ' ')
+            + ' received — orgasm IS allowed. '
+            'Write the character climaxing. '
+            'Keep it to 1–2 sentences before continuing the scene.'
+        )
+        lines.append(unlock_text)
 
     flags = state.get('flags') or {}
     for df in rs.get('display_flags', []):
         if flags.get(df['flag']):
             lines.append(df['label'])
 
-    pill_desc = state.pop('_pill_descriptor_this_turn', None)
+    pill_desc = state.get('_pill_descriptor_this_turn')
     if pill_desc:
         card_body = state.get('card_body', {})
         lines.append('')
@@ -6471,7 +16736,46 @@ def build_header(name, card_sex, state, notes, events, rs, persona=None, persona
                     'modifier':   modifier,
                 }
 
-    flavor_blocks = evaluate_conditional_flavor(state, events, rs)
+    # ── Fragment system ─────────────────────────────────────────────────────
+    # d20-roll fragment tables produce sex-aware, stat-gated phrases
+    # that compose into a character state block.
+    # Suppress on pill_taken turns (and regens of pill turns) — transformation
+    # guidance needs the model's full attention; fragment prose competes with it
+    # and causes the model to ignore the transformation instructions.
+    if events.get('pill_taken') or state.get('_pill_descriptor_this_turn'):
+        flavor_blocks = []
+    else:
+        flavor_blocks = evaluate_fragments(state, events, card_sex, random.random)
+
+    # One-turn afterglow bridge — fires the turn AFTER a gated-effect orgasm.
+    # _post_orgasm_effects is a dict set by process_events; we consume it here.
+    post_orgasm_map = state.pop('_post_orgasm_effects', {})
+    for eff_name, fired in post_orgasm_map.items():
+        if not fired:
+            continue
+        if eff_name not in effects:
+            continue
+        gate = orgasm_gates.get(eff_name, {})
+        req_ev = gate.get('requires_event', '')
+        # Don't show afterglow on the same turn as another orgasm of this type
+        if req_ev and events.get(req_ev):
+            continue
+        afterglow = gate.get('afterglow_text') or (
+            eff_name.upper() + ' AFTERGLOW: The orgasm was last turn. '
+            'Character is in the immediate aftermath — calm, warm, slightly dazed. '
+            'The desperate need is gone. Body is settling. '
+            'Do not re-narrate the climax. Write the quiet that follows: '
+            'steadying breath, the weight of the other person, the warmth that has not faded yet. '
+            'This is the peace before the next cycle begins.'
+        )
+        # Insert afterglow at slot 1 (after mechanic rule), suppress blocks
+        # that would re-narrate what already happened last turn.
+        tag_upper = eff_name.upper()
+        filtered = [b for b in flavor_blocks
+                    if (tag_upper + ' ORGASM') not in b and 'POST-ORGASM' not in b]
+        flavor_blocks = ([filtered[0]] + [afterglow] + filtered[1:]
+                         if filtered else [afterglow])
+
     if flavor_blocks:
         lines.append('')
         lines.extend(flavor_blocks)
@@ -6514,11 +16818,23 @@ def debug_print(sk, name, card_sex, state, events, rs, persona=None, persona_sta
     if state.get('_pending_pill'):
         print('  pending : ' + str(state.get('_pending_pill')) + ' ' + str(state.get('_pending_pill_desc', {})))
     print('  effects : ' + fmt_effects(state))
+    gate     = state.get('_arousal_gate')
+    gate_str = ''
+    if gate:
+        stat_part = ('+' if gate.get('mod', 0) >= 0 else '') + str(gate.get('mod', 0))
+        gate_str = (' | gate d6=' + str(gate.get('d6', '?')) + '->' + str(gate.get('d6_stat', '?'))
+                    + ' d20=' + str(gate['roll']) + stat_part
+                    + '=' + str(gate.get('total', gate.get('eff_roll', '?'))) + ' vs DC' + str(gate['dc'])
+                    + ' → ' + ('HELD at <' + str(gate['threshold']) if gate['result'] == 'held'
+                              else 'CROSSED ' + str(gate['threshold'])) + ')'
+                    + ' (next DC=' + str(state.get('_arousal_gate_dcs', {}).get(str(gate['threshold']), '?')) + ')'
+                    + (' fails=' + str(state.get('_arousal_gate_fail_count', 0)) if state.get('_arousal_gate_fail_count') else ''))
     print('  arousal : ' + str(ar) + '/' + str(mx) +
           ' (' + arousal_label(ar, rs) + ')' +
           ' floor=' + str(ar_floor) +
           ' pen=' + pen_str +
-          (' [no-decay:' + ','.join(exempt) + ']' if exempt else ''))
+          (' [no-decay:' + ','.join(exempt) + ']' if exempt else '') +
+          gate_str)
     print('  stats   : ' + fmt_stats(state.get('stats')))
     print('  flags   : ' + str({k: v for k, v in (state.get('flags') or {}).items() if v not in (False, None, 0, '')}))
     print('  events  : ' + (', '.join(k for k, v in events.items() if v) if events else 'none'))
@@ -6710,6 +17026,17 @@ def process_turn(system_text: str, messages: list, state: dict, persona_state: d
             'header':        build_header(name, sex, state, [], {}, rs, persona, persona_state),
         }
 
+    # Clear pill descriptor from previous turn (kept for regen re-injection)
+    state.pop('_pill_descriptor_this_turn', None)
+
+    # Clear per-turn arousal gate flags
+    state.pop('_arousal_gate_done', None)
+    state.pop('_arousal_gate_crossed_to', None)
+    state.pop('_arousal_gate', None)
+
+    # Stash card_sex for use by grow_arousal negative blocks
+    state['_card_sex'] = sex
+
     # Arousal scan — last 2 chat messages only, skip turn 1
     recent = [m for m in messages[-scan_last:]
               if isinstance(m, dict) and m.get('role') != 'system']
@@ -6747,7 +17074,7 @@ def process_turn(system_text: str, messages: list, state: dict, persona_state: d
 
     header = build_header(name, sex, state, notes, events, rs, persona, persona_state)
     if debug:
-        print('[INJECT]\n' + header + '\n')
+        print('[INJECT] (' + str(len(header)) + ' chars)\n' + header + '\n')
 
     return {
         'ok':           True,

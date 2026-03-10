@@ -30,8 +30,8 @@ SCAN_LAST    = int(os.environ.get('SCAN_LAST_MESSAGES', '12'))
 # Add a line here for each persona.
 # Format:  'PersonaName': 'lore_filename.py'
 PERSONA_LORE_MAP = {
-    'Cody': 'x_change_world.py',
-    # 'OtherPersona': 'other_lore.py',
+    'Cody':   'x_change_world.py',
+    'Master': 'master_world.py',
 }
 DEFAULT_LORE = 'x_change_world.py'
 
@@ -94,7 +94,9 @@ def find_active_chat_integrity(char_name: str) -> Optional[str]:
     if not base.exists():
         if DEBUG: print('[CHAT_ID] path not found: ' + str(base))
         return None
-    name_re    = re.compile(r'^' + re.escape(char_name) + r'\b', re.IGNORECASE)
+    # Match on first name only — cards are named by first name (e.g. penny.json → folder 'Penny')
+    first_name = char_name.split()[0]
+    name_re    = re.compile(r'^' + re.escape(first_name) + r'(?:\b|\d|$)', re.IGNORECASE)
     candidates = []
     try:
         for folder in base.iterdir():
@@ -114,6 +116,10 @@ def find_active_chat_integrity(char_name: str) -> Optional[str]:
         if uid:
             if DEBUG: print('[CHAT_ID] integrity=' + uid + ' file=' + active.name)
             return uid
+        # No integrity field — use the filename stem, which is stable per chat
+        uid = active.stem
+        if DEBUG: print('[CHAT_ID] no integrity, using filename: ' + uid)
+        return uid
     except Exception as ex:
         if DEBUG: print('[CHAT_ID] read error: ' + str(ex))
     return None
@@ -290,8 +296,8 @@ async def chat(request: Request):
     try:
         assistant_text = json.loads(r.content)['choices'][0]['message']['content']
         le.handle_response(assistant_text, state, turn['events'], rs)
-    except Exception:
-        pass
+    except Exception as ex:
+        if DEBUG: print('[WARN] handle_response failed: ' + str(ex))
 
     # Save and return
     save_session(session_key, persona, chat_id, identity['name'], identity['sex'], state)

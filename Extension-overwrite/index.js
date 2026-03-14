@@ -133,9 +133,11 @@ async function loadLoreFromSource(source, key) {
  * Returns the server path to retrieve it later.
  */
 async function uploadLoreToServer(source, filename) {
-    const blob = new Blob([source], { type: 'text/javascript' });
+    // Upload as .txt — ST blocks .js uploads for security. Content is still JS source text.
+    const uploadName = filename.replace(/\.js$/i, '') + '.lore.txt';
+    const blob = new Blob([source], { type: 'text/plain' });
     const formData = new FormData();
-    formData.append('file', blob, filename);
+    formData.append('file', blob, uploadName);
     const resp = await fetch('/api/files/upload', { method: 'POST', body: formData });
     if (!resp.ok) {
         const text = await resp.text();
@@ -163,17 +165,7 @@ async function importAndActivateLore(source, filename) {
         version: lore.version || '?',
         importedAt: Date.now(),
     });
-    // Upload to ST server so other browsers can access it
-    if (!settings.server_lores?.[key]) {
-        try {
-            const serverPath = await uploadLoreToServer(source, filename);
-            settings.server_lores = settings.server_lores || {};
-            settings.server_lores[key] = serverPath;
-            console.log('[OW] Lore uploaded to ST server:', serverPath);
-        } catch (ex) {
-            console.warn('[OW] Server upload failed (lore works locally only):', ex.message);
-        }
-    }
+    // Note: cross-browser sync uses the Sync URL field in settings, not server upload.
     // Activate
     activeLore = lore;
     settings.active_lore = key;
@@ -550,8 +542,15 @@ function getSettingsHtml() {
                 </select>
                 <div style="display:flex; gap:4px; flex-wrap:wrap;">
                     <button id="ow-import-btn" class="menu_button">Import (.js)</button>
-                    <button id="ow-reload-btn" class="menu_button">Reload from folder</button>
+                    <button id="ow-reload-btn" class="menu_button">Reload</button>
                     <button id="ow-remove-btn" class="menu_button redWarning">Remove</button>
+                </div>
+                <div style="margin-top:8px;">
+                    <label style="font-size:0.85em;opacity:0.7;">Sync URL (for other browsers/devices)</label>
+                    <div style="display:flex;gap:4px;margin-top:2px;">
+                        <input id="ow-sync-url" class="text_pole" type="text" placeholder="https://your-server.com/lore.js" style="flex:1;font-size:0.8em;">
+                        <button id="ow-sync-url-btn" class="menu_button">Load</button>
+                    </div>
                 </div>
                 <div id="ow-info" class="ow-status" style="display:none;margin-top:4px;"></div>
             </div>
@@ -620,18 +619,49 @@ function bindSettingsEvents() {
         refreshLoreSelector();
     }
 
+    // Populate sync URL field from saved settings
+    const syncUrlInput = document.getElementById('ow-sync-url');
+    if (syncUrlInput) {
+        const loreKey = settings.active_lore || Object.keys(settings.server_lores || {})[0];
+        syncUrlInput.value = (loreKey && settings.server_lores?.[loreKey]) || '';
+    }
+
+    // Sync URL load button
+    document.getElementById('ow-sync-url-btn')?.addEventListener('click', async () => {
+        const url = document.getElementById('ow-sync-url')?.value?.trim();
+        if (!url) { showLoreInfo('Enter a URL first', 'err'); return; }
+        showLoreInfo('Loading from URL...', '');
+        try {
+            const lore = await loadLoreFromUrl(url);
+            // Save URL so other browsers can sync automatically on startup
+            const key = lore._key || settings.active_lore;
+            if (key) {
+                settings.server_lores = settings.server_lores || {};
+                settings.server_lores[key] = url;
+                saveSettings();
+            }
+            await refreshLoreSelector();
+            showLoreInfo(`Loaded: ${lore.name || 'lore'} v${lore.version || '?'}`, 'ok');
+            renderModuleSettings();
+        } catch (ex) {
+            showLoreInfo(`Failed: ${ex.message}`, 'err');
+        }
+    });
+
     // Import
     document.getElementById('ow-import-btn')?.addEventListener('click', handleImportLore);
     document.getElementById('ow-remove-btn')?.addEventListener('click', handleRemoveLore);
     document.getElementById('ow-reload-btn')?.addEventListener('click', async () => {
-        showLoreInfo('Reloading...', '');
-        // Try server-synced copy first (works on any browser/device)
         const loreKey = settings.active_lore || Object.keys(settings.server_lores || {})[0];
         const serverPath = loreKey && settings.server_lores?.[loreKey];
+        showLoreInfo(`key=${loreKey||'none'} server=${serverPath?'yes':'no'}`, '');
+        await new Promise(r => setTimeout(r, 1200));
+
+        // Try server-synced copy first (works on any browser/device)
         if (serverPath) {
             try {
                 const resp = await fetch(serverPath);
-                if (!resp.ok) throw new Error(`Server fetch failed: ${resp.status}`);
+                if (!resp.ok) throw new Error(`${resp.status}`);
                 const source = await resp.text();
                 const lore = await importAndActivateLore(source, loreKey + '.js');
                 await refreshLoreSelector();
@@ -639,9 +669,42 @@ function bindSettingsEvents() {
                 renderModuleSettings();
                 return;
             } catch (ex) {
-                console.warn('[OW] Server reload failed, trying folder:', ex.message);
+                console.warn('[OW] Server reload failed, trying IDB:', ex.message);
             }
         }
+
+        // Try local IDB — upload to server so future browsers can sync
+        if (loreKey) {
+            const stored = await idbGet(STORE_LORE, loreKey);
+            if (stored?.source) {
+                try {
+                    const lore = await loadLoreFromSource(stored.source, loreKey);
+                    activeLore = lore;
+                    settings.active_lore = loreKey;
+                    // Upload to server now so other browsers can sync in future
+                    if (!settings.server_lores?.[loreKey]) {
+                        showLoreInfo('Uploading to server...', '');
+                        try {
+                            const serverPath2 = await uploadLoreToServer(stored.source, loreKey + '.js');
+                            settings.server_lores = settings.server_lores || {};
+                            settings.server_lores[loreKey] = serverPath2;
+                            console.log('[OW] Uploaded existing lore to server:', serverPath2);
+                        } catch (upEx) {
+                            showLoreInfo(`Upload failed: ${upEx.message}`, 'err');
+                            await new Promise(r => setTimeout(r, 3000));
+                        }
+                    }
+                    saveSettings();
+                    await refreshLoreSelector();
+                    showLoreInfo(`Reloaded: ${lore.name || 'lore'} v${lore.version || '?'}`, 'ok');
+                    renderModuleSettings();
+                    return;
+                } catch (ex) {
+                    console.warn('[OW] IDB reload failed:', ex.message);
+                }
+            }
+        }
+
         // Fall back to extension folder file
         try {
             const lore = await loadLoreFromUrl('./x_change_world.js');

@@ -1,0 +1,13 @@
+{
+    "display_name": "Overwrite",
+    "loading_order": 10,
+    "requires": [],
+    "optional": [],
+    "js": "index.js",
+    "css": "style.css",
+    "author": "Cody",
+    "version": "1.0.0",
+    "homePage": "",
+    "auto_update": false,
+    "generate_interceptor": "overwriteInterceptor"
+}

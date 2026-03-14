@@ -624,7 +624,25 @@ function bindSettingsEvents() {
     document.getElementById('ow-import-btn')?.addEventListener('click', handleImportLore);
     document.getElementById('ow-remove-btn')?.addEventListener('click', handleRemoveLore);
     document.getElementById('ow-reload-btn')?.addEventListener('click', async () => {
-        showLoreInfo('Reloading from folder...', '');
+        showLoreInfo('Reloading...', '');
+        // Try server-synced copy first (works on any browser/device)
+        const loreKey = settings.active_lore || Object.keys(settings.server_lores || {})[0];
+        const serverPath = loreKey && settings.server_lores?.[loreKey];
+        if (serverPath) {
+            try {
+                const resp = await fetch(serverPath);
+                if (!resp.ok) throw new Error(`Server fetch failed: ${resp.status}`);
+                const source = await resp.text();
+                const lore = await importAndActivateLore(source, loreKey + '.js');
+                await refreshLoreSelector();
+                showLoreInfo(`Reloaded: ${lore.name || 'lore'} v${lore.version || '?'}`, 'ok');
+                renderModuleSettings();
+                return;
+            } catch (ex) {
+                console.warn('[OW] Server reload failed, trying folder:', ex.message);
+            }
+        }
+        // Fall back to extension folder file
         try {
             const lore = await loadLoreFromUrl('./x_change_world.js');
             await refreshLoreSelector();

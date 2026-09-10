@@ -5,7 +5,7 @@
 const LORE_DATA = 
 {
   "name": "X-Change World (Full Mechanics)",
-  "version": "7.13.16",
+  "version": "7.13.21",
   "versionUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/version.json",
   "sourceUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/x_change_world.js",
   "schema_version": 1,
@@ -12615,10 +12615,35 @@ function scanCardBody(systemText, rs) {
   const anatomyText = anatomyMatch ? anatomyMatch[1] : text;
   const atLow = anatomyText.toLowerCase();
 
+  // ── v7.13.21: CANONICAL SIZE LINE (exact path) ──
+  // Every card in the library was normalised 2026-09-10 to open its Anatomy Snapshot
+  // with a single explicit clause: "Cock: N inches erect." Read that and stop — it is
+  // unambiguous, so none of the heuristics below can misfire on it (a height, a dildo,
+  // someone else's cock, a flaccid figure). Anything WITHOUT the clause — a freshly
+  // imported card — still falls through to the keyword/inch scan underneath.
+  const canonMatch = anatomyText.match(/\bCock:\s*(\d+(?:\.\d+)?)\s*(?:inch|inches)\b/i)
+                  || text.match(/\bCock:\s*(\d+(?:\.\d+)?)\s*(?:inch|inches)\b/i);
+  var canonInches = 0;
+  if (canonMatch) {
+    var cv = parseFloat(canonMatch[1]);
+    if (cv >= 1 && cv <= 14) canonInches = cv;
+  }
+
   // Try inch measurement first (most precise)
-  const inchMatch = anatomyText.match(/(\d+(?:\.\d+)?)\s*(?:inch|inches|in\b|")/i);
+  // v7.13.19 — strip HEIGHT before looking for inches. When a card has no
+  // "Anatomy Snapshot:" section anatomyText falls back to the WHOLE card, and the
+  // `"` alternative below then reads `Height: 5'9"` as a nine-inch penis (tier 5,
+  // "huge"). Every such card was being tiered off its own height — 5'9" -> huge,
+  // 5'4" -> small — which silently picks the wrong _GENITAL_TX_PHRASES bucket.
+  const _atNoHeight = canonInches ? '' : anatomyText
+    .replace(/^[ \t]*Height:.*$/gim, ' ')
+    .replace(/\b\d+\s*(?:'|\u2019|ft\b|feet\b)[ \t]*\d*[ \t]*(?:"|\u201d|in\b|inch(?:es)?\b)?/gi, ' ');
+  const inchMatch = _atNoHeight.match(/(\d+(?:\.\d+)?)\s*(?:inch|inches|in\b|")/i);
   let penisTier = 0; // 0 = not found
-  if (inchMatch) {
+  // v7.13.21 — plausibility bound. Anything outside 1-14" is not a cock measurement
+  // (a waist, a heel, a stray number), so fall through to the keyword scan instead of
+  // scoring it. Previously "99 inches" anywhere in the snapshot read as tier 5.
+  if (inchMatch && parseFloat(inchMatch[1]) >= 1 && parseFloat(inchMatch[1]) <= 14) {
     const inches = parseFloat(inchMatch[1]);
     if (inches <= 3)       penisTier = 1; // tiny
     else if (inches <= 4.5) penisTier = 2; // small
@@ -12627,8 +12652,8 @@ function scanCardBody(systemText, rs) {
     else                    penisTier = 5; // huge
   }
 
-  // Keyword fallback if no inch measurement
-  if (!penisTier) {
+  // Keyword fallback if no inch measurement (skipped when the canonical line is present)
+  if (!penisTier && !canonInches) {
     const sizeKws = [
       [1, /\b(?:tiny|micro|nub)\b.*\b(?:cock|dick|penis|member|shaft)\b/i],
       [1, /\b(?:cock|dick|penis|member|shaft)\b.*\b(?:tiny|micro)\b/i],
@@ -12650,14 +12675,20 @@ function scanCardBody(systemText, rs) {
   }
 
   // Final fallback: if card mentions a cock/dick at all but no size, assume average
-  if (!penisTier && /\b(?:cock|dick|penis|member|shaft)\b/i.test(atLow)) {
+  if (!penisTier && !canonInches && /\b(?:cock|dick|penis|member|shaft)\b/i.test(atLow)) {
     penisTier = 3;
   }
 
+  if (canonInches) {
+    // v7.13.21 — canonical line wins outright; the heuristics above were skipped.
+    penisTier = canonInches <= 3 ? 1 : canonInches <= 4.5 ? 2 : canonInches <= 6 ? 3 : canonInches <= 8 ? 4 : 5;
+    body.penis_inches = canonInches;
+    console.log('[CARD] Penis size from canonical line: ' + canonInches + '" -> tier ' + penisTier);
+  }
   if (penisTier) {
     body.penis_size = penisTier;
     const tierNames = ['', 'tiny', 'small', 'average', 'large', 'huge'];
-    console.log('[CARD] Penis size detected: tier ' + penisTier + ' (' + tierNames[penisTier] + ')');
+    if (!canonInches) console.log('[CARD] Penis size detected: tier ' + penisTier + ' (' + tierNames[penisTier] + ')');
   }
 
   // ── Bust size detection ──
@@ -14559,8 +14590,7 @@ function processEvents(state, events, cardSex, notes, rs, personaEffects, person
 
 function getBodyGuidance(color, modifier, cardBody, rs) {
   const bm = rs.body_modifiers || {};
-  const fallback = (bm[color] || {}).fallback_modifier_color || color;
-  const colorEntry = bm[color] || bm[fallback] || {};
+  const colorEntry = _bmEntry(bm, color);
   const baselineParts = [];
   if (cardBody.height_str) baselineParts.push('height ' + cardBody.height_str);
   if (cardBody.weight) baselineParts.push(cardBody.weight + 'lbs');
@@ -14585,6 +14615,25 @@ function getBodyGuidance(color, modifier, cardBody, rs) {
   const tp = [scaleLabel];
   if (rules.length) tp.push(...rules.slice(0, 2));
   return baselineStr + '\n' + tp.join(' | ');
+}
+
+// v7.13.20 — pick the body_modifiers entry that actually HAS a modifier table,
+// following fallback_modifier_color / inherit. Every call site used
+// `bm[color] || bm[fallback]`, but bm.purple is truthy-but-tableless
+// (note: "Futafem - female body with cock. Uses pink modifier table for body,
+// no vagina.", fallback_modifier_color: "pink", inherit: "pink"), so the `||`
+// never reached pink and purple resolved NO body at all — no height, weight,
+// build or bust. Cody 2026-09-10: "purple is supposed to key off female body
+// with no pussy and a cock instead."
+function _bmEntry(bm, color) {
+  bm = bm || {};
+  var own = bm[color];
+  var hasTable = function (e) { return !!(e && e.modifiers && Object.keys(e.modifiers).length); };
+  if (hasTable(own)) return own;
+  var alt = (own && own.fallback_modifier_color && bm[own.fallback_modifier_color])
+         || (own && own.inherit && bm[own.inherit]) || null;
+  if (hasTable(alt)) return alt;
+  return own || alt || {};
 }
 
 function resolveStartingBuild(cardBody, colorEntry) {
@@ -14626,8 +14675,7 @@ function resolveBodyModifier(color, cardBody, rs) {
   // 2. Look up target_weights for that starting build
   // 3. Weighted random pick from the weight map
   const bm = rs.body_modifiers || {};
-  const fallback = (bm[color] || {}).fallback_modifier_color || color;
-  const colorEntry = bm[color] || bm[fallback] || {};
+  const colorEntry = _bmEntry(bm, color);
   const modifiers = colorEntry.modifiers || {};
   const modNames = Object.keys(modifiers);
   if (!modNames.length) return null;
@@ -14747,8 +14795,9 @@ function _lbsFromWeight(v) {
   var m = (v === null || v === undefined) ? null : String(v).match(/(\d+)/);
   return m ? parseInt(m[1], 10) : null;
 }
-function _buildTxDelta(cardBody, tgtHeight, tgtWeight, tgtBust, startLabel, modifier) {
+function _buildTxDelta(cardBody, tgtHeight, tgtWeight, tgtBust, startLabel, modifier, out) {
   cardBody = cardBody || {};
+  out = out || {};
   var parts = [], score = 0;
 
   var h0 = _inchesFromHeightStr(cardBody.height_str), h1 = _inchesFromHeightStr(tgtHeight);
@@ -14790,9 +14839,13 @@ function _buildTxDelta(cardBody, tgtHeight, tgtWeight, tgtBust, startLabel, modi
     scale = 'MODERATE';
     howto = 'clearly felt, but the body keeps up.';
   } else {
+    // v7.13.17 — the old SUBTLE line handed the bulk of the turn to something
+    // other than the transformation, which read as a shrink instruction on the
+    // one turn that should be the longest.
     scale = 'SUBTLE';
-    howto = 'understate it; most of the turn belongs elsewhere.';
+    howto = 'understate it — small change, felt but not overwhelming.';
   }
+  out.scale = scale;
   return parts.join(', ') + ' | ' + scale + ' — ' + howto;
 }
 
@@ -14804,16 +14857,24 @@ function _buildTransformVoiceAnchor(state) {
   const chaMod = _mod(state, 'CHA');
   const subMod = _mod(state, 'SUB');
 
+  const conMod = _mod(state, 'CON');
+
   const parts = [];
   if (domMod >= 4) parts.push('commanding, utterly unfazed by what the body is doing');
   else if (domMod >= 2) parts.push('self-assured, tracking the changes from a position of control');
-  if (wisMod >= 3) parts.push('cataloging every sensation analytically');
-  if (intMod >= 3) parts.push('processing each change with sharp precision');
-  if (chaMod >= 3 && domMod < 2) parts.push('acutely aware of every shift in sensation');
+  else if (domMod <= -2) parts.push('with no authority left to reach for — this is happening TO them and they know it');
   if (subMod >= 3 && domMod < 2) parts.push('pulled toward surrender with each change');
+  else if (subMod >= 2 && domMod < 2) parts.push('leaning into it rather than bracing against it');
+  if (wisMod >= 3) parts.push('cataloging every sensation analytically');
+  else if (wisMod <= -1) parts.push('losing track of what is happening even while it happens to them');
+  if (intMod >= 3) parts.push('processing each change with sharp precision');
+  else if (intMod <= -2) parts.push('unable to find words for any of it');
+  if (chaMod >= 3 && domMod < 2) parts.push('acutely aware of every shift in sensation');
+  if (conMod <= -2) parts.push('the body giving way faster than they can keep pace with');
 
   if (!parts.length) return '';
-  return 'Character voice: ' + parts.join(', ') + '. Write them this way throughout.';
+  return 'Character voice: ' + parts.slice(0, 3).join(', ')
+    + '. This is the DISPOSITION the body-writing runs through — not a line to state, and not a substitute for their actual speech and mannerisms.';
 }
 
 // ── Genital transformation color phrases ──
@@ -15216,7 +15277,7 @@ function buildTransformationGuidance(pillDescriptor, cardBody, cardSex, rs, stat
   // ── Resolve modifier from card if none was on the pill ──
   var resolvedFromCard = false;
   var startingBuild = null;
-  const colorEntryForResolve = bm[color] || bm[bmColor] || {};
+  const colorEntryForResolve = _bmEntry(bm, color);
   // Always resolve starting build for the txBodyPath lookup
   // Use original build keywords if available for accurate body path
   const resolveBody = ((state || {})._original_build_keywords) 
@@ -15433,7 +15494,7 @@ function buildTransformationGuidance(pillDescriptor, cardBody, cardSex, rs, stat
   // Use original build keywords (saved when pill first detected) for accurate body path
   const origKeywords = (state || {})._original_build_keywords;
   const startLabel = startingBuild || (origKeywords && origKeywords[0]) || (cardBody.build_keywords && cardBody.build_keywords[0]) || 'unknown';
-  const colorEntry = bm[color] || bm[bmColor] || {};
+  const colorEntry = _bmEntry(bm, color);
 
   var sampledModEntry = modifier ? ((colorEntry.modifiers || {})[modifier] || null) : null;
   var sampledHeight = sampledModEntry && sampledModEntry.height ? _sampleHeightRange(sampledModEntry.height) : '';
@@ -15656,6 +15717,10 @@ function buildTransformationGuidance(pillDescriptor, cardBody, cardSex, rs, stat
   var _hairGuide    = '';
   var _voiceGuide   = '';
   var _skinGuide    = '';
+  // v7.13.18 — end-state per axis, for the axes the rotation demotes to one beat:
+  // they still have to land exactly right, they just don't get a stage list and a
+  // canned Sensation vocabulary to transliterate.
+  var _axisEnds     = {};
   if (!noChange && toSex === 'female') {
     _frameGuide = 'Stages (reference only — render in character voice): '
       + '(1) shoulder mass thins, upper body narrows, '
@@ -15663,12 +15728,28 @@ function buildTransformationGuidance(pillDescriptor, cardBody, cardSex, rs, stat
       + '(3) waist taper deepens, '
       + '(4) final: ' + (sampledBuild || 'feminine') + ' frame, mass redistributed feminine. '
       + 'Sensation: weight shifting in the body, balance recalibrating, stance widening at the hips, center of gravity dropping.';
+    // v7.13.18 — scale the chest telling to the CUP, not just name it.
+    var _bIdx = _cardBustFloorIdx(_bustForGuide);   // A=0 B=1 C=2 D=3 DD=4 E=5 F=6 G=7 H=8 J=9 K=10
+    var _bEnd, _bSens;
+    if (_bIdx >= 0 && _bIdx <= 1) {
+      _bEnd  = 'a small swell — more sensitivity than mass, the cups finally with something to sit against';
+      _bSens = 'Sensation: heat and tightness concentrated almost entirely at the nipples; the new shape registers when something brushes it, not when standing still.';
+    } else if (_bIdx >= 0 && _bIdx <= 3) {
+      _bEnd  = 'settling full and warm, areolas wider, a clear forward weight when leaning';
+      _bSens = 'Sensation: tight stretch, internal heat, sudden awareness of fabric pressure on newly-sensitive skin.';
+    } else if (_bIdx >= 4) {
+      _bEnd  = 'heavy and unignorable — pulling the shoulders back, changing how the whole body balances, the bra straining to hold it';
+      _bSens = 'Sensation: deep aching stretch, real weight that swings and settles when turning, fabric cutting where it never used to reach, the ache of skin stretched to cover more than it did.';
+    } else {
+      _bEnd  = 'settling full and warm, areolas wider, weight pulling forward when leaning';
+      _bSens = 'Sensation: tight stretch, internal heat, sudden awareness of fabric pressure on newly-sensitive skin.';
+    }
     _chestGuide = 'Stages (reference only — render in character voice): '
       + '(1) nipples flush sensitive and darken, '
       + '(2) tissue swells underneath in tight aching mounds, '
       + '(3) fat layers round out the form, '
-      + '(4) final: ' + (_bustForGuide || 'feminine bust') + ' settling full and warm, areolas wider, weight pulling forward when leaning. '
-      + 'Sensation: tight stretch, internal heat, sudden awareness of fabric pressure on newly-sensitive skin.';
+      + '(4) final: ' + (_bustForGuide || 'feminine bust') + ' — ' + _bEnd + '. '
+      + _bSens;
     _faceGuide = 'Stages (reference only — render in character voice): '
       + '(1) jawline softens — mandible angle reshapes inward, '
       + '(2) cheekbones round and lift as fat redistributes upward, '
@@ -15686,6 +15767,13 @@ function buildTransformationGuidance(pillDescriptor, cardBody, cardSex, rs, stat
       + '(3) final: lighter register cracking once mid-sentence and resettling. '
       + 'Sensation: throat tightening then loosening, voice catching unfamiliarly.';
     _skinGuide = 'Skin softens, smooths, fine pores tighten. Pre-existing tan lines remain. Sensation: warm flush, surface texture going silkier under touch.';
+    _axisEnds = {
+      frame: (sampledBuild || 'feminine') + ' frame, mass redistributed feminine',
+      chest: (_bustForGuide || 'a feminine bust') + ', ' + _bEnd,
+      face:  'the same recognizable features in feminized proportions',
+      hair:  'feminized scalp hair, body hair receded',
+      voice: 'a lighter register that has cracked once and resettled'
+    };
   } else if (!noChange && toSex === 'male') {
     _frameGuide = 'Stages (reference only — render in character voice): '
       + '(1) hip / butt / thigh mass thins, lower body narrows, '
@@ -15716,25 +15804,59 @@ function buildTransformationGuidance(pillDescriptor, cardBody, cardSex, rs, stat
       + '(3) final: heavier register cracking once mid-sentence and resettling. '
       + 'Sensation: throat thickening, voice rumbling unfamiliarly.';
     _skinGuide = 'Skin coarsens slightly, pores open, oil increases. Sensation: warm flush, surface texture going rougher under touch.';
+    _axisEnds = {
+      frame: (sampledBuild || 'masculine') + ' frame, mass redistributed masculine',
+      chest: 'a flat masculine chest with muscle definition',
+      face:  'the same recognizable features in masculinized proportions',
+      hair:  'masculinized scalp hair, body hair grown in',
+      voice: 'a heavier register that has cracked once and resettled'
+    };
+  }
+
+  // v7.13.18 — rotation is decided BEFORE the guides are written, so the axes it
+  // demotes can ship as a one-line end-state instead of a full stage list.
+  var _presentAxes = [];
+  if (_frameGuide) _presentAxes.push('frame');
+  if (_chestGuide) _presentAxes.push('chest');
+  if (_faceGuide)  _presentAxes.push('face');
+  if (_hairGuide)  _presentAxes.push('hair');
+  if (_voiceGuide) _presentAxes.push('voice');
+  var _focusAxes = _presentAxes.slice();
+  while (_focusAxes.length > 2) _focusAxes.splice(Math.floor(Math.random() * _focusAxes.length), 1);
+  function _axisGuide(axis, full) {
+    if (!full) return '';
+    if (_focusAxes.indexOf(axis) >= 0) return full;
+    var e = _axisEnds[axis];
+    return e ? ('One beat only, in the character\'s own words — no stage list for this axis on purpose. Ends: ' + e + '.') : full;
   }
 
   lines.push('<tx type="reference">');
   lines.push('  <origin>' + _originParts.join(', ') + '</origin>');
   lines.push('  <target>' + _targetParts.join(', ') + '</target>');
   // v7.13.16 — the arithmetic between the two, so the prose scales to the change.
+  var _txDeltaMeta = {};
   var _txDelta = _buildTxDelta(cardBody, sampledHeight, sampledWeight,
-                               _resolvedBust || sampledBust, startLabel, modifier);
+                               _resolvedBust || sampledBust, startLabel, modifier, _txDeltaMeta);
   if (_txDelta) lines.push('  <delta>' + _txDelta + '</delta>');
   if (_clothingStr) lines.push('  <clothing>' + _clothingStr + '</clothing>');
   if (banner) lines.push('  <direction>' + banner + '</direction>');
   // Color-narrative paragraph (background context — kept from txPhysical table)
   if (txPhysical) lines.push('  <body-path-guide>' + txPhysical + '</body-path-guide>');
   // Per-axis stage guides — model must render every stage in every applicable guide.
-  if (_frameGuide) lines.push('  <frame-tx-guide>' + _frameGuide + '</frame-tx-guide>');
-  if (_chestGuide) lines.push('  <chest-tx-guide>' + _chestGuide + '</chest-tx-guide>');
-  if (_faceGuide)  lines.push('  <face-tx-guide>'  + _faceGuide  + '</face-tx-guide>');
-  if (_hairGuide)  lines.push('  <hair-tx-guide>'  + _hairGuide  + '</hair-tx-guide>');
-  if (_voiceGuide) lines.push('  <voice-tx-guide>' + _voiceGuide + '</voice-tx-guide>');
+  if (_frameGuide) lines.push('  <frame-tx-guide>' + _axisGuide('frame', _frameGuide) + '</frame-tx-guide>');
+  if (_chestGuide) lines.push('  <chest-tx-guide>' + _axisGuide('chest', _chestGuide) + '</chest-tx-guide>');
+  // v7.13.19 — authored chest colour, keyed cup x attitude. Always injected when the
+  // chest changes, even on a turn the rotation demoted it: this is how the character
+  // FEELS about the new chest, not a stage list, and it is the material that stops the
+  // one beat coming out generic.
+  if (_chestGuide && toSex === 'female') {
+    var _bKey = _breastPhraseKey(_bustForGuide);
+    var _bPhrase = _bKey ? _pickTxPhrase(_BREAST_TX_PHRASES, _bKey + '_' + _txAttitudeGroup(_wiBand)) : '';
+    if (_bPhrase) lines.push('  <chest-color>' + _bPhrase + '</chest-color>');
+  }
+  if (_faceGuide)  lines.push('  <face-tx-guide>'  + _axisGuide('face',  _faceGuide)  + '</face-tx-guide>');
+  if (_hairGuide)  lines.push('  <hair-tx-guide>'  + _axisGuide('hair',  _hairGuide)  + '</hair-tx-guide>');
+  if (_voiceGuide) lines.push('  <voice-tx-guide>' + _axisGuide('voice', _voiceGuide) + '</voice-tx-guide>');
   if (_skinGuide)  lines.push('  <skin-tx-guide>'  + _skinGuide  + '</skin-tx-guide>');
   // Genital-tx guide — preserved unchanged (already rich)
   if (!noChange) {
@@ -15766,7 +15888,20 @@ function buildTransformationGuidance(pillDescriptor, cardBody, cardSex, rs, stat
         + "Sensation: weight forward, no internal slickness, female above + male groin.";
     }
     if (_genitalGuide) lines.push('  <genital-tx-guide>' + _genitalGuide + '</genital-tx-guide>');
+    // v7.13.19 — authored genital colour, keyed penis-size tier x attitude. Gated to
+    // vagina_only: every phrase in the table is written as the LOSS of the cock, so it
+    // does not belong on the F->M path or on purple (which keeps the cock).
+    if (_genitalKey === 'vagina_only') {
+      var _pTier = parseInt((cardBody && cardBody.penis_size) || 3, 10);
+      if (!(_pTier >= 1 && _pTier <= 5)) _pTier = 3;
+      var _gPhrase = _pickTxPhrase(_GENITAL_TX_PHRASES, _pTier + '_' + _txAttitudeGroup(_wiBand));
+      if (_gPhrase) lines.push('  <genital-color>' + _gPhrase + '</genital-color>');
+    }
   }
+  // v7.13.18 — stat-derived voice anchor, finally wired (see _buildTransformVoiceAnchor).
+  var _txVoiceAnchor = '';
+  try { _txVoiceAnchor = _buildTransformVoiceAnchor(state) || ''; } catch (_vaErr) { _txVoiceAnchor = ''; }
+  if (_txVoiceAnchor) lines.push('  <character-voice>' + _txVoiceAnchor + '</character-voice>');
   // Reaction register — character-disposition framing for HOW they relate to the change emotionally.
   if (_wiRegister) lines.push('  <reaction-register>' + _wiRegister + '</reaction-register>');
   // v7.7.26 — Intake register — framing for HOW the act of taking the pill is rendered.
@@ -15803,14 +15938,6 @@ function buildTransformationGuidance(pillDescriptor, cardBody, cardSex, rs, stat
   // genitals full-detail and last) but each generation now rotates which 2
   // secondary axes get full stage detail and how the reply enters the moment —
   // so a re-roll produces a genuinely different telling, not a re-worded one.
-  var _presentAxes = [];
-  if (_frameGuide) _presentAxes.push('frame');
-  if (_chestGuide) _presentAxes.push('chest');
-  if (_faceGuide)  _presentAxes.push('face');
-  if (_hairGuide)  _presentAxes.push('hair');
-  if (_voiceGuide) _presentAxes.push('voice');
-  var _focusAxes = _presentAxes.slice();
-  while (_focusAxes.length > 2) _focusAxes.splice(Math.floor(Math.random() * _focusAxes.length), 1);
   var _ENTRY_HINTS = [
     'Enter mid-dialogue — the character is in the middle of saying something when the first change cuts them off.',
     'Enter on the first raw sensation, before the character understands what is happening.',
@@ -15820,6 +15947,15 @@ function buildTransformationGuidance(pillDescriptor, cardBody, cardSex, rs, stat
     'Enter on the other person\'s presence — voice, breath, proximity — with the change arriving underneath it.'
   ];
   var _entryHint = _ENTRY_HINTS[Math.floor(Math.random() * _ENTRY_HINTS.length)];
+  // v7.13.17 — LENGTH FLOOR. The main tx-direction was the only tx path in the
+  // engine with no length target (the surrogate / pin-up / bimbo paths all say
+  // 200-350 tokens), so the model was free to stop wherever it liked — grok-4.3
+  // stopped around 230 tokens where grok-4.20 wrote 600-700 off the same block.
+  // Scaled to the delta, and pointed at DEPTH on the rotated axes so it does not
+  // fight 7.13.15's variety rotation by dragging the extra length out of breadth.
+  var _LEN_BY_SCALE = { DRASTIC: '500-700', MODERATE: '400-550', SUBTLE: '250-350' };
+  var _lenLine = 'Length: ' + (_LEN_BY_SCALE[_txDeltaMeta.scale] || '400-550')
+    + ' tokens — spend it on depth in the full-stage axes, not on adding more axes. ';
   var _varietyLine = '';
   if (_presentAxes.length) {
     var _bgAxes = _presentAxes.filter(function (a) { return _focusAxes.indexOf(a) < 0; });
@@ -15829,9 +15965,35 @@ function buildTransformationGuidance(pillDescriptor, cardBody, cardSex, rs, stat
       + ' through their full stages; ' + (_bgAxes.length ? _bgAxes.join(', ') + ' get' : 'the rest gets')
       + ' one distinct felt beat each and no more. ' + _entryHint + ' ';
   }
-  lines.push('<tx-direction>Continue the scene in the character\'s voice and pacing. The stage-list guides above (frame, chest, face, hair, voice, skin, genitals — only the ones present this turn apply) are REFERENCE ANATOMY, not a script: they define what becomes true, not how to write it or what order to write it in. Hard requirements: every present guide surfaces in the prose (minimum one distinct felt beat each, plus one beat for the reaction); the body ends EXACTLY as the target listed above; nothing contradicts a guide\'s end state; the genital change lands last or near-last. ' + _varietyLine + 'Everything else is yours: pick your own order and let changes overlap and interleave instead of marching axis by axis; paraphrase the guides in the character\'s own words — never echo their wording; and do NOT open the way a previous telling of this transformation would (no default standing-at-the-mirror pose, no restating the pill going down — the intake-register already covers how intake happened). Narrate it the way THIS character would experience it — through their mannerisms, dialect, kinks, and natural turn-length; don\'t list body parts or produce a paragraph per area; weave the axes through the character\'s reaction, with the reaction-register and intake-register telling you HOW they relate to the change and to the act of intake. If a <rebirth> note is present this is a NEW body — render it forming whole and young, not the old one repaired, keeping only a faint passing resemblance to who they were; when <new-age>, <heal>, or a <limb-regrowth-guide> are present, render the youth, the healing, and any limb regrowth as part of that same transformation. Make each telling different.</tx-direction>');
+  lines.push('<tx-direction>Continue the scene in the character\'s voice and pacing. The stage-list guides above (frame, chest, face, hair, voice, skin, genitals — only the ones present this turn apply) are REFERENCE ANATOMY, not a script: they define what becomes true, not how to write it or what order to write it in. Hard requirements: every present guide surfaces in the prose (minimum one distinct felt beat each, plus one beat for the reaction); the body ends EXACTLY as the target listed above; nothing contradicts a guide\'s end state; the genital change lands last or near-last. Where a <chest-color> or <genital-color> line is present it is what this specific character feels about that specific change — write the beat through it, in their words, do not quote it. ' + _varietyLine + _lenLine + 'Everything else is yours: pick your own order and let changes overlap and interleave instead of marching axis by axis; paraphrase the guides in the character\'s own words — never echo their wording; and do NOT open the way a previous telling of this transformation would (no default standing-at-the-mirror pose, no restating the pill going down — the intake-register already covers how intake happened). Narrate it the way THIS character would experience it — through their mannerisms, dialect, kinks, and natural turn-length; don\'t list body parts or produce a paragraph per area; weave the axes through the character\'s reaction, with the reaction-register and intake-register telling you HOW they relate to the change and to the act of intake. If a <rebirth> note is present this is a NEW body — render it forming whole and young, not the old one repaired, keeping only a faint passing resemblance to who they were; when <new-age>, <heal>, or a <limb-regrowth-guide> are present, render the youth, the healing, and any limb regrowth as part of that same transformation. Make each telling different.</tx-direction>');
 
   return _stripEffectNames(lines.join('\n'));
+}
+
+// ── v7.13.19: the two authored TX colour tables above (_BREAST_TX_PHRASES, 24
+// buckets; _GENITAL_TX_PHRASES, 20 buckets; 176 phrases between them) were written
+// and then never referenced — one occurrence each in the whole file. Cody 2026-09-10:
+// "the two important ones are tits and the dick becoming a pussy, sad that all the
+// prose tabes made are not being used". Both are keyed size x attitude, and the
+// attitude group is the masculinity band the engine already computes.
+function _txAttitudeGroup(band) {
+  if (band >= 9) return 'horror';
+  if (band >= 5) return 'conflicted';
+  if (band >= 3) return 'accepting';
+  return 'happy';
+}
+// _BUST_LADDER is A B C D DD E F G H J K; the table authors A B C D DD F.
+function _breastPhraseKey(bustStr) {
+  var i = _cardBustFloorIdx(bustStr);
+  if (i < 0) return '';
+  if (i <= 3) return _BUST_LADDER[i];   // A B C D
+  if (i <= 5) return 'DD';              // DD, E
+  return 'F';                           // F and up
+}
+function _pickTxPhrase(table, key) {
+  var pool = table && table[key];
+  if (!pool || !pool.length) return '';
+  return pool[Math.floor(Math.random() * pool.length)];
 }
 
 function _bodyModText(state, band) {
@@ -16801,6 +16963,38 @@ function buildHeader(name, cardSex, state, notes, events, rs, persona, personaSt
       }
     }
   }
+  // v7.13.17 — Refresh _charAttrs from the FINAL body on a TX turn.
+  // _charAttrs is built near the top of this function, before
+  // buildTransformationGuidance() resolves resolved_body / rewrites card_body to
+  // the target. On a TX turn that left both the <character> tag and the
+  // "(Body this turn: ... — supersedes card description.)" footer carrying the
+  // PRE-TX stats while <target> in the same block declared the new ones — so the
+  // model was handed the OLD height/weight/build as the authoritative end state
+  // and hedged the frame and height beats ("my new height barely closing the
+  // gap" instead of the floor dropping away). Rebuild from resolved_body, keeping
+  // name / sex first and pov last so the bimbo-surrogate splice below still lines up.
+  if (_isTxTurn && state.resolved_body) {
+    var _rbFinal = state.resolved_body;
+    var _rebuiltAttrs = [];
+    for (var _cai = 0; _cai < _charAttrs.length; _cai++) {
+      var _ca = _charAttrs[_cai];
+      if (_ca.indexOf('name=') === 0 || _ca.indexOf('sex=') === 0) _rebuiltAttrs.push(_ca);
+    }
+    if (_rbFinal.height) _rebuiltAttrs.push('height="' + _xmlAttr(_rbFinal.height) + '"');
+    if (_rbFinal.weight) {
+      var _wStr = String(_rbFinal.weight);
+      if (!/lbs?$/i.test(_wStr)) _wStr += 'lbs';
+      _rebuiltAttrs.push('weight="' + _xmlAttr(_wStr) + '"');
+    }
+    if (_rbFinal.build) _rebuiltAttrs.push('build="' + _xmlAttr(_rbFinal.build) + '"');
+    if (_rbFinal.bust)  _rebuiltAttrs.push('bust="'  + _xmlAttr(_rbFinal.bust)  + '"');
+    if (_rbFinal.hips)  _rebuiltAttrs.push('hips="'  + _xmlAttr(_rbFinal.hips)  + '"');
+    if (_rbFinal.waist) _rebuiltAttrs.push('waist="' + _xmlAttr(_rbFinal.waist) + '"');
+    _rebuiltAttrs.push('pov="first-person"');
+    _charAttrs = _rebuiltAttrs;
+    charLines[0] = '<character ' + _charAttrs.join(' ') + '>';
+  }
+
   // Refresh _charAttrs if bimbo or surrogate overlay updated resolved_body after initial build
   if ((state._bimbo_body_overrides || state._surrogate_body_overrides) && _isTxTurn) {
     var _bboRefresh = state.resolved_body || {};
@@ -17530,7 +17724,7 @@ function _buildScrubWords(rs) {
   var bm = rs.body_modifiers || {};
   var nonModKeys = new Set(['fallback_modifier_color','transformation_guidance','modifier_flavor','post_transformation_awareness']);
   for (var color in bm) {
-    var modifiers = (bm[color] || {}).modifiers || {};
+    var modifiers = _bmEntry(bm, color).modifiers || {};
     for (var mod in modifiers) {
       if (!nonModKeys.has(mod) && modifierNames.indexOf(mod) === -1) {
         modifierNames.push(mod);

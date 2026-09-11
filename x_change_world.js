@@ -5,7 +5,7 @@
 const LORE_DATA = 
 {
   "name": "X-Change World (Full Mechanics)",
-  "version": "7.13.22",
+  "version": "7.13.23",
   "versionUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/version.json",
   "sourceUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/x_change_world.js",
   "schema_version": 1,
@@ -16010,6 +16010,16 @@ function _pickTxPhrase(table, key) {
   return pool[Math.floor(Math.random() * pool.length)];
 }
 
+// v7.13.23 — height in inches from whichever shape the body object happens to be:
+// resolved_body carries a string ("5'4\""), card_body may carry height_str and/or
+// height_ft/height_in, and persona_body carries ft/in.
+function _bodyInches(b) {
+  if (!b) return 0;
+  var n = (parseInt(b.height_ft, 10) || 0) * 12 + (parseInt(b.height_in, 10) || 0);
+  if (n > 0) return n;
+  return _inchesFromHeightStr(b.height_str || b.height || '') || 0;
+}
+
 function _bodyModText(state, band) {
   const result = {};
   const cardBody = state.card_body;
@@ -16636,26 +16646,16 @@ function buildHeader(name, cardSex, state, notes, events, rs, persona, personaSt
     userLines = ['<user ' + _userAttrs.join(' ') + '/>'];
   }
 
-  // ── <contrast> (height diff) ──
+  // ── <contrast> (height diff) — computed LATE, see below.
+  // v7.13.23: this used to be built here, which was wrong twice over.
+  // (a) It read `height_ft`/`height_in`, but `resolved_body` only carries a height
+  //     STRING ("5'0\"") and the post-TX `card_body` rewrite drops ft/in too — so
+  //     `charHt` came out 0 and the whole <contrast> line silently vanished from the
+  //     TX turn onward. The model then kept parroting the pre-TX figure out of its own
+  //     chat history (Cody 2026-09-11: "its always a 9 inch height difference").
+  // (b) Even when it did fire, it ran BEFORE buildTransformationGuidance resolved the
+  //     new body, so it described the OLD height.
   var contrast = '';
-  var _charBody = resolved || cardBodyFallback;
-  var charHt = (_charBody.height_ft || 0) * 12 + (_charBody.height_in || 0);
-  var userHt = (pBody.height_ft || 0) * 12 + (pBody.height_in || 0);
-  if (charHt > 0 && userHt > 0) {
-    var diff = Math.abs(userHt - charHt);
-    if (diff >= 4) {
-      var taller = userHt > charHt ? userName : charName;
-      var shorter = userHt > charHt ? charName : userName;
-      var diffFt = Math.floor(diff / 12);
-      var diffIn = diff % 12;
-      var diffStr = diffFt > 0 ? diffFt + "'" + (diffIn > 0 ? diffIn + '"' : '') : diffIn + '"';
-      var phrase;
-      if (diff >= 12) phrase = taller + ' towers over ' + shorter + ' by ' + diffStr;
-      else if (diff >= 7) phrase = taller + ' is significantly taller than ' + shorter + ' (' + diffStr + ' difference)';
-      else phrase = taller + ' is noticeably taller than ' + shorter + ' (' + diffStr + ' difference)';
-      contrast = '<contrast>' + phrase + '. Write the height difference into physical interactions, eye contact, spatial awareness.</contrast>';
-    }
-  }
 
   // ── <scene> block ──
   var sceneLines = [];
@@ -17112,6 +17112,24 @@ function buildHeader(name, cardSex, state, notes, events, rs, persona, personaSt
   var sections = [];
   sections.push(charLines.join('\n'));
   sections.push(userLines.join('\n'));
+  // v7.13.23 — build <contrast> now, from the body as it stands AFTER any transformation.
+  var _cHt = _bodyInches(state.resolved_body) || _bodyInches(state.card_body);
+  var _uHt = _bodyInches(state.persona_body);
+  if (_cHt > 0 && _uHt > 0) {
+    var _hDiff = Math.abs(_uHt - _cHt);
+    if (_hDiff >= 4) {
+      var _tall = _uHt > _cHt ? userName : charName;
+      var _short = _uHt > _cHt ? charName : userName;
+      var _dFt = Math.floor(_hDiff / 12), _dIn = _hDiff % 12;
+      var _dStr = _dFt > 0 ? (_dFt + "'" + (_dIn > 0 ? _dIn + '"' : '')) : (_dIn + '"');
+      var _ph;
+      if (_hDiff >= 12) _ph = _tall + ' towers over ' + _short + ' by ' + _dStr;
+      else if (_hDiff >= 7) _ph = _tall + ' is significantly taller than ' + _short + ' (' + _dStr + ' difference)';
+      else _ph = _tall + ' is noticeably taller than ' + _short + ' (' + _dStr + ' difference)';
+      contrast = '<contrast>' + _ph + '. Write the height difference into physical interactions, eye contact, spatial awareness. '
+               + 'This is the CURRENT difference — ignore any earlier figure in the conversation.</contrast>';
+    }
+  }
   if (contrast) sections.push(contrast);
   if (sceneLines.length) sections.push(sceneLines.join('\n'));
   if (voiceLines.length) sections.push(voiceLines.join('\n'));

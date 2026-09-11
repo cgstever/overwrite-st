@@ -5,7 +5,7 @@
 const LORE_DATA = 
 {
   "name": "X-Change World (Full Mechanics)",
-  "version": "7.13.21",
+  "version": "7.13.22",
   "versionUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/version.json",
   "sourceUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/x_change_world.js",
   "schema_version": 1,
@@ -14891,10 +14891,10 @@ const _GENITAL_TX_PHRASES = {
     "It wasn't much. That doesn't matter. The body is rewriting something that shouldn't be rewritable and the horror is absolute regardless of what was there."
   ],
   "1_conflicted": [
-    "It was never impressive and he knew that. The change registers more as inevitability than loss — another thing the pill is taking that he wasn't holding onto very hard.",
-    "Small enough that the vanishing barely registers physically. The disorientation is all identity — the place it occupied was larger than the organ itself.",
-    "Easier to let go of than he expected. The embarrassment of having had something so modest is briefly louder than the loss of it. Still — it was his.",
-    "The absence settles before the feelings do. Whatever that was, it wasn't the hill he was going to die on — but the body moving past it before he can process it stings."
+    "Barely anything, and it is going. He keeps waiting for the loss to feel bigger than it does.",
+    "It was never much. It is less every second, and he watches it the way you watch a clock run down.",
+    "A small thing dissolving — and he is startled by how closely he is watching something he never once looked at.",
+    "It goes quietly, the way it always sat quietly. He notices the quiet more than the going."
   ],
   "1_accepting": [
     "It was always more trouble than it was worth. The change arrives like putting down something held out of obligation — quiet, overdue.",
@@ -14917,10 +14917,10 @@ const _GENITAL_TX_PHRASES = {
     "Small enough that no one would have called it a selling point, but the emptiness it leaves behind is disproportionate to what was actually there. The horror doesn't scale with inches."
   ],
   "2_conflicted": [
-    "It's going and he can't decide how to feel about that. The modest size makes the loss feel both trivial and strangely significant at the same time.",
-    "Not enough to mourn loudly but enough to notice. The change splits his attention between watching it happen and trying to figure out whether he cares.",
-    "The confusion is worse than the loss. He didn't value it enough to fight for it, but the body's casual erasure of it stings in a way that doesn't track.",
-    "Halfway between grief and shrugging. It was small. It's going. The emotional math refuses to resolve cleanly and neither does the physical sensation."
+    "Four inches, and he catches himself doing the arithmetic on what four inches was worth.",
+    "Small, and leaving. His hand goes down to check, then goes down again after.",
+    "It retreats and he lets it, and the letting is the part he will be thinking about later.",
+    "Not much to lose, and he loses it anyway. The absence is smaller than he expected and louder than he expected."
   ],
   "2_accepting": [
     "It was modest and she was already making peace with it not defining her. The change completes something that felt half-finished — a simplification that was overdue.",
@@ -14943,10 +14943,10 @@ const _GENITAL_TX_PHRASES = {
     "The averageness makes the loss worse somehow. It's not dramatic. It's not interesting. It's just gone, and the ordinariness of what was there makes the emptiness feel like it could happen to anyone — which is its own horror."
   ],
   "3_conflicted": [
-    "Perfectly ordinary, which makes the confusion perfectly ordinary too — he can't romanticize the loss or dismiss it. The change just is what it is and he's stuck watching.",
-    "Average enough that he never thought about it much. Now he can't stop thinking about it, and the newfound attention arrives exactly too late to matter.",
-    "The middle-of-the-road size matches the middle-of-the-road feelings — not devastated, not relieved, just present for a change that refuses to be dramatic about itself.",
-    "He watches something normal become something else. The lack of extremity in either direction leaves him stranded in ambiguity while the body makes decisions without consulting him."
+    "Ordinary, and ordinary is going. He keeps expecting to reach for it and keeps not moving.",
+    "It was the average thing about him; now it is the changing thing. He watches it like it belongs to somebody else.",
+    "Nothing remarkable, retreating — and he is remarkably unable to look away from it.",
+    "Five unremarkable inches, and he is learning exactly how much he had been counting on them."
   ],
   "3_accepting": [
     "Average, functional, and increasingly beside the point. The change carries it away without ceremony and the absence resolves into something simpler and cleaner.",
@@ -14969,10 +14969,10 @@ const _GENITAL_TX_PHRASES = {
     "The size made it impossible to ignore having, which makes it impossible to ignore losing. The change is not subtle and neither is the grief that crashes through him."
   ],
   "4_conflicted": [
-    "It was significant and he knew it and now it's going and he doesn't know what to do with that information. The size makes the change physically dramatic — more to lose, more to feel during the losing.",
-    "Big enough that the absence will change how the body moves, how clothes fit, how the center of gravity works. The mechanical reality of losing something that large overwhelms the emotional processing.",
-    "He'd be lying if he said he wasn't proud of it. He'd also be lying if he said the change doesn't carry something complicated that isn't entirely loss. Something underneath the grief feels like curiosity.",
-    "The physical drama of something that size reshaping draws all the attention. Whatever he's feeling about it gets deferred until the body finishes its argument — and the argument is loud."
+    "Seven inches, receding. He had opinions about those seven inches and they all arrive at once.",
+    "Big, and getting smaller. His hand closes over it and there is less to close over each time.",
+    "It was worth mentioning, and he had mentioned it. Now there will be nothing to mention.",
+    "Heavy, then lighter, then light. He marks every stage and files each one away."
   ],
   "4_accepting": [
     "It was impressive and she's still letting go of it — not with grief exactly, but with the acknowledgment that something significant is being unmade and she's choosing not to hold on.",
@@ -14995,10 +14995,10 @@ const _GENITAL_TX_PHRASES = {
     "The sheer physical drama of something that massive transforming overwhelms everything. The grief doesn't start until the sensation stops, and the sensation doesn't stop for a long time."
   ],
   "5_conflicted": [
-    "It was impossible not to think about — that large, that present, that much a part of every physical experience. Watching it go is like watching a landmark demolished while standing inside it.",
-    "Something that size leaving the body is a seismic event regardless of how he feels about it. The confusion gets bulldozed by pure physical intensity and he can't think past the sensation.",
-    "He was defined by it whether he wanted to be or not. The change strips away something he never chose to center but couldn't help centering. The ambivalence doesn't make it smaller.",
-    "Enormous and diminishing. The contradiction of something that vast becoming nothing takes up all available processing. Feelings queue behind sensation and sensation is deafening."
+    "Nine inches going. It was the loudest thing about his body, and the room has gone very quiet.",
+    "Everything he led with, retreating. He keeps reaching and keeps finding less there.",
+    "It was the whole argument — and the argument is being withdrawn, inch by inch, without consulting him.",
+    "Enormous, then not. He watches the weight leave and cannot name what leaves with it."
   ],
   "5_accepting": [
     "It was overwhelming to have and it's overwhelming to lose — but the overwhelm flips register. What used to be too much becomes a liberation proportional to its size.",
@@ -15023,10 +15023,10 @@ const _BREAST_TX_PHRASES = {
     "A cups shouldn't feel this catastrophic but the chest was supposed to be flat and it isn't anymore and that impossibility sits on him like a sentence."
   ],
   "A_conflicted": [
-    "Barely noticeable. He keeps touching his chest without meaning to — not checking if they're real, but checking if he minds. The answer keeps changing.",
-    "Small enough to hide under any shirt, which makes the confusion optional. He could pretend they aren't there. He doesn't pretend as often as he expected to.",
-    "The tiniest change, the biggest uncertainty. Something that subtle shouldn't be this hard to have feelings about but the feelings keep arriving anyway.",
-    "Almost nothing. Almost ignorable. The almost is doing all the heavy lifting because the part that isn't nothing keeps demanding his attention at odd moments."
+    "A cups. Barely a handful, and he keeps checking anyway — a palm laid flat, then taken away, then laid flat again.",
+    "Small enough to hide under a loose shirt, and he notices he is already deciding which shirt.",
+    "A cups, and the nipples are the part that keeps announcing themselves. That is the part he keeps returning to.",
+    "Hardly anything, he tells himself. Then he looks down again to confirm it, and stays looking."
   ],
   "A_accepting": [
     "Small and exactly enough. The modest swell feels like a quiet beginning rather than a dramatic statement — her body suggesting rather than shouting.",
@@ -15049,10 +15049,10 @@ const _BREAST_TX_PHRASES = {
     "The shirt fits differently. The chest catches in the fabric. Something that didn't exist yesterday has taken up residence and the body offers no appeals process."
   ],
   "B_conflicted": [
-    "Noticeable but not dramatic. B cups that sit in a strange middle ground — feminine enough to register, modest enough to negotiate with. He hasn't decided what the negotiation looks like.",
-    "They're there. He can feel them. The weight is slight and the emotional register is uncertain — something between violation and curiosity that refuses to resolve.",
-    "Medium-small and somehow the perfect size for indecision. Large enough to acknowledge, small enough to minimize. He does both, sometimes in the same breath.",
-    "B cups. Ordinary. The ordinariness is what makes the confusion so hard to escape — this is just what breasts look like on most women, and his body has them now."
+    "B cups. Enough to fill a hand, and his hand knows it before he has decided to look.",
+    "Soft weight that shifts when he turns. He turns again, slower, to feel it move.",
+    "B cups sitting where flat used to be. He catches the new line in the glass and does not look away as fast as he should.",
+    "He folds his arms over them and the fold sits wrong now. He unfolds, refolds, gives up."
   ],
   "B_accepting": [
     "B cups settle naturally on her frame — proportional, unassuming, right. The weight is familiar already, like her body remembers something the rest of her is catching up to.",
@@ -15075,10 +15075,10 @@ const _BREAST_TX_PHRASES = {
     "They fill the shirt. They bounce when he stops. They exist with a physical assertiveness that leaves no room for denial and he is not ready for any of this."
   ],
   "C_conflicted": [
-    "C cups. The demographic average. Somehow landing exactly in the middle makes the confusion sharper — no extreme to push back against, just ordinary breasts on a body that still feels contested.",
-    "Substantial enough to acknowledge, standard enough to normalize. His feelings about them change with every heartbeat and the breasts themselves remain serenely indifferent to his opinion.",
-    "They sit on his chest like they belong there and the worst part is how convincing the fit is. C cups that look natural on a frame that he still thinks of as his.",
-    "Medium and maddening. Large enough to feel, ordinary enough that the feeling keeps sliding toward acceptance before he catches himself and pulls back."
+    "C cups. They move when he breathes, so he finds himself breathing carefully, just to feel it.",
+    "Full enough to need holding. He cups them once to test the weight and does not put them down.",
+    "C cups pressing warm against the inside of the fabric. Every step reminds him; no step lets him forget.",
+    "There is a softness on his chest that catches the light. He angles his shoulders to catch it again."
   ],
   "C_accepting": [
     "C cups feel like the body found its center. Not modest, not dramatic — substantial and feminine and correct in a way she can feel in her posture.",
@@ -15101,10 +15101,10 @@ const _BREAST_TX_PHRASES = {
     "They pull at his shoulders. They shift when he turns. D cups that have their own momentum and their own agenda and none of it aligns with who he is."
   ],
   "D_conflicted": [
-    "D cups. Larger than expected. The weight is undeniable and the feelings are a mess — pride and horror and something uncomfortably close to appreciation all fighting for the same space.",
-    "Full, heavy, attention-getting. He's caught between covering them and — not. The size makes everything more complicated because the physical sensation of them is not entirely unwelcome.",
-    "Larger than average and he doesn't know what to do with the way they feel. D cups that command attention, and part of the conflict is wanting the attention they command.",
-    "The physical reality of D cups overwhelms the emotional processing. Heavy breasts on a chest that had none, and the weight anchors him to a present he hasn't decided about."
+    "D cups. They pull forward when he leans — and he leans again, a second time, for no reason he will admit.",
+    "Heavy enough to change how he stands. He keeps correcting his posture and keeps not minding why.",
+    "D cups, warm and full. He goes to cross his arms and finds they no longer cross the same way.",
+    "The weight sits forward and drags his shoulders back with it. It makes him stand straighter than he has in years."
   ],
   "D_accepting": [
     "D cups fill her with warmth — literally, the weight of them warm against her chest, a fullness that feels like completion rather than addition.",
@@ -15127,10 +15127,10 @@ const _BREAST_TX_PHRASES = {
     "The sheer volume is obscene. His chest is heavy and prominent and impossible to ignore and the violation of it scales with every cup size above nothing."
   ],
   "DD_conflicted": [
-    "DD cups. Large. The kind of large that makes everything else about the body secondary and he isn't sure whether the loss of subtlety is a loss or a simplification.",
-    "Heavy enough that the physical sensation dominates everything. The confusion doesn't have room to be subtle — DD cups demand big feelings and the feelings comply messily.",
-    "They're a lot. A lot to see, a lot to feel, a lot to process. The size makes ambivalence harder to maintain because the physical reality is so loud.",
-    "DD cups that leave no room for denial. The weight, the sway, the way they reshape his profile — everything about them is emphatic and his emotions can't match the volume."
+    "DD cups. The weight arrives before the rest of him does; everything else catches up a half-second late.",
+    "Heavy, and the heaviness is warm. He keeps finding his own hands underneath, holding them up.",
+    "DD cups that keep moving after he has stopped. He moves more than he needs to.",
+    "They fill his arms when he tries to cover them. He tries twice, then stops trying."
   ],
   "DD_accepting": [
     "DD cups settle on her frame like they were always planned — generous, full, the kind of curves that reshape a silhouette into something unapologetically feminine.",
@@ -15153,10 +15153,10 @@ const _BREAST_TX_PHRASES = {
     "His back aches from the weight. His posture has restructured around them. F cups that have hijacked his entire body and rebuilt it as a delivery system for breasts he never wanted."
   ],
   "F_conflicted": [
-    "F cups. Excessive. The size pushes past ambivalence into something he can't categorize — too large for comfort, too present to ignore, too dramatic to process with any emotional tool he has.",
-    "They're overwhelming in every sense. The physical weight is matched by the emotional weight and neither one is manageable. F cups that turn confusion into something closer to vertigo.",
-    "This is more than anyone bargained for. The size makes the conflict operatic — huge feelings about huge breasts, nothing subtle left in either direction.",
-    "So large that the ambivalence itself feels inadequate. F cups demand a stronger reaction than 'conflicted' and the body is producing sensations faster than he can catalogue them."
+    "F cups. There is no arrangement of arms that covers this, and he keeps rearranging them anyway.",
+    "Enormous, warm, and his. It is the word 'his' that keeps snagging.",
+    "F cups that reach the table before his hands do. He finds that funny for exactly one second.",
+    "The weight rewrites every movement he makes. He is already learning the new ones."
   ],
   "F_accepting": [
     "F cups. Excessive by any standard, and she accepts them with an ease that surprises even her. The body went big and the acceptance is proportional.",
@@ -15821,8 +15821,22 @@ function buildTransformationGuidance(pillDescriptor, cardBody, cardSex, rs, stat
   if (_faceGuide)  _presentAxes.push('face');
   if (_hairGuide)  _presentAxes.push('hair');
   if (_voiceGuide) _presentAxes.push('voice');
-  var _focusAxes = _presentAxes.slice();
-  while (_focusAxes.length > 2) _focusAxes.splice(Math.floor(Math.random() * _focusAxes.length), 1);
+  // v7.13.22 — CHEST IS PINNED. Cody 2026-09-10: "the two important ones are tits and
+  // the dick becoming a pussy". Genitals were already never demoted; chest was still in
+  // the demotion pool, so a roll could hand one of the two headline axes a single beat
+  // (it did, live, on the 7.13.21 turn). Chest now always renders full stages and the
+  // rotation varies ONE of the remaining axes instead of two.
+  var _focusAxes;
+  if (_presentAxes.indexOf('chest') >= 0) {
+    var _rotPool = [];
+    for (var _pi = 0; _pi < _presentAxes.length; _pi++)
+      if (_presentAxes[_pi] !== 'chest') _rotPool.push(_presentAxes[_pi]);
+    _focusAxes = ['chest'];
+    if (_rotPool.length) _focusAxes.push(_rotPool[Math.floor(Math.random() * _rotPool.length)]);
+  } else {
+    _focusAxes = _presentAxes.slice();
+    while (_focusAxes.length > 2) _focusAxes.splice(Math.floor(Math.random() * _focusAxes.length), 1);
+  }
   function _axisGuide(axis, full) {
     if (!full) return '';
     if (_focusAxes.indexOf(axis) >= 0) return full;

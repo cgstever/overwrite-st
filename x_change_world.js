@@ -5,7 +5,7 @@
 const LORE_DATA = 
 {
   "name": "X-Change World (Full Mechanics)",
-  "version": "7.13.35",
+  "version": "7.13.36",
   "versionUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/version.json",
   "sourceUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/x_change_world.js",
   "schema_version": 1,
@@ -2757,7 +2757,7 @@ const LORE_DATA =
     "breeder": {
       "min_flavor_arousal": 21,
       "min_rule_arousal": 21,
-      "injection_rule": "RULE: character cannot orgasm this turn. Do not write climax, release, or orgasm of any kind.",
+      "injection_rule": "RULE: the breeding compulsion routes every peak toward insemination — release arrives when the character is filled, and the engine fires it.",
       "on_birth": {
         "attempt_counter": "birth_revert_attempts",
         "impossible_set_flag_false": "post_birth_revert_pass",
@@ -16896,7 +16896,12 @@ function buildHeader(name, cardSex, state, notes, events, rs, persona, personaSt
   // "MUST orgasm" text above, so only add a CLIMAX line for a plain arousal-gate orgasm.
   var _orgFired = !!(state._org_trigger_result && state._org_trigger_result.orgasm);
   if (!_orgFired) {
-    _hardRuleTexts.push('NO CLIMAX: ' + name + ' does NOT orgasm, cum, or finish this response — no matter how intense it gets. The body builds, aches, clenches, leaks, trembles, begs — but the peak does NOT arrive and is never written. The engine decides when release happens; it is not happening this turn.');
+    // v7.13.36 — build-first phrasing. This used to read "NO CLIMAX: <name> does NOT
+    // orgasm, cum, or finish this response — no matter how intense it gets... the peak
+    // does NOT arrive and is never written..." which named the thing six times in order
+    // to forbid it. Cody 2026-09-12: "its better to say nothing then no 'x'". Say what to
+    // write instead, and mention the peak once.
+    _hardRuleTexts.push('BUILD ONLY: write ' + name + ' aching, clenching, trembling, begging — the body straining toward it and staying there. The peak is out of reach this response; the engine fires it when it is time.');
   } else if (unlockedEffects.size === 0) {
     _hardRuleTexts.push('CLIMAX: ' + name + ' reaches orgasm THIS response — the build finally tips over. Write the release fully and in ' + _pn.poss + ' voice.');
   }

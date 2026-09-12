@@ -5,7 +5,7 @@
 const LORE_DATA = 
 {
   "name": "X-Change World (Full Mechanics)",
-  "version": "7.13.37",
+  "version": "7.13.38",
   "versionUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/version.json",
   "sourceUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/x_change_world.js",
   "schema_version": 1,
@@ -2757,7 +2757,7 @@ const LORE_DATA =
     "breeder": {
       "min_flavor_arousal": 21,
       "min_rule_arousal": 21,
-      "injection_rule": "RULE: the breeding compulsion routes every peak toward insemination — release arrives when the character is filled, and the engine fires it.",
+      "injection_rule": "RULE: the breeding compulsion routes release to insemination — it arrives when the character is filled.",
       "on_birth": {
         "attempt_counter": "birth_revert_attempts",
         "impossible_set_flag_false": "post_birth_revert_pass",

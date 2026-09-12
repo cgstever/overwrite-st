@@ -1,13 +1,17 @@
-// Test for v7.13.31 — the starting-location detector.
+// Test for v7.13.32 — location detection. THE SCENARIO IS THE ONLY SOURCE.
 //
-// Cody 2026-09-12: "Why are we not just scanning the senecio section not the whole card".
+// Cody 2026-09-12: "Why are we not just scanning the senecio section not the whole card",
+// then: "this it replacing the senerio block with what I want if I want, there should be
+// nothing else where locations are located."
 //
-// The KNOWN_ROOMS scan used to run over the whole card description, so any room word
-// anywhere in the prose won. 'keep' is in the list as a castle keep but in a card it is
-// almost always the verb ("can't keep soft", "keeps her obedient") and it claimed 97 of
-// 439 cards. Scoping the scan to the scenario fixed that but exposed the fallback passes,
-// which pull "in the X" out of prose and returned things like "elegant ponytail", the
-// card's own section headings ("Anatomy Snapshot"), and the character's own name.
+// The scenario block is the one thing that says where the scene happens and the one thing
+// the user replaces, so nothing else feeds the location. Removed: the whole card
+// description (the verb "keep" claimed 97 of 439 cards as a castle keep), Location:/Place:/
+// Setting: blocks (no card in the library has one), the character's first message, and
+// proper nouns scanned across the card (the character's OWN NAME on 55 cards, section
+// headings like "Anatomy Snapshot" on 18). Nothing found = no location attribute, which is
+// correct: the scenario prose is in the same <scene> block, so a guess could only
+// contradict it.
 //
 // Drives the REAL processTurn so what is asserted is what a chat actually gets.
 // Run:  node _scene_location_test.mjs
@@ -24,7 +28,8 @@ const ok = (c, m) => { c ? (pass++, console.log('  PASS', m)) : (fail++, console
 const _log = console.log;
 const quiet = (fn) => { console.log = () => {}; try { return fn(); } finally { console.log = _log; } };
 
-function locationFor({ description, scenario = '', name = 'Test', firstMes = '' }) {
+function locationFor({ description, scenario = '', name = 'Test', firstMes = '',
+                       locationOverride = '', scenarioOverride = '' }) {
     const systemText = [description, scenario ? 'Scenario: ' + scenario : ''].filter(Boolean).join('\n');
     const messages = [{ role: 'system', content: systemText }];
     if (firstMes) messages.push({ role: 'assistant', content: firstMes });
@@ -35,7 +40,7 @@ function locationFor({ description, scenario = '', name = 'Test', firstMes = '' 
         charNameHint: name, personaName: 'Cody', personaDescription: '',
         cardPersonality: '', cardDescription: description, cardScenario: scenario,
         cardTags: [], cardExtensions: {}, cardExampleDialogue: '',
-        locationOverride: '', scenarioOverride: '',
+        locationOverride, scenarioOverride,
     }));
     const fin = (r && r.state) || state;
     return (fin._scene_tracker && fin._scene_tracker.location) || null;
@@ -90,6 +95,28 @@ ok(locationFor({ description: FILLER, scenario: 'It happens in a private home on
 // 9. nothing usable -> 'unknown', which buildHeader omits from <scene> entirely
 ok(locationFor({ description: FILLER }) === 'unknown',
    'no scenario and no place -> unknown (the location attribute is then omitted)');
+
+// 10. the user's scenario override REPLACES the scenario, so the location follows it
+{
+    const loc = locationFor({ description: FILLER, scenario: 'They meet in the kitchen.',
+                              scenarioOverride: 'She is brought to the penthouse to be fitted.' });
+    ok(loc === 'penthouse', `location follows a custom scenario, not the card's (got ${JSON.stringify(loc)})`);
+}
+
+// 11. an explicit location override still beats anything the scenario implies
+{
+    const loc = locationFor({ description: FILLER, scenario: 'They meet in the kitchen.',
+                              locationOverride: 'a luxury dungeon' });
+    ok(loc === 'a luxury dungeon', 'the location override wins over the scenario');
+}
+
+// 12. a custom scenario with no place in it clears the card's old location
+{
+    const loc = locationFor({ description: FILLER, scenario: 'They meet in the kitchen.',
+                              scenarioOverride: 'She waits, saying nothing at all.' });
+    ok(loc === 'unknown',
+       `a scenario with no place leaves no location rather than keeping the old one (got ${JSON.stringify(loc)})`);
+}
 
 // ── Part B: sweep the real library ──────────────────────────────────────────
 console.log('\nPart B — sweep over the real card library');

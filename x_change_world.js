@@ -5,7 +5,7 @@
 const LORE_DATA = 
 {
   "name": "X-Change World (Full Mechanics)",
-  "version": "7.13.31",
+  "version": "7.13.32",
   "versionUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/version.json",
   "sourceUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/x_change_world.js",
   "schema_version": 1,
@@ -10855,6 +10855,21 @@ function _generalizeSceneItems(items) {
 // Scans scenario, description, and first_mes for location, objects, props,
 // time of day, and atmosphere. Generic enough to handle modern, fantasy,
 // sci-fi, historical, school, workplace, and outdoor cards.
+// v7.13.32 — derive a location from a scenario string, using the same chain the card
+// seed uses. Needed because the user's scenario override REPLACES the scenario block, and
+// the scenario is the only source of a location, so his text has to be what the location
+// is read from. Reuses parseCardSceneContext with no card text so there is one chain, not two.
+function _locationFromScenario(scenarioText, charName) {
+  if (!scenarioText || !String(scenarioText).trim()) return '';
+  try {
+    var seeded = parseCardSceneContext('', '', scenarioText, charName);
+    var loc = seeded && seeded.location;
+    return (loc && loc !== 'unknown') ? loc : '';
+  } catch (_e) {
+    return '';
+  }
+}
+
 function parseCardSceneContext(systemText, firstCharMsg, cardScenario, charName) {
   const seed = {};
   const fullText = (systemText || '') + '\n' + (firstCharMsg || '');
@@ -10871,11 +10886,9 @@ function parseCardSceneContext(systemText, firstCharMsg, cardScenario, charName)
   // v7.13.31 — fall back to the card's own scenario FIELD. sceneSourceText is the card
   // description, so a card whose scenario lives in the v2 `scenario` field (not as a
   // 'Scenario:' block in the description) had no scenarioText at all.
+  // v7.13.32 — Setting:/Location:/Place: are no longer read. The scenario is the only
+  // source of a location (see the chain below), and no card in the library uses them.
   const scenarioText   = _block('Scenario') || String(cardScenario || '').trim();
-  const settingText    = _block('Setting');
-  const locationText   = _block('Location');
-  const placeText      = _block('Place');
-  const backgroundText = _block('Background');
 
   // Strip trailing time/prep phrases from a location string
   // "Broken Tankard at midnight" → "Broken Tankard"
@@ -10962,18 +10975,33 @@ function parseCardSceneContext(systemText, firstCharMsg, cardScenario, charName)
     'meadow','ruins','ruin','alley','street','park','beach',
   ];
 
-  // ── 1. Location — priority chain ────────────────────────────────
+  // ── 1. Location — THE SCENARIO IS THE ONLY SOURCE ───────────────
+  //
+  // Cody 2026-09-12: "this it replacing the senerio block with what I want if I want,
+  // there should be nothing else where locations are located."
+  //
+  // The scenario block is the one thing that says where the scene happens, and it is the
+  // one thing the user replaces — card default, a place, or custom text, set per chat in
+  // the extension. So it is the only place a location is read from. Everything else that
+  // used to feed this is gone:
+  //   - the whole card description (a room word anywhere in the prose won; the verb
+  //     "keep" made a castle keep the location on 97 of 439 cards)
+  //   - Location:/Place:/Setting: labelled blocks — no card in the library uses one
+  //   - the character's first message — a greeting is not a setting
+  //   - proper nouns scanned across the whole card — this returned the character's OWN
+  //     NAME on 55 cards and card section headings ("Anatomy Snapshot") on 18
+  // Nothing found means no location, and buildHeader then omits the attribute entirely.
+  // That is correct: the scenario prose still reaches the model in the same <scene> block,
+  // so an invented location could only contradict it.
+  //
+  // Within the scenario, specific beats generic: a named place first, then a known room
+  // type, then a plain "in the <place>" phrase.
 
-  // P1: explicit labeled field
-  const explicitLoc = locationText || placeText;
-  if (explicitLoc) {
-    seed.location = _trimLoc(explicitLoc.split(/[,;\n]/)[0]);
-  }
-
-  // P1.3: Named proper-noun in scenario — fires before generic room scan
-  // so "The Broken Tankard" beats "bar", "Station Omega-7" beats "station"
+  // 1a. Named place — "at The Broken Tankard", "aboard Station Omega-7".
+  // A preposition is required. Without it this matched any two capitalised words.
+  const _PREP = '(?:in|at|inside|into|aboard|within|near|outside|to|from|back at|over at)\\s+';
   if (!seed.location && scenarioText) {
-    const namedThe = /\bThe\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,3})/g;
+    const namedThe = new RegExp('\\b' + _PREP + 'The\\s+([A-Z][a-z]+(?:\\s+[A-Z][a-z]+){0,3})', 'g');
     let nm;
     while ((nm = namedThe.exec(scenarioText)) !== null) {
       const candidate = 'The ' + nm[1];
@@ -10982,18 +11010,21 @@ function parseCardSceneContext(systemText, firstCharMsg, cardScenario, charName)
       }
     }
   }
+  if (!seed.location && scenarioText) {
+    const FIELD_RE = /^(?:Name|Age|Sex|Stats|Height|Weight|Build|Outfit|Scenario|Setting|Background|Location|Place|Personality|Appearance|Anatomy|Behavioral|Behavioural|Kink|Sexual|Signature|Speech|Voice|Clothing|Traits|Profile|Tendencies|Snapshot|Baseline)\b/;
+    const _nameWords = String(charName || '').toLowerCase().split(/\s+/).filter((w) => w.length > 2);
+    const namedProper = new RegExp('\\b' + _PREP + '([A-Z][a-z]{2,}(?:[ -][A-Z0-9][a-z0-9]{1,}){1,3})\\b', 'g');
+    let nm;
+    while ((nm = namedProper.exec(scenarioText)) !== null) {
+      if (FIELD_RE.test(nm[1])) continue;
+      const candWords = nm[1].toLowerCase().split(/[\s-]+/);
+      if (_nameWords.some((w) => candWords.indexOf(w) !== -1)) continue;  // the character, not a place
+      seed.location = nm[1]; break;
+    }
+  }
 
-  // P1.5: KNOWN_ROOMS direct scan — SCENARIO ONLY.
-  //
-  // Cody 2026-09-12: "Why are we not just scanning the senecio section not the whole card".
-  // This used to scan the entire card description, so any room word anywhere in the prose
-  // won. 'keep' is in KNOWN_ROOMS as a castle keep, but in a card it is nearly always the
-  // verb -- "can't keep soft", "keeps her obedient" -- and it matched 129 of 439 cards,
-  // handing them a medieval keep as their starting location. 165 cards in total landed on
-  // an ambiguous word (keep, bar, study, cage, ruin, club, park). The scenario is the only
-  // part of a card that actually states where the scene happens, so it is the only part
-  // worth scanning; a card with no scenario falls through to P2/P3/P4 as before.
-  // Multi-word rooms use substring match; single words use word boundary.
+  // 1b. Known room type named in the scenario. Multi-word rooms use substring match,
+  // single words use a word boundary. KNOWN_ROOMS is ordered specific -> generic.
   if (!seed.location && scenarioText) {
     const scenLower = scenarioText.toLowerCase();
     for (const room of KNOWN_ROOMS) {
@@ -11004,14 +11035,8 @@ function parseCardSceneContext(systemText, firstCharMsg, cardScenario, charName)
     }
   }
 
-  // P2: Setting block — try "in/at [the] <place>" noun phrase
-  if (!seed.location && settingText) {
-    const m = /\b(?:in|at|inside|into)\s+(?:a|an|the)?\s*([a-z][a-z '\-]{2,40}?)(?=[,\.!\n]|$)/i.exec(settingText);
-    const cand = m ? _trimLoc(m[1]) : _trimLoc(settingText.split(/[,\.!\n]/)[0]);
-    if (_isPlacePhrase(cand)) seed.location = cand;
-  }
-
-  // P3: Scenario block — multiple pattern attempts
+  // 1c. A plain "in the <place>" phrase in the scenario. The phrase must actually name a
+  // place: these patterns otherwise return things like "eyes" or "elegant ponytail".
   if (!seed.location && scenarioText) {
     const patterns = [
       /\b(?:in|at|inside|into)\s+(?:his|her|my|your|our|their|a|an|the)\s+([a-z][a-z '\-]{2,40}?)(?=[,\.!\n]|$)/i,
@@ -11024,65 +11049,6 @@ function parseCardSceneContext(systemText, firstCharMsg, cardScenario, charName)
       if (m) {
         const cand = _trimLoc(m[1]);
         if (_isPlacePhrase(cand)) { seed.location = cand; break; }
-      }
-    }
-  }
-
-  // P4: first_mes spatial anchor
-  if (!seed.location && firstCharMsg) {
-    const patterns = [
-      /\b(?:in|at|inside|into)\s+(?:the|a|an|my|his|her|your)\s+([a-z][a-z '\-]{2,40}?)(?=[,\.!\n])/i,
-      /^[*"]?(?:I(?:'m| am)|We(?:'re| are))\s+(?:in|at|sitting|standing|waiting)\s+(?:in|at)?\s*(?:the|a|an)?\s*([a-z][a-z '\-]{2,40}?)(?=[,\.!\n])/im,
-    ];
-    for (const re of patterns) {
-      const m = re.exec(firstCharMsg);
-      if (m) {
-        const cand = _trimLoc(m[1]);
-        if (_isPlacePhrase(cand)) { seed.location = cand; break; }
-      }
-    }
-  }
-
-  // P5: Named proper-noun location ("The Broken Tankard", "Station Omega-7")
-  //
-  // v7.13.31 — scoped to the scenario, and a bare proper noun must now follow a location
-  // preposition. Scanning the whole card for two capitalised words returned the character's
-  // own name on 55 cards and fragments like "Tonight Cillian" on others. A place named in a
-  // scenario is introduced as one -- "at Station Omega-7", "in The Broken Tankard".
-  const _P5_TEXT = scenarioText || '';
-  const _PREP = '(?:in|at|inside|into|aboard|within|near|outside|to|from|back at|over at)\\s+';
-  if (!seed.location && _P5_TEXT) {
-    const namedThe = new RegExp('\\b' + _PREP + 'The\\s+([A-Z][a-z]+(?:\\s+[A-Z][a-z]+){0,3})', 'g');
-    let m;
-    while ((m = namedThe.exec(_P5_TEXT)) !== null) {
-      const candidate = 'The ' + m[1];
-      if (!/^The (?:following|user|character|scene|story|world|plot|name|age)\b/i.test(candidate)) {
-        seed.location = candidate; break;
-      }
-    }
-    // Named without "The" — two or more capitalized words, not card fields
-    if (!seed.location && _P5_TEXT) {
-      // v7.13.31 — the card's own section headings were being read as place names;
-      // "Anatomy Snapshot" became the starting location on 18 cards.
-      const FIELD_RE = /^(?:Name|Age|Sex|Stats|Height|Weight|Build|Outfit|Scenario|Setting|Background|Location|Place|Personality|Appearance|Anatomy|Behavioral|Behavioural|Kink|Sexual|Signature|Speech|Voice|Clothing|Traits|Profile|Tendencies|Snapshot|Baseline)\b/;
-      // v7.13.31 — and the CHARACTER'S OWN NAME was being read as a place. Once the room
-      // scan stopped matching a stray "keep" everywhere, this fallback surfaced and handed
-      // 55 of 439 cards their own character's full name as the starting location
-      // ("Adriana Chechik", "Alice Kelly"). Any candidate sharing a word with the character
-      // name is rejected.
-      var _nameWords = String(charName || '').toLowerCase().split(/\s+/).filter(function (w) {
-        return w.length > 2;
-      });
-      const namedProper = new RegExp('\\b' + _PREP + '([A-Z][a-z]{2,}(?:[ -][A-Z0-9][a-z0-9]{1,}){1,3})\\b', 'g');
-      while ((m = namedProper.exec(_P5_TEXT)) !== null) {
-        if (FIELD_RE.test(m[1])) continue;
-        var _candWords = m[1].toLowerCase().split(/[\s-]+/);
-        var _isName = false;
-        for (var _ni = 0; _ni < _nameWords.length && !_isName; _ni++) {
-          if (_candWords.indexOf(_nameWords[_ni]) !== -1) _isName = true;
-        }
-        if (_isName) continue;
-        seed.location = m[1]; break;
       }
     }
   }
@@ -18972,6 +18938,15 @@ function processTurn({systemText, messages, state, personaState, config, charNam
         (scenarioOverride && String(scenarioOverride).trim())
         || state._scene_tracker._card_scenario_cached
         || '';
+
+      // v7.13.32 — the location follows the ACTIVE scenario. An explicit location override
+      // still wins; otherwise the place is read from whatever scenario is in force, so a
+      // custom scenario that says "brought to the penthouse" sets the penthouse instead of
+      // leaving the card's original location in place under someone else's scene.
+      if (!locationOverride) {
+        var _scenLoc = _locationFromScenario(state._scene_tracker._scenario_override, name);
+        state._scene_tracker.location = _scenLoc || 'unknown';
+      }
     }
 
     // ── Store persona base stats separately; leave state.stats as the character card stats ──

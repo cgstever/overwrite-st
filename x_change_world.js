@@ -5,7 +5,7 @@
 const LORE_DATA = 
 {
   "name": "X-Change World (Full Mechanics)",
-  "version": "7.13.30",
+  "version": "7.13.31",
   "versionUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/version.json",
   "sourceUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/x_change_world.js",
   "schema_version": 1,
@@ -10855,7 +10855,7 @@ function _generalizeSceneItems(items) {
 // Scans scenario, description, and first_mes for location, objects, props,
 // time of day, and atmosphere. Generic enough to handle modern, fantasy,
 // sci-fi, historical, school, workplace, and outdoor cards.
-function parseCardSceneContext(systemText, firstCharMsg) {
+function parseCardSceneContext(systemText, firstCharMsg, cardScenario, charName) {
   const seed = {};
   const fullText = (systemText || '') + '\n' + (firstCharMsg || '');
   const textLower = fullText.toLowerCase();
@@ -10868,7 +10868,10 @@ function parseCardSceneContext(systemText, firstCharMsg) {
     const m = new RegExp('^' + label + '\\s*:?\\s*(.+?)(?:\\n\\n|\\r\\n\\r\\n|$)', 'im').exec(fullText);
     return m ? m[1].replace(/\r\n/g, ' ').trim() : '';
   };
-  const scenarioText   = _block('Scenario');
+  // v7.13.31 — fall back to the card's own scenario FIELD. sceneSourceText is the card
+  // description, so a card whose scenario lives in the v2 `scenario` field (not as a
+  // 'Scenario:' block in the description) had no scenarioText at all.
+  const scenarioText   = _block('Scenario') || String(cardScenario || '').trim();
   const settingText    = _block('Setting');
   const locationText   = _block('Location');
   const placeText      = _block('Place');
@@ -10880,6 +10883,37 @@ function parseCardSceneContext(systemText, firstCharMsg) {
     .replace(/\s+(?:at|in|during|by|before|after|since|until|around|on)\s+(?:midnight|dawn|morning|noon|afternoon|dusk|evening|night|the|a|an)\b.*/i, '')
     .replace(/\s+(?:beneath|above|below|beyond|outside|inside|under|over|near|beside|next to)\b.*/i, '')
     .trim().slice(0, 55);
+
+  // v7.13.31 — is this phrase actually a PLACE?
+  //
+  // P2/P3/P4 below pull a noun phrase out of prose with patterns like "in the X". Once the
+  // room scan was scoped to the scenario (above), those passes became the common path and
+  // started handing back things that are not places at all: "eyes", "cadence", "elegant
+  // ponytail", "low range I trained into". A candidate is only accepted if its LAST word is
+  // a place noun — "private home" and "dorm room" pass, "elegant ponytail" does not.
+  // Deliberate proper-noun names ("The Broken Tankard") skip this check; they are handled
+  // by their own pass and are meant to be arbitrary.
+  const _GENERIC_PLACES = ['room','rooms','home','house','apartment','flat','place','hall',
+    'lobby','yard','garden','store','shop','school','gym','car','truck','van','train',
+    'station','airport','hotel','motel','building','floor','suite','booth','stall','corner',
+    'hallway','corridor','stairwell','elevator','porch','deck','patio','pool','spa','salon',
+    'studio','theater','theatre','cinema','museum','gallery','farm','barn','field','forest',
+    'woods','lake','river','island','mountain','desert','city','town','village','district',
+    'quarter','compound','estate','manor','mansion','cottage','cabin','loft','basement',
+    'attic','garage','shed','warehouse','factory','mill','yard','dock','port','base','camp'];
+  const _isPlacePhrase = (phrase) => {
+    if (!phrase) return false;
+    const words = String(phrase).trim().toLowerCase().replace(/[^a-z0-9' -]/g, '').split(/[\s-]+/);
+    if (!words.length || words.length > 5) return false;
+    const last = words[words.length - 1];
+    if (_GENERIC_PLACES.indexOf(last) !== -1) return true;
+    for (let ri = 0; ri < KNOWN_ROOMS.length; ri++) {
+      const room = KNOWN_ROOMS[ri];
+      if (room === last) return true;
+      if (room.indexOf(' ') !== -1 && room.split(' ').pop() === last) return true;
+    }
+    return false;
+  };
 
   // Known room types ordered specific→generic — used in two passes
   const KNOWN_ROOMS = [
@@ -10949,15 +10983,23 @@ function parseCardSceneContext(systemText, firstCharMsg) {
     }
   }
 
-  // P1.5: KNOWN_ROOMS direct scan — scan systemText only (not firstCharMsg) so
-  // character greetings don't contaminate the starting location.
+  // P1.5: KNOWN_ROOMS direct scan — SCENARIO ONLY.
+  //
+  // Cody 2026-09-12: "Why are we not just scanning the senecio section not the whole card".
+  // This used to scan the entire card description, so any room word anywhere in the prose
+  // won. 'keep' is in KNOWN_ROOMS as a castle keep, but in a card it is nearly always the
+  // verb -- "can't keep soft", "keeps her obedient" -- and it matched 129 of 439 cards,
+  // handing them a medieval keep as their starting location. 165 cards in total landed on
+  // an ambiguous word (keep, bar, study, cage, ruin, club, park). The scenario is the only
+  // part of a card that actually states where the scene happens, so it is the only part
+  // worth scanning; a card with no scenario falls through to P2/P3/P4 as before.
   // Multi-word rooms use substring match; single words use word boundary.
-  const sysLower = (systemText || '').toLowerCase();
-  if (!seed.location) {
+  if (!seed.location && scenarioText) {
+    const scenLower = scenarioText.toLowerCase();
     for (const room of KNOWN_ROOMS) {
       const matched = room.includes(' ')
-        ? sysLower.includes(room)
-        : new RegExp('\\b' + room.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i').test(systemText || '');
+        ? scenLower.includes(room)
+        : new RegExp('\\b' + room.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i').test(scenarioText);
       if (matched) { seed.location = room; break; }
     }
   }
@@ -10965,8 +11007,8 @@ function parseCardSceneContext(systemText, firstCharMsg) {
   // P2: Setting block — try "in/at [the] <place>" noun phrase
   if (!seed.location && settingText) {
     const m = /\b(?:in|at|inside|into)\s+(?:a|an|the)?\s*([a-z][a-z '\-]{2,40}?)(?=[,\.!\n]|$)/i.exec(settingText);
-    if (m) seed.location = _trimLoc(m[1]);
-    else seed.location = _trimLoc(settingText.split(/[,\.!\n]/)[0]);
+    const cand = m ? _trimLoc(m[1]) : _trimLoc(settingText.split(/[,\.!\n]/)[0]);
+    if (_isPlacePhrase(cand)) seed.location = cand;
   }
 
   // P3: Scenario block — multiple pattern attempts
@@ -10979,7 +11021,10 @@ function parseCardSceneContext(systemText, firstCharMsg) {
     ];
     for (const re of patterns) {
       const m = re.exec(scenarioText);
-      if (m) { seed.location = _trimLoc(m[1]); break; }
+      if (m) {
+        const cand = _trimLoc(m[1]);
+        if (_isPlacePhrase(cand)) { seed.location = cand; break; }
+      }
     }
   }
 
@@ -10991,26 +11036,53 @@ function parseCardSceneContext(systemText, firstCharMsg) {
     ];
     for (const re of patterns) {
       const m = re.exec(firstCharMsg);
-      if (m) { seed.location = _trimLoc(m[1]); break; }
+      if (m) {
+        const cand = _trimLoc(m[1]);
+        if (_isPlacePhrase(cand)) { seed.location = cand; break; }
+      }
     }
   }
 
   // P5: Named proper-noun location ("The Broken Tankard", "Station Omega-7")
-  if (!seed.location) {
-    const namedThe = /\bThe\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,3})/g;
+  //
+  // v7.13.31 — scoped to the scenario, and a bare proper noun must now follow a location
+  // preposition. Scanning the whole card for two capitalised words returned the character's
+  // own name on 55 cards and fragments like "Tonight Cillian" on others. A place named in a
+  // scenario is introduced as one -- "at Station Omega-7", "in The Broken Tankard".
+  const _P5_TEXT = scenarioText || '';
+  const _PREP = '(?:in|at|inside|into|aboard|within|near|outside|to|from|back at|over at)\\s+';
+  if (!seed.location && _P5_TEXT) {
+    const namedThe = new RegExp('\\b' + _PREP + 'The\\s+([A-Z][a-z]+(?:\\s+[A-Z][a-z]+){0,3})', 'g');
     let m;
-    while ((m = namedThe.exec(fullText)) !== null) {
+    while ((m = namedThe.exec(_P5_TEXT)) !== null) {
       const candidate = 'The ' + m[1];
       if (!/^The (?:following|user|character|scene|story|world|plot|name|age)\b/i.test(candidate)) {
         seed.location = candidate; break;
       }
     }
     // Named without "The" — two or more capitalized words, not card fields
-    if (!seed.location) {
-      const FIELD_RE = /^(?:Name|Age|Sex|Stats|Height|Weight|Build|Outfit|Scenario|Setting|Background|Location|Place|Personality|Appearance)\b/;
-      const namedProper = /\b([A-Z][a-z]{2,}(?:[ -][A-Z0-9][a-z0-9]{1,}){1,3})\b/g;
-      while ((m = namedProper.exec(fullText)) !== null) {
-        if (!FIELD_RE.test(m[1])) { seed.location = m[1]; break; }
+    if (!seed.location && _P5_TEXT) {
+      // v7.13.31 — the card's own section headings were being read as place names;
+      // "Anatomy Snapshot" became the starting location on 18 cards.
+      const FIELD_RE = /^(?:Name|Age|Sex|Stats|Height|Weight|Build|Outfit|Scenario|Setting|Background|Location|Place|Personality|Appearance|Anatomy|Behavioral|Behavioural|Kink|Sexual|Signature|Speech|Voice|Clothing|Traits|Profile|Tendencies|Snapshot|Baseline)\b/;
+      // v7.13.31 — and the CHARACTER'S OWN NAME was being read as a place. Once the room
+      // scan stopped matching a stray "keep" everywhere, this fallback surfaced and handed
+      // 55 of 439 cards their own character's full name as the starting location
+      // ("Adriana Chechik", "Alice Kelly"). Any candidate sharing a word with the character
+      // name is rejected.
+      var _nameWords = String(charName || '').toLowerCase().split(/\s+/).filter(function (w) {
+        return w.length > 2;
+      });
+      const namedProper = new RegExp('\\b' + _PREP + '([A-Z][a-z]{2,}(?:[ -][A-Z0-9][a-z0-9]{1,}){1,3})\\b', 'g');
+      while ((m = namedProper.exec(_P5_TEXT)) !== null) {
+        if (FIELD_RE.test(m[1])) continue;
+        var _candWords = m[1].toLowerCase().split(/[\s-]+/);
+        var _isName = false;
+        for (var _ni = 0; _ni < _nameWords.length && !_isName; _ni++) {
+          if (_candWords.indexOf(_nameWords[_ni]) !== -1) _isName = true;
+        }
+        if (_isName) continue;
+        seed.location = m[1]; break;
       }
     }
   }
@@ -18847,7 +18919,7 @@ function processTurn({systemText, messages, state, personaState, config, charNam
     if (!state._scene_tracker) {
       const firstCharMsg = (messages || []).find(m => m.role !== 'user')?.content || '';
       const sceneSourceText = cardDescription || systemText;
-      state._scene_tracker = parseCardSceneContext(sceneSourceText, firstCharMsg);
+      state._scene_tracker = parseCardSceneContext(sceneSourceText, firstCharMsg, cardScenario, name);
       const sc = state._scene_tracker;
       // Seed the live clothing state from the card Outfit block so the clothing
       // block reflects what the character is wearing when the chat starts; the

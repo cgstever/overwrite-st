@@ -40,9 +40,10 @@ const ok = (c, m) => { c ? (pass++, console.log('  PASS', m)) : (fail++, console
 
 const FEMALE_STRIPS = ['cock','cocks','dick','dicks','penis','balls','ball','testicle',
     'testicles','shaft','foreskin','manhood','erection','cum','semen'];
+// v7.13.35 — the override states what IS there, never what is missing.
 const OVERRIDE = 'Appearance:\nHeight: 5\'5"\nWeight: 115lbs\nBuild: slim\n' +
     'Transformed female body, B cup breasts.\n\nAnatomy Snapshot:\n' +
-    'Female genitalia — vagina. No penis.\nB cup breasts with sensitive nipples.';
+    'Female genitalia — vagina.\nB cup breasts with sensitive nipples.';
 const mtfState = {
     _card_anatomy_override: OVERRIDE,
     _card_strip_words: FEMALE_STRIPS,
@@ -64,11 +65,12 @@ console.log('Part A — unit assertions');
     ok(/Age: 23/.test(out), 'unrelated blocks survive');
 }
 
-// 2. the engine's own negative assertion must survive its own strip pass
+// 2. the override names what she HAS and never what she lacks
 {
     const out = _postTxCardText('Age: 23\n\nAppearance:\nold body', mtfState);
-    ok(/No penis\./.test(out),
-       'override keeps "No penis." — the strip pass must not eat the engine\'s own text');
+    ok(/Female genitalia — vagina\./.test(out), 'the override states the anatomy she has');
+    ok(!/\bno penis\b/i.test(out),
+       'no negative assertion — naming the absent part puts it back in front of the model');
 }
 
 // 3. a bullet naming absent anatomy is dropped whole; its neighbours are not

@@ -5,7 +5,7 @@
 const LORE_DATA = 
 {
   "name": "X-Change World (Full Mechanics)",
-  "version": "7.13.34",
+  "version": "7.13.35",
   "versionUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/version.json",
   "sourceUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/x_change_world.js",
   "schema_version": 1,
@@ -11354,10 +11354,18 @@ function buildAnatomyOverride(state, cardSex, rs) {
   // Genitals
   parts.push('');
   parts.push('Anatomy Snapshot:');
+  // v7.13.35 — state what IS there, never what is missing.
+  //
+  // Cody 2026-09-12: "why less is always more, its better to say nothing then no 'x'".
+  // These lines used to read "Female genitalia — vagina. No penis." A negative assertion
+  // puts the word back in front of the model, which is the opposite of what it is for.
+  // It was a counterweight to the card still describing the old anatomy; since v7.13.30
+  // strips that from the card outright, there is nothing left to counterweight and the
+  // clause only reintroduces the noun.
   if (genitals === 'vagina_only') {
-    parts.push('Female genitalia — vagina. No penis.');
+    parts.push('Female genitalia — vagina.');
   } else if (genitals === 'penis_only' || genitals === 'penis_only_no_vagina') {
-    parts.push('Male genitalia — penis. No vagina.');
+    parts.push('Male genitalia — penis.');
   } else if (genitals === 'both') {
     parts.push('Both sets of genitalia present.');
   }
@@ -20086,8 +20094,8 @@ function _postTxCardText(text, state) {
   }
 
   // ── pass 2: remove anatomy the character no longer has ──
-  // Runs on CARD text only. The override is spliced in afterwards so the engine's own
-  // "No penis." line -- a deliberate negative assertion -- does not strip itself out.
+  // Runs on CARD text only; the override is spliced in afterwards so it is never subject
+  // to the strip pass (v7.13.35 removed the negative clause it used to need protecting).
   if (strip.length) {
     var re = new RegExp('\\b(' + strip.join('|') + ')\\b', 'i');
     var kept2 = [];

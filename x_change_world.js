@@ -5,7 +5,7 @@
 const LORE_DATA = 
 {
   "name": "X-Change World (Full Mechanics)",
-  "version": "7.13.28",
+  "version": "7.13.29",
   "versionUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/version.json",
   "sourceUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/x_change_world.js",
   "schema_version": 1,
@@ -17020,6 +17020,13 @@ function buildHeader(name, cardSex, state, notes, events, rs, persona, personaSt
 
   // ── <transformation> block (TX only) ──
   var txLines = [];
+  // v7.13.29 — when these lines are ALSO emitted as the priority directive the
+  // extension appends at message[-1], the header must NOT carry a second copy.
+  // Until now both shipped and the block was duplicated (~8.6k chars, measured at
+  // 36%% of a transformation turn's payload). The de-dupe briefly lived in the
+  // extension, which meant the generic framework had to know the <transformation>
+  // tag name -- lore knowledge in the plumbing. Fixed at the source instead.
+  var _txLinesGoToDirective = false;
   var pillDesc = state._pill_descriptor_this_turn || null;
   var deferred = state._deferred_transformation || null;
   var txDesc = pillDesc || deferred;
@@ -17137,6 +17144,7 @@ function buildHeader(name, cardSex, state, notes, events, rs, persona, personaSt
     // <scene-jump> directive at the after-last-user generation point.
     if (_isTxTurn && txLines.length) {
       state._priority_directive_this_turn = txLines.join('\n');
+      _txLinesGoToDirective = true;
       // v7.13.2 — a time-skip can co-occur with a pill intake in the same user message. The TX
       // block wins the slot, but DON'T silently drop the scene-jump — append it so the model still
       // cuts to the new scene/time instead of narrating the transformation in the old scene.
@@ -17213,7 +17221,7 @@ function buildHeader(name, cardSex, state, notes, events, rs, persona, personaSt
   if (sceneLines.length) sections.push(sceneLines.join('\n'));
   if (voiceLines.length) sections.push(voiceLines.join('\n'));
   if (stateLines.length) sections.push(stateLines.join('\n'));
-  if (txLines.length) sections.push(txLines.join('\n'));
+  if (txLines.length && !_txLinesGoToDirective) sections.push(txLines.join('\n'));
 
   // v7.13.28 — record what this turn's injection was made of, so the debug panel can
   // show it without anyone reading a 7.5 MB file on an iPad. Sizes only; the text is
@@ -18631,7 +18639,39 @@ function buildStorySummary(state) {
 }
 
 
-function processTurn({systemText, messages, state, personaState, config, charNameHint, personaName, personaDescription, cardPersonality, cardDescription, cardScenario, cardTags, locationOverride, scenarioOverride}) {
+// Post-TX example dialogue (Cody 2026-08-29).
+//
+// A card's `mes_example` is written for its ORIGINAL body and is correct pre-TX, so it
+// must not be edited. Cards that need it instead carry a SECOND table at
+// `data.extensions.xcw.mes_example_post_tx`, written for the transformed body. While a
+// transformation is active we swap one for the other.
+//
+// The swap is a LITERAL string replacement. That matters: ST puts examples either inside
+// the system prompt or in separate messages depending on settings, and swapping the
+// card's own exact text finds them in both cases without parsing <START> regions. Cards
+// with no post-TX table return null and behave exactly as before.
+//
+// v7.13.29 — moved here from the extension, which used to read the xcw card namespace and
+// swap the example block in the payload. That put an X-Change card namespace and the
+// post-TX gating rule inside the generic framework. The extension now passes the card's
+// extensions + example text straight through and applies whatever find/replace pairs
+// this function returns, knowing nothing about what they mean.
+function _buildMessageReplacements(state, cardExtensions, cardExampleDialogue) {
+  try {
+    // Same gate as the anatomy override, so the examples and the body text can never
+    // disagree about which state the character is in.
+    if (!state || !state._card_anatomy_override) return null;
+    var post = cardExtensions && cardExtensions.xcw && cardExtensions.xcw.mes_example_post_tx;
+    if (typeof post !== 'string' || !post.trim()) return null;
+    var orig = String(cardExampleDialogue || '').trim();
+    if (!orig) return null;
+    return [{ find: orig, replace: post.trim() }];
+  } catch (_e) {
+    return null;
+  }
+}
+
+function processTurn({systemText, messages, state, personaState, config, charNameHint, personaName, personaDescription, cardPersonality, cardDescription, cardScenario, cardTags, cardExtensions, cardExampleDialogue, locationOverride, scenarioOverride}) {
   // THE MAIN FUNCTION — Port of Python lines 15499-15707 exactly
   personaState = personaState || {};  // guard against undefined
   // v7.7.6 — stamp engine version into state so off-device debug pulls can show it
@@ -18943,14 +18983,23 @@ function processTurn({systemText, messages, state, personaState, config, charNam
       systemPrompt: regenHeader,
       inject: _buildInjectArray(regenHeader, state, rs),
       priorityInjection: _regenIsTx,
+      // v7.13.29 — regen (swipe) set priorityInjection but returned NO directive, so
+      // the extension had nothing to append and the TX block only reached the model
+      // buried mid-header. buildHeader now withholds the header copy whenever the
+      // directive carries it, so a swipe MUST return the directive or the block is
+      // lost entirely. Swipes now get the same end-of-prompt placement as first gen.
+      priorityDirective: state._priority_directive_this_turn || null,
       recentMessageCount: _regenIsTx ? 1 : 3,
       scrubbed_messages: _regenScrubbed,
+      messageReplacements: _buildMessageReplacements(state, cardExtensions, cardExampleDialogue),
       cardStripPatterns: [
         '^Outfit:\\s*\\n(?:.*\\n)*?(?=\\n[A-Z]|\\n*$)',
         '^Height:\\s*.*$',
         '^Weight:\\s*.*$',
         '^Build:\\s*.*$',
         '^Stats:\\s*.*$',
+        '^Sex Baseline:\\s*.*$',
+        '^Anatomy Snapshot:\\s*\\n(?:.*\\n)*?(?=\\n[A-Z]|\\n*$)',
       ],
     };
   }
@@ -19444,6 +19493,9 @@ function processTurn({systemText, messages, state, personaState, config, charNam
     priorityDirective: state._priority_directive_this_turn || null,
     // Persona block separate so buildScenePage places it at top as reference-only
     personaBlock: _lastPersonaBlock || null,
+    // v7.13.29 — generic find/replace pairs the extension applies to the payload
+    // messages. Lore decides what and why; extension just does the substitution.
+    messageReplacements: _buildMessageReplacements(state, cardExtensions, cardExampleDialogue),
     // Card strip patterns — engine tells extension what to remove from card (Layer 1)
     // so the extension stays generic and all "what to strip" logic lives here.
     cardStripPatterns: _rememberCardStrips(state, [
@@ -19455,6 +19507,10 @@ function processTurn({systemText, messages, state, personaState, config, charNam
       '^Build:\\s*.*$',
       // D20 stats line — engine owns state via fragment tokens
       '^Stats:\\s*.*$',
+      // v7.13.29 — moved out of the extension, which had these two hardcoded as
+      // literal regexes. They are X-Change card sections, so the lore owns them.
+      '^Sex Baseline:\\s*.*$',
+      '^Anatomy Snapshot:\\s*\\n(?:.*\\n)*?(?=\\n[A-Z]|\\n*$)',
     ]),
   };
 }
@@ -20508,9 +20564,13 @@ function getSettingsHtml(config) {
 function onSettingsRendered(config, callbacks) {
   _xcwHudConfig = config;
   // Wire lore-specific buttons to extension callbacks
+  // v7.13.29 — the callback was named clearPersonaPill, which put an X-Change noun
+  // in the framework's callback contract. It is clearPersonaState in extension 2.2.0+;
+  // the old name is still accepted so an older cached extension keeps working.
   var btn = document.getElementById('xcw-clear-persona');
-  if (btn && callbacks && typeof callbacks.clearPersonaPill === 'function') {
-    btn.addEventListener('click', callbacks.clearPersonaPill);
+  var _clearPersona = callbacks && (callbacks.clearPersonaState || callbacks.clearPersonaPill);
+  if (btn && typeof _clearPersona === 'function') {
+    btn.addEventListener('click', _clearPersona);
   }
   // Init floating HUD
   initXcwFloatingHud();

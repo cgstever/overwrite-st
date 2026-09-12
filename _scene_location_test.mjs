@@ -175,6 +175,33 @@ const FURNITURE_DESC = 'Age: 30\n\nAppearance:\nHe keeps a mirror by the bed and
     ok(!/kitchen|fridge|knife/i.test(b), `the greeting stays out of <scene> (got ${JSON.stringify(b)})`);
 }
 
+// 17. an override applies MID-CHAT, not only on the first turn of a chat
+{
+    // Seed a chat with one scenario, then change it on a later turn. The override block
+    // used to sit inside the first-turn statgen gate, so the dropdown did nothing until a
+    // new chat was started -- despite its own comment promising otherwise.
+    const description = FURNITURE_DESC;
+    const systemText = description + '\nScenario: They meet in the kitchen.';
+    const state = {};
+    const mk = (msg, locOv, scenOv) => quiet(() => lore.processTurn({
+        systemText, messages: [{ role: 'system', content: systemText }, { role: 'user', content: msg }],
+        state, personaState: {}, config: rs, charNameHint: 'Test', personaName: 'Cody',
+        personaDescription: '', cardPersonality: '', cardDescription: description,
+        cardScenario: 'They meet in the kitchen.', cardTags: [], cardExtensions: {},
+        cardExampleDialogue: '', locationOverride: locOv || '', scenarioOverride: scenOv || '',
+    }));
+    const t1 = mk('hello', '', '');
+    const loc1 = t1.state._scene_tracker && t1.state._scene_tracker.location;
+    const t2 = mk('still here', 'a luxury dungeon', '');
+    const loc2 = t2.state._scene_tracker && t2.state._scene_tracker.location;
+    ok(loc1 === 'kitchen', `turn 1 uses the card scenario (got ${JSON.stringify(loc1)})`);
+    ok(loc2 === 'a luxury dungeon',
+       `a location set on turn 2 takes effect on turn 2 (got ${JSON.stringify(loc2)})`);
+    const t3 = mk('and now', '', 'She waits on the rooftop at dawn.');
+    const loc3 = t3.state._scene_tracker && t3.state._scene_tracker.location;
+    ok(loc3 === 'rooftop', `a scenario swapped mid-chat moves the scene (got ${JSON.stringify(loc3)})`);
+}
+
 // ── Part B: sweep the real library ──────────────────────────────────────────
 console.log('\nPart B — sweep over the real card library');
 const CARD_DIR = '/mnt/data/sillytavern/data/cody/characters';

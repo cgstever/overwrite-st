@@ -5,7 +5,7 @@
 const LORE_DATA = 
 {
   "name": "X-Change World (Full Mechanics)",
-  "version": "7.13.33",
+  "version": "7.13.34",
   "versionUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/version.json",
   "sourceUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/x_change_world.js",
   "schema_version": 1,
@@ -18926,47 +18926,6 @@ function processTurn({systemText, messages, state, personaState, config, charNam
         (sc.atmosphere    ? ' atmosphere=' + sc.atmosphere              : ''));
     }
 
-    // ── Apply live overrides (user can change dropdown mid-chat) ──
-    if (state._scene_tracker) {
-      // Location precedence: extension override > card's detected location
-      if (locationOverride) state._scene_tracker.location = locationOverride;
-      else if (state._scene_tracker._original_location) state._scene_tracker.location = state._scene_tracker._original_location;
-      if (!state._scene_tracker._original_location && state._scene_tracker.location) {
-        state._scene_tracker._original_location = state._scene_tracker.location;
-      }
-      // v7.0.3: cache card's default scenario once per chat so (Card Default)
-      // in the UI falls back cleanly without repeated extraction cost.
-      if (state._scene_tracker._card_scenario_cached === undefined) {
-        state._scene_tracker._card_scenario_cached =
-          (cardScenario && String(cardScenario).trim())
-          || _extractCardScenario(cardDescription)
-          || '';
-      }
-      // Scenario precedence: extension override > cardScenario field >
-      // extracted Scenario block from description > empty.
-      state._scene_tracker._scenario_override =
-        (scenarioOverride && String(scenarioOverride).trim())
-        || state._scene_tracker._card_scenario_cached
-        || '';
-
-      // v7.13.33 — the ACTIVE scenario owns the whole block. Re-derive everything <scene>
-      // renders whenever the scenario in force changes, so a custom scenario does not run
-      // under the card's leftover furniture, atmosphere or time of day. An explicit
-      // location override still wins over the place the scenario implies.
-      var _activeScen = state._scene_tracker._scenario_override || '';
-      if (state._scene_tracker._seeded_from_scenario !== _activeScen) {
-        var _reseed = _sceneFromScenario(_activeScen, name) || {};
-        state._scene_tracker._seeded_from_scenario = _activeScen;
-        state._scene_tracker.location     = _reseed.location || 'unknown';
-        state._scene_tracker.known_objects = _reseed.known_objects || [];
-        state._scene_tracker.known_props   = _reseed.known_props || [];
-        if (_reseed.atmosphere) state._scene_tracker.atmosphere = _reseed.atmosphere;
-        else delete state._scene_tracker.atmosphere;
-        if (_reseed.time_of_day) state._scene_tracker.time_of_day = _reseed.time_of_day;
-        else delete state._scene_tracker.time_of_day;
-      }
-      if (locationOverride) state._scene_tracker.location = locationOverride;
-    }
 
     // ── Store persona base stats separately; leave state.stats as the character card stats ──
     if (personaState.base_stats) {
@@ -19007,6 +18966,55 @@ function processTurn({systemText, messages, state, personaState, config, charNam
     if (state.card_body) {
       console.log('[BODY]', state.card_body);
     }
+  }
+
+  // v7.13.34 — this block runs EVERY turn, not just the first.
+  //
+  // Its own comment said "user can change dropdown mid-chat", but it sat inside the
+  // `if (!flags[statgenFlag])` first-turn gate, so it only ever ran once per chat. Change
+  // the location or scenario dropdown mid-chat and nothing happened: the scene kept the
+  // values seeded when the chat started, including furniture and atmosphere scraped by an
+  // older engine. Moved out of the gate so an override applies from the next turn.
+  // ── Apply live overrides (user can change dropdown mid-chat) ──
+  if (state._scene_tracker) {
+    // Location precedence: extension override > card's detected location
+    if (locationOverride) state._scene_tracker.location = locationOverride;
+    else if (state._scene_tracker._original_location) state._scene_tracker.location = state._scene_tracker._original_location;
+    if (!state._scene_tracker._original_location && state._scene_tracker.location) {
+      state._scene_tracker._original_location = state._scene_tracker.location;
+    }
+    // v7.0.3: cache card's default scenario once per chat so (Card Default)
+    // in the UI falls back cleanly without repeated extraction cost.
+    if (state._scene_tracker._card_scenario_cached === undefined) {
+      state._scene_tracker._card_scenario_cached =
+        (cardScenario && String(cardScenario).trim())
+        || _extractCardScenario(cardDescription)
+        || '';
+    }
+    // Scenario precedence: extension override > cardScenario field >
+    // extracted Scenario block from description > empty.
+    state._scene_tracker._scenario_override =
+      (scenarioOverride && String(scenarioOverride).trim())
+      || state._scene_tracker._card_scenario_cached
+      || '';
+
+    // v7.13.33 — the ACTIVE scenario owns the whole block. Re-derive everything <scene>
+    // renders whenever the scenario in force changes, so a custom scenario does not run
+    // under the card's leftover furniture, atmosphere or time of day. An explicit
+    // location override still wins over the place the scenario implies.
+    var _activeScen = state._scene_tracker._scenario_override || '';
+    if (state._scene_tracker._seeded_from_scenario !== _activeScen) {
+      var _reseed = _sceneFromScenario(_activeScen, name) || {};
+      state._scene_tracker._seeded_from_scenario = _activeScen;
+      state._scene_tracker.location     = _reseed.location || 'unknown';
+      state._scene_tracker.known_objects = _reseed.known_objects || [];
+      state._scene_tracker.known_props   = _reseed.known_props || [];
+      if (_reseed.atmosphere) state._scene_tracker.atmosphere = _reseed.atmosphere;
+      else delete state._scene_tracker.atmosphere;
+      if (_reseed.time_of_day) state._scene_tracker.time_of_day = _reseed.time_of_day;
+      else delete state._scene_tracker.time_of_day;
+    }
+    if (locationOverride) state._scene_tracker.location = locationOverride;
   }
 
   // Regen shortcut

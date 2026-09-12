@@ -5,7 +5,7 @@
 const LORE_DATA = 
 {
   "name": "X-Change World (Full Mechanics)",
-  "version": "7.13.36",
+  "version": "7.13.37",
   "versionUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/version.json",
   "sourceUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/x_change_world.js",
   "schema_version": 1,
@@ -16896,12 +16896,29 @@ function buildHeader(name, cardSex, state, notes, events, rs, persona, personaSt
   // "MUST orgasm" text above, so only add a CLIMAX line for a plain arousal-gate orgasm.
   var _orgFired = !!(state._org_trigger_result && state._org_trigger_result.orgasm);
   if (!_orgFired) {
-    // v7.13.36 — build-first phrasing. This used to read "NO CLIMAX: <name> does NOT
-    // orgasm, cum, or finish this response — no matter how intense it gets... the peak
-    // does NOT arrive and is never written..." which named the thing six times in order
-    // to forbid it. Cody 2026-09-12: "its better to say nothing then no 'x'". Say what to
-    // write instead, and mention the peak once.
-    _hardRuleTexts.push('BUILD ONLY: write ' + name + ' aching, clenching, trembling, begging — the body straining toward it and staying there. The peak is out of reach this response; the engine fires it when it is time.');
+    // v7.13.37 — the rule names the BAND and nothing else about the body.
+    //
+    // Cody 2026-09-12: "there arousal state is governed by the arousal bands and i dont
+    // want that hard coded... we can however use the band tables output to add to the
+    // rules so we can have them be the right state for the char state at the time."
+    //
+    // v7.13.36 wrote a fixed body picture into this rule ("aching, clenching, trembling,
+    // begging"), which is wrong twice over: the arousal band tables already decide how the
+    // body reads at this exact arousal and put it in <state>, and a hardcoded list
+    // contradicts them at every band except the one it was written for -- at 'cold' it told
+    // the model to write a character straining, when the state said she was not.
+    // The band name comes from AROUSAL_BANDS via the live arousal value, so it moves with
+    // her: cold / warm / build / heat / intense / over / edge.
+    // arousalLabel() reads rs.arousal_system.thresholds — the ruleset's own band table
+    // (baseline / stirring / body_waking / aware / pressure / desperate / peak /
+    // overwhelmed / lost / consumed / edge / orgasm_zone / overload). NOT arousalBand(),
+    // which lives inside the _xRebuildSystem IIFE and is not visible from here — the same
+    // scope trap the IIFE comment documents, and it threw a ReferenceError when tried.
+    var _arNow = getArousal(state);
+    var _arLabel = String(arousalLabel(_arNow, rs) || 'baseline').replace(/_/g, ' ');
+    _hardRuleTexts.push('BUILD ONLY: ' + name + ' is at ' + _arLabel
+      + ' — write the body as the state gives it and no further. '
+      + 'Release is out of reach this response; the engine fires it when it is time.');
   } else if (unlockedEffects.size === 0) {
     _hardRuleTexts.push('CLIMAX: ' + name + ' reaches orgasm THIS response — the build finally tips over. Write the release fully and in ' + _pn.poss + ' voice.');
   }

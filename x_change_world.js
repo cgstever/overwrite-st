@@ -5,7 +5,7 @@
 const LORE_DATA = 
 {
   "name": "X-Change World (Full Mechanics)",
-  "version": "7.13.26",
+  "version": "7.13.27",
   "versionUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/version.json",
   "sourceUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/x_change_world.js",
   "schema_version": 1,
@@ -15993,8 +15993,12 @@ function buildTransformationGuidance(pillDescriptor, cardBody, cardSex, rs, stat
   // stopped around 230 tokens where grok-4.20 wrote 600-700 off the same block.
   // Scaled to the delta, and pointed at DEPTH on the rotated axes so it does not
   // fight 7.13.15's variety rotation by dragging the extra length out of breadth.
-  var _LEN_BY_SCALE = { DRASTIC: '500-700', MODERATE: '400-550', SUBTLE: '250-350' };
-  var _lenLine = 'Length: ' + (_LEN_BY_SCALE[_txDeltaMeta.scale] || '400-550')
+  // v7.13.27 — bands raised. Cody 2026-09-12: "still kinda short". The old bands were
+  // being obeyed (MODERATE gens measured 530-570 tokens, top of a 400-550 band), so the
+  // fix is the target, not the compliance. ST's max_tokens is 1200, so even DRASTIC's
+  // new ceiling leaves headroom rather than getting cut off mid-sentence.
+  var _LEN_BY_SCALE = { DRASTIC: '850-1050', MODERATE: '700-900', SUBTLE: '450-600' };
+  var _lenLine = 'Length: ' + (_LEN_BY_SCALE[_txDeltaMeta.scale] || '700-900')
     + ' tokens — spend it on depth in the full-stage axes, not on adding more axes. ';
   var _varietyLine = '';
   if (_presentAxes.length) {

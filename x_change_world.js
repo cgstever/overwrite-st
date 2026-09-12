@@ -5,7 +5,7 @@
 const LORE_DATA = 
 {
   "name": "X-Change World (Full Mechanics)",
-  "version": "7.13.38",
+  "version": "7.13.39",
   "versionUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/version.json",
   "sourceUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/x_change_world.js",
   "schema_version": 1,
@@ -10561,10 +10561,15 @@ function _buildResistanceBeats(state) {
       if (bandBeats[statOrder[s]]) { hasBeats = true; break; }
     }
 
+    // v7.13.39 — no effect="" attribute. The name is scrubbed out of this block before it
+    // reaches the model (_stripEffectNames at the stateLines push), so the attribute always
+    // arrived empty: <resistance effect="" level="Untouched" band="10">. An empty slot is
+    // worse than no slot — with two effects active the model saw two blocks that looked
+    // identical and had nothing to tell them apart. The level and band carry the meaning.
     if (!hasBeats) {
-      lines.push('<resistance effect="' + eff + '" level="' + label + '" band="' + band + '"/>');
+      lines.push('<resistance level="' + label + '" band="' + band + '"/>');
     } else {
-      var resistOpen = '<resistance effect="' + eff + '" level="' + label + '" band="' + band + '">';
+      var resistOpen = '<resistance level="' + label + '" band="' + band + '">';
       var resistChildren = [];
       for (var s2 = 0; s2 < statOrder.length; s2++) {
         var stat = statOrder[s2];
@@ -16863,11 +16868,27 @@ function buildHeader(name, cardSex, state, notes, events, rs, persona, personaSt
       // concern — the rule needs to stay surgical to the mechanic and not
       // shape prose direction, but that's a wording/architecture problem,
       // not a firing-frequency problem.
+      // v7.13.39 — stamp the effect's CURRENT resistance band onto its rule.
+      //
+      // Cody 2026-09-12: "there are bands for the effects too that should be in this".
+      // Same principle as the arousal band on the climax gate: the rule states the mechanic,
+      // and the band says how far along she is with it right now, so the rule reads as her
+      // state at this moment instead of a constant. Band names come from
+      // _EFFECT_RESIST_BAND_LABELS (Untouched → Fortified → Guarded → Tested → Contested →
+      // Losing → Yielding → Fading → Eroded → Conditioned → Rewritten) and survive
+      // _stripEffectNames, which removes the effect's own name from rules before they ship.
+      var _effResist = (state.effect_resistance || {})[eff];
+      if (eff === 'breeder') _effResist = _breederEffectiveResistance(state);
+      var _ruleText = mech.injection_rule;
+      if (_effResist != null) {
+        var _effBandLabel = _EFFECT_RESIST_BAND_LABELS[_effectResistanceBand(_effResist)];
+        if (_effBandLabel) _ruleText += ' Resistance: ' + _effBandLabel + '.';
+      }
       var isOrgasmGated = !!orgasmGates[eff];
       if (isOrgasmGated) {
-        _hardRuleTexts.push(mech.injection_rule);
+        _hardRuleTexts.push(_ruleText);
       } else {
-        _softRules.push(mech.injection_rule);
+        _softRules.push(_ruleText);
       }
     }
   }

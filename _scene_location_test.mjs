@@ -118,6 +118,63 @@ ok(locationFor({ description: FILLER }) === 'unknown',
        `a scenario with no place leaves no location rather than keeping the old one (got ${JSON.stringify(loc)})`);
 }
 
+// ── the whole <scene> block, not just the location attribute ────────────────
+// Cody 2026-09-12: "the senerio override replaces everything in that block, there should
+// be nothing about place or anything like that outside this block."
+function sceneBlockFor(opts) {
+    const systemText = [opts.description, opts.scenario ? 'Scenario: ' + opts.scenario : '']
+        .filter(Boolean).join('\n');
+    const messages = [{ role: 'system', content: systemText }];
+    if (opts.firstMes) messages.push({ role: 'assistant', content: opts.firstMes });
+    messages.push({ role: 'user', content: 'hi' });
+    const state = {};
+    const r = quiet(() => lore.processTurn({
+        systemText, messages, state, personaState: {}, config: rs,
+        charNameHint: opts.name || 'Test', personaName: 'Cody', personaDescription: '',
+        cardPersonality: '', cardDescription: opts.description, cardScenario: opts.scenario || '',
+        cardTags: [], cardExtensions: {}, cardExampleDialogue: '',
+        locationOverride: opts.locationOverride || '', scenarioOverride: opts.scenarioOverride || '',
+    }));
+    const sp = (r && r.systemPrompt) || '';
+    const m = sp.match(/<scene(?: [^>]*)?>[\s\S]*?<\/scene>/);
+    return m ? m[0] : '';
+}
+
+const FURNITURE_DESC = 'Age: 30\n\nAppearance:\nHe keeps a mirror by the bed and a table full of photos.\n\n'
+                     + 'Behavioral Traits:\n- Quiet';
+
+// 13. furniture mentioned in the DESCRIPTION is not scene furniture
+{
+    const b = sceneBlockFor({ description: FURNITURE_DESC, scenario: 'They talk.' });
+    ok(!/mirror|table|\bbed\b/i.test(b), `card prose furniture stays out of <scene> (got ${JSON.stringify(b)})`);
+}
+
+// 14. furniture, atmosphere and time named in the SCENARIO do land
+{
+    const b = sceneBlockFor({ description: FURNITURE_DESC,
+        scenario: 'They meet at the kitchen table by candlelight at midnight.' });
+    ok(/location="kitchen"/.test(b) && /Room: table/.test(b) && /candlelit/.test(b),
+       `the scenario's own place, furniture and atmosphere are used (got ${JSON.stringify(b)})`);
+}
+
+// 15. a scenario override replaces EVERYTHING in the block
+{
+    const b = sceneBlockFor({ description: FURNITURE_DESC,
+        scenario: 'They meet at the kitchen table by candlelight at midnight.',
+        scenarioOverride: 'She waits on the rooftop at dawn.' });
+    ok(/location="rooftop"/.test(b), 'the override sets the place');
+    ok(!/kitchen|table|candlelit/i.test(b),
+       `nothing from the replaced scenario survives (got ${JSON.stringify(b)})`);
+}
+
+// 16. the greeting is not a source of scene content either
+{
+    const b = sceneBlockFor({ description: 'Age: 30\n\nBehavioral Traits:\n- Quiet',
+        scenario: 'They talk quietly.',
+        firstMes: '*I am standing in the kitchen by the fridge with a knife.*' });
+    ok(!/kitchen|fridge|knife/i.test(b), `the greeting stays out of <scene> (got ${JSON.stringify(b)})`);
+}
+
 // ── Part B: sweep the real library ──────────────────────────────────────────
 console.log('\nPart B — sweep over the real card library');
 const CARD_DIR = '/mnt/data/sillytavern/data/cody/characters';

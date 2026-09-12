@@ -5,7 +5,7 @@
 const LORE_DATA = 
 {
   "name": "X-Change World (Full Mechanics)",
-  "version": "7.13.32",
+  "version": "7.13.33",
   "versionUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/version.json",
   "sourceUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/x_change_world.js",
   "schema_version": 1,
@@ -10855,32 +10855,37 @@ function _generalizeSceneItems(items) {
 // Scans scenario, description, and first_mes for location, objects, props,
 // time of day, and atmosphere. Generic enough to handle modern, fantasy,
 // sci-fi, historical, school, workplace, and outdoor cards.
-// v7.13.32 — derive a location from a scenario string, using the same chain the card
-// seed uses. Needed because the user's scenario override REPLACES the scenario block, and
-// the scenario is the only source of a location, so his text has to be what the location
-// is read from. Reuses parseCardSceneContext with no card text so there is one chain, not two.
-function _locationFromScenario(scenarioText, charName) {
-  if (!scenarioText || !String(scenarioText).trim()) return '';
+// v7.13.33 — derive the WHOLE scene from a scenario string, using the same code path the
+// card seed uses. The user's scenario override replaces the scenario block, and the
+// scenario is the only source for the scene, so his text is what the block is built from —
+// place, furniture, props, atmosphere, time. One chain, not two.
+function _sceneFromScenario(scenarioText, charName) {
+  if (!scenarioText || !String(scenarioText).trim()) return null;
   try {
-    var seeded = parseCardSceneContext('', '', scenarioText, charName);
-    var loc = seeded && seeded.location;
-    return (loc && loc !== 'unknown') ? loc : '';
+    return parseCardSceneContext('', '', scenarioText, charName) || null;
   } catch (_e) {
-    return '';
+    return null;
   }
 }
 
 function parseCardSceneContext(systemText, firstCharMsg, cardScenario, charName) {
   const seed = {};
-  const fullText = (systemText || '') + '\n' + (firstCharMsg || '');
-  const textLower = fullText.toLowerCase();
 
-  // Word-boundary test — avoids substring false positives
-  const _wb = (word) => new RegExp('\\b' + word.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&') + '\\b', 'i').test(fullText);
-
-  // Extract a named block (Scenario:, Setting:, etc.) as a flat string
+  // v7.13.33 — THE SCENARIO IS THE ONLY SOURCE FOR THE ENTIRE SCENE.
+  //
+  // Cody 2026-09-12: "the senerio override replaces everything in that block, there should
+  // be nothing about place or anything like that outside this block."
+  //
+  // 7.13.32 scoped the LOCATION to the scenario but left everything else in <scene> —
+  // furniture, props, atmosphere, time of day — matched against the whole card description
+  // plus the greeting. So the block still described a place assembled from stray prose:
+  // "the photos on the table" and a line about catching his reflection became
+  // "Room: mirror, table", sitting under a location the user had set to a dungeon. Three
+  // different places in one block. Everything below now reads the scenario and only the
+  // scenario, so replacing the scenario replaces the whole block.
+  const _rawText = (systemText || '');
   const _block = (label) => {
-    const m = new RegExp('^' + label + '\\s*:?\\s*(.+?)(?:\\n\\n|\\r\\n\\r\\n|$)', 'im').exec(fullText);
+    const m = new RegExp('^' + label + '\\s*:?\\s*(.+?)(?:\\n\\n|\\r\\n\\r\\n|$)', 'im').exec(_rawText);
     return m ? m[1].replace(/\r\n/g, ' ').trim() : '';
   };
   // v7.13.31 — fall back to the card's own scenario FIELD. sceneSourceText is the card
@@ -10889,6 +10894,11 @@ function parseCardSceneContext(systemText, firstCharMsg, cardScenario, charName)
   // v7.13.32 — Setting:/Location:/Place: are no longer read. The scenario is the only
   // source of a location (see the chain below), and no card in the library uses them.
   const scenarioText   = _block('Scenario') || String(cardScenario || '').trim();
+
+  // Everything that describes the scene reads THIS and nothing else. Not the description,
+  // not the greeting. `fullText` is kept as the name so the passes below read naturally.
+  const fullText = scenarioText;
+  const _wb = (word) => new RegExp('\\b' + word.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&') + '\\b', 'i').test(fullText);
 
   // Strip trailing time/prep phrases from a location string
   // "Broken Tankard at midnight" → "Broken Tankard"
@@ -11063,7 +11073,7 @@ function parseCardSceneContext(systemText, firstCharMsg, cardScenario, charName)
     [/\bsunset\b|\bdusk\b/i, 'dusk'], [/\bevening\b/i, 'evening'],
     [/\blate night\b/i, 'late night'], [/\bnight\b/i, 'night'],
   ];
-  const timeSource = scenarioText + ' ' + (firstCharMsg || '');
+  const timeSource = scenarioText;
   for (const [re, label] of TIME_PATTERNS) {
     if (re.test(timeSource)) { seed.time_of_day = label; break; }
   }
@@ -11167,11 +11177,11 @@ function parseCardSceneContext(systemText, firstCharMsg, cardScenario, charName)
   // Lighting
   if (/\bcandle(?:lit|light|s)?\b|\btorch(?:lit|es)?\b|\bfirelight\b/i.test(fullText))
     atmosphere.push('candlelit');
-  else if (/\bpitch.?black\b|\bunlit\b/i.test(scenarioText + firstCharMsg))
+  else if (/\bpitch.?black\b|\bunlit\b/i.test(scenarioText))
     atmosphere.push('dark');
-  else if (/\bdimly?\b|\blow.?light\b|\bshadow(?:ed|y)?\b/i.test(scenarioText + firstCharMsg))
+  else if (/\bdimly?\b|\blow.?light\b|\bshadow(?:ed|y)?\b/i.test(scenarioText))
     atmosphere.push('dim');
-  else if (/\bsunlit\b|\bflooded with light\b/i.test(scenarioText + firstCharMsg))
+  else if (/\bsunlit\b|\bflooded with light\b/i.test(scenarioText))
     atmosphere.push('bright');
   // Weather
   if (/\brain(?:ing|storm|y)?\b|\bdownpour\b|\bdrizzle\b/i.test(fullText)) atmosphere.push('raining');
@@ -18939,14 +18949,23 @@ function processTurn({systemText, messages, state, personaState, config, charNam
         || state._scene_tracker._card_scenario_cached
         || '';
 
-      // v7.13.32 — the location follows the ACTIVE scenario. An explicit location override
-      // still wins; otherwise the place is read from whatever scenario is in force, so a
-      // custom scenario that says "brought to the penthouse" sets the penthouse instead of
-      // leaving the card's original location in place under someone else's scene.
-      if (!locationOverride) {
-        var _scenLoc = _locationFromScenario(state._scene_tracker._scenario_override, name);
-        state._scene_tracker.location = _scenLoc || 'unknown';
+      // v7.13.33 — the ACTIVE scenario owns the whole block. Re-derive everything <scene>
+      // renders whenever the scenario in force changes, so a custom scenario does not run
+      // under the card's leftover furniture, atmosphere or time of day. An explicit
+      // location override still wins over the place the scenario implies.
+      var _activeScen = state._scene_tracker._scenario_override || '';
+      if (state._scene_tracker._seeded_from_scenario !== _activeScen) {
+        var _reseed = _sceneFromScenario(_activeScen, name) || {};
+        state._scene_tracker._seeded_from_scenario = _activeScen;
+        state._scene_tracker.location     = _reseed.location || 'unknown';
+        state._scene_tracker.known_objects = _reseed.known_objects || [];
+        state._scene_tracker.known_props   = _reseed.known_props || [];
+        if (_reseed.atmosphere) state._scene_tracker.atmosphere = _reseed.atmosphere;
+        else delete state._scene_tracker.atmosphere;
+        if (_reseed.time_of_day) state._scene_tracker.time_of_day = _reseed.time_of_day;
+        else delete state._scene_tracker.time_of_day;
       }
+      if (locationOverride) state._scene_tracker.location = locationOverride;
     }
 
     // ── Store persona base stats separately; leave state.stats as the character card stats ──

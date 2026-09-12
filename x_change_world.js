@@ -5,7 +5,7 @@
 const LORE_DATA = 
 {
   "name": "X-Change World (Full Mechanics)",
-  "version": "7.13.23",
+  "version": "7.13.26",
   "versionUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/version.json",
   "sourceUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/x_change_world.js",
   "schema_version": 1,
@@ -15721,13 +15721,24 @@ function buildTransformationGuidance(pillDescriptor, cardBody, cardSex, rs, stat
   // they still have to land exactly right, they just don't get a stage list and a
   // canned Sensation vocabulary to transliterate.
   var _axisEnds     = {};
+  // v7.13.26 — what the card says this body actually is, threaded into every guide
+  var _ct = _cardTraits(state && state._card_raw_text);
+  var _ctHair  = _ct.hair  ? ('the ' + _ct.hair.replace(/^the\s+/i, '')) : 'the hair';
+  var _ctEyes  = _ct.eyes  ? (' — ' + _ct.eyes + ' still looking out of it') : '';
+  var _ctFlush = '';
+  for (var _si = 0; _si < _ct.skin.length; _si++) if (/flush|blush|pink|scarlet|red/i.test(_ct.skin[_si])) { _ctFlush = _ct.skin[_si]; break; }
+  var _ctFreck = _ct.skin.some(function (x) { return /freckl/i.test(x); });
+  var _ctSkin  = _ct.skin.length ? _ct.skin[0] : '';
+  var _ctJaw   = '';
+  for (var _ti = 0; _ti < _ct.tells.length; _ti++) if (/jaw/i.test(_ct.tells[_ti])) { _ctJaw = _ct.tells[_ti]; break; }
+  var _ctTop   = (hasOutfit && outfitSlots.top) ? ((/^(?:the|a|an|her|his|their)\b/i.test(outfitSlots.top) ? '' : 'the ') + outfitSlots.top) : 'whatever is over the chest';
   if (!noChange && toSex === 'female') {
     _frameGuide = 'Stages (reference only — render in character voice): '
-      + '(1) shoulder mass thins, upper body narrows, '
-      + '(2) hip / butt / thigh mass thickens, fat redistributing downward, '
-      + '(3) waist taper deepens, '
+      + '(1) the shoulders lose their width first, the top of the body drawing in narrow, '
+      + '(2) then the weight moves — settling down and out into hips, backside, thighs until the stance has to widen to hold it, '
+      + '(3) the waist pulls in above it, '
       + '(4) final: ' + (sampledBuild || 'feminine') + ' frame, mass redistributed feminine. '
-      + 'Sensation: weight shifting in the body, balance recalibrating, stance widening at the hips, center of gravity dropping.';
+      + 'Felt: the balance tipping lower, the floor and the clothes both fitting differently than a minute ago.';
     // v7.13.18 — scale the chest telling to the CUP, not just name it.
     var _bIdx = _cardBustFloorIdx(_bustForGuide);   // A=0 B=1 C=2 D=3 DD=4 E=5 F=6 G=7 H=8 J=9 K=10
     var _bEnd, _bSens;
@@ -15745,28 +15756,32 @@ function buildTransformationGuidance(pillDescriptor, cardBody, cardSex, rs, stat
       _bSens = 'Sensation: tight stretch, internal heat, sudden awareness of fabric pressure on newly-sensitive skin.';
     }
     _chestGuide = 'Stages (reference only — render in character voice): '
-      + '(1) nipples flush sensitive and darken, '
-      + '(2) tissue swells underneath in tight aching mounds, '
-      + '(3) fat layers round out the form, '
+      + '(1) the nipples wake up first — hot, tight, suddenly too aware of ' + _ctTop + ', '
+      + '(2) something swells in under them, tight and aching and pushing outward, '
+      + '(3) it fills and rounds until there is real weight there, '
       + '(4) final: ' + (_bustForGuide || 'feminine bust') + ' — ' + _bEnd + '. '
       + _bSens;
     _faceGuide = 'Stages (reference only — render in character voice): '
-      + '(1) jawline softens — mandible angle reshapes inward, '
-      + '(2) cheekbones round and lift as fat redistributes upward, '
-      + '(3) brow ridge softens, lips plump slightly, eye shape opens, '
+      + '(1) the jaw gives' + (_ctJaw ? ' — the card says: "' + _ctJaw + '" — that jaw' : '') + ', going soft at the corners, '
+      + '(2) the cheeks lift and round, '
+      + '(3) the brow eases, the mouth fills out, the eyes open wider' + _ctEyes + ', '
       + '(4) final: same recognizable features in feminized proportions. '
-      + 'Sensation: heat under the skin, pulling along the jawline, structure shifting beneath unchanged surface.';
+      + 'Felt: heat under the skin and a slow pull along the jaw; the face still theirs from the inside, someone else\'s in the glass.';
     _hairGuide = 'Stages (reference only — render in character voice): '
-      + '(1) body hair fades along chest / arms / legs / face, '
-      + '(2) scalp hair adjusts toward the target hair shown in the character description above (length / texture / line), '
+      + '(1) the body hair goes — a prickle down arms, legs, chest, and it is gone, '
+      + '(2) ' + _ctHair + ' lengthens and softens, settling against neck and shoulders where it never used to reach, '
       + '(3) final: feminized scalp hair, body hair receded. '
-      + 'Sensation: tingling along scalp, prickle along arms as body hair recedes, hair settling differently against neck and shoulders.';
+      + 'Felt: a tingle across the scalp, the new weight of it brushing skin that has never felt hair before.';
     _voiceGuide = 'Stages (reference only — render in character voice): '
-      + '(1) larynx position lifts subtly, '
-      + '(2) pitch rises, resonance softens, '
+      + '(1) the throat tightens, then lets go, '
+      + '(2) the next words come out higher and lighter than the last ones did, '
       + '(3) final: lighter register cracking once mid-sentence and resettling. '
-      + 'Sensation: throat tightening then loosening, voice catching unfamiliarly.';
-    _skinGuide = 'Skin softens, smooths, fine pores tighten. Pre-existing tan lines remain. Sensation: warm flush, surface texture going silkier under touch.';
+      + 'Felt: catching on their own words and hearing someone else answer.';
+    _skinGuide = (_ctSkin ? ('The card\'s own skin — "' + _ctSkin + '" — ') : 'The skin ')
+      + 'goes softer and finer under touch'
+      + (_ctFreck ? '; the freckles stay exactly where they were' : '; existing tan lines stay')
+      + ((_ctFlush && _ctFlush !== _ctSkin) ? ('. And the flush comes the way it always does: ' + _ctFlush) : (_ctFlush ? ' — and it still flushes exactly the way it always has' : ''))
+      + '. Felt: warm all over, everything silkier under the hands and the clothes.';
     _axisEnds = {
       frame: (sampledBuild || 'feminine') + ' frame, mass redistributed feminine',
       chest: (_bustForGuide || 'a feminine bust') + ', ' + _bEnd,
@@ -15776,34 +15791,38 @@ function buildTransformationGuidance(pillDescriptor, cardBody, cardSex, rs, stat
     };
   } else if (!noChange && toSex === 'male') {
     _frameGuide = 'Stages (reference only — render in character voice): '
-      + '(1) hip / butt / thigh mass thins, lower body narrows, '
-      + '(2) shoulder / chest / arm mass thickens, fat redistributing upward, '
-      + '(3) waist squares, ribcage broadens, '
+      + '(1) the hips, backside and thighs lose their softness first, the lower body drawing in narrow, '
+      + '(2) then the weight moves up — shoulders, chest, arms filling out until the stance squares to carry it, '
+      + '(3) the waist straightens, the ribcage opens, '
       + '(4) final: ' + (sampledBuild || 'masculine') + ' frame, mass redistributed masculine. '
-      + 'Sensation: weight shifting in the body, balance recalibrating, stance squaring at the shoulders, center of gravity rising.';
+      + 'Felt: the balance rising, the body suddenly wider at the top than it has ever been.';
     _chestGuide = 'Stages (reference only — render in character voice): '
-      + '(1) breast tissue deflates inward, fat receding, '
-      + '(2) chest plate flattens and gains pectoral definition, '
-      + '(3) nipples darken and harden, areolas tighten smaller, '
+      + '(1) the weight on the chest starts to leave — a pull inward under ' + _ctTop + ', '
+      + '(2) it flattens and firms into something hard and defined, '
+      + '(3) the nipples darken and tighten small against it, '
       + '(4) final: flat masculine chest with muscle definition. '
-      + 'Sensation: tightening, pressure as soft tissue resorbs, sudden lightness on the chest.';
+      + 'Felt: a tightening, then a strange lightness where there used to be weight.';
     _faceGuide = 'Stages (reference only — render in character voice): '
-      + '(1) jawline squares and broadens, '
-      + '(2) brow ridge thickens, cheekbones flatten, '
-      + '(3) lips thin slightly, neck thickens, '
+      + '(1) the jaw squares and widens' + (_ctJaw ? ' — the card says: "' + _ctJaw + '"' : '') + ', '
+      + '(2) the brow heavies, the cheeks flatten out, '
+      + '(3) the mouth thins a little, the neck thickens' + _ctEyes + ', '
       + '(4) final: same recognizable features in masculinized proportions. '
-      + 'Sensation: pressure pushing bone outward along the jaw and brow.';
+      + 'Felt: pressure pushing outward along the jaw and brow; the face still theirs from the inside.';
     _hairGuide = 'Stages (reference only — render in character voice): '
-      + '(1) body hair grows in along chest / arms / legs / face, '
-      + '(2) scalp hair adjusts toward the target hair shown in the character description above (length / texture / line), '
+      + '(1) body hair comes in — a prickle across chest, arms, legs, the first shadow on the face, '
+      + '(2) ' + _ctHair + ' shortens or coarsens toward how the card describes it, '
       + '(3) final: masculinized scalp hair, body hair grown in. '
-      + 'Sensation: prickling along skin as new hair pushes through, scalp adjusting.';
+      + 'Felt: the itch of new hair pushing through, the scalp settling differently.';
     _voiceGuide = 'Stages (reference only — render in character voice): '
-      + '(1) larynx position drops, '
-      + '(2) pitch lowers, resonance deepens, '
+      + '(1) the throat thickens, '
+      + '(2) the next words come out lower and heavier than the last ones did, '
       + '(3) final: heavier register cracking once mid-sentence and resettling. '
-      + 'Sensation: throat thickening, voice rumbling unfamiliarly.';
-    _skinGuide = 'Skin coarsens slightly, pores open, oil increases. Sensation: warm flush, surface texture going rougher under touch.';
+      + 'Felt: the voice rumbling in the chest, unfamiliar in their own ears.';
+    _skinGuide = (_ctSkin ? ('The card\'s own skin — "' + _ctSkin + '" — ') : 'The skin ')
+      + 'goes coarser and warmer under touch'
+      + (_ctFreck ? '; the freckles stay exactly where they were' : '')
+      + ((_ctFlush && _ctFlush !== _ctSkin) ? ('. And the flush comes the way it always does: ' + _ctFlush) : (_ctFlush ? ' — and it still flushes exactly the way it always has' : ''))
+      + '. Felt: rougher under the hands, the surface of them changed.';
     _axisEnds = {
       frame: (sampledBuild || 'masculine') + ' frame, mass redistributed masculine',
       chest: 'a flat masculine chest with muscle definition',
@@ -15857,6 +15876,13 @@ function buildTransformationGuidance(pillDescriptor, cardBody, cardSex, rs, stat
   // Color-narrative paragraph (background context — kept from txPhysical table)
   if (txPhysical) lines.push('  <body-path-guide>' + txPhysical + '</body-path-guide>');
   // Per-axis stage guides — model must render every stage in every applicable guide.
+  // v7.13.26 — the character's actual features and physical tells, verbatim from the card
+  var _cpParts = [];
+  if (_ct.hair) _cpParts.push('hair: ' + _ct.hair);
+  if (_ct.eyes) _cpParts.push('eyes: ' + _ct.eyes);
+  if (_ct.skin.length) _cpParts.push('skin: ' + _ct.skin.slice(0, 2).join('; '));
+  if (_ct.tells.length) _cpParts.push('physical tells: ' + _ct.tells.join(' | '));
+  if (_cpParts.length) lines.push('  <card-physical>' + _cpParts.join(' · ') + ' — these belong to THIS character; the changes happen to these, not to a generic body.</card-physical>');
   if (_frameGuide) lines.push('  <frame-tx-guide>' + _axisGuide('frame', _frameGuide) + '</frame-tx-guide>');
   if (_chestGuide) lines.push('  <chest-tx-guide>' + _axisGuide('chest', _chestGuide) + '</chest-tx-guide>');
   // v7.13.19 — authored chest colour, keyed cup x attitude. Always injected when the
@@ -15979,7 +16005,7 @@ function buildTransformationGuidance(pillDescriptor, cardBody, cardSex, rs, stat
       + ' through their full stages; ' + (_bgAxes.length ? _bgAxes.join(', ') + ' get' : 'the rest gets')
       + ' one distinct felt beat each and no more. ' + _entryHint + ' ';
   }
-  lines.push('<tx-direction>Continue the scene in the character\'s voice and pacing. The stage-list guides above (frame, chest, face, hair, voice, skin, genitals — only the ones present this turn apply) are REFERENCE ANATOMY, not a script: they define what becomes true, not how to write it or what order to write it in. Hard requirements: every present guide surfaces in the prose (minimum one distinct felt beat each, plus one beat for the reaction); the body ends EXACTLY as the target listed above; nothing contradicts a guide\'s end state; the genital change lands last or near-last. Where a <chest-color> or <genital-color> line is present it is what this specific character feels about that specific change — write the beat through it, in their words, do not quote it. ' + _varietyLine + _lenLine + 'Everything else is yours: pick your own order and let changes overlap and interleave instead of marching axis by axis; paraphrase the guides in the character\'s own words — never echo their wording; and do NOT open the way a previous telling of this transformation would (no default standing-at-the-mirror pose, no restating the pill going down — the intake-register already covers how intake happened). Narrate it the way THIS character would experience it — through their mannerisms, dialect, kinks, and natural turn-length; don\'t list body parts or produce a paragraph per area; weave the axes through the character\'s reaction, with the reaction-register and intake-register telling you HOW they relate to the change and to the act of intake. If a <rebirth> note is present this is a NEW body — render it forming whole and young, not the old one repaired, keeping only a faint passing resemblance to who they were; when <new-age>, <heal>, or a <limb-regrowth-guide> are present, render the youth, the healing, and any limb regrowth as part of that same transformation. Make each telling different.</tx-direction>');
+  lines.push('<tx-direction>Continue the scene in the character\'s voice and pacing. The stage-list guides above (frame, chest, face, hair, voice, skin, genitals — only the ones present this turn apply) are REFERENCE ANATOMY, not a script: they define what becomes true, not how to write it or what order to write it in. Hard requirements: every present guide surfaces in the prose (minimum one distinct felt beat each, plus one beat for the reaction); the body ends EXACTLY as the target listed above; nothing contradicts a guide\'s end state; the genital change lands last or near-last; and the character SPEAKS ALOUD at least twice inside the transformation, in their own words — quoted dialogue, not narration about speaking. If the <voice-lock> names a speech tell, this turn is where it matters most. Where a <chest-color> or <genital-color> line is present it is what this specific character feels about that specific change — write the beat through it, in their words, do not quote it. ' + _varietyLine + _lenLine + 'Everything else is yours: pick your own order and let changes overlap and interleave instead of marching axis by axis; paraphrase the guides in the character\'s own words — never echo their wording; and do NOT open the way a previous telling of this transformation would (no default standing-at-the-mirror pose, no restating the pill going down — the intake-register already covers how intake happened). Narrate it the way THIS character would experience it — through their mannerisms, dialect, kinks, and natural turn-length; don\'t list body parts or produce a paragraph per area; weave the axes through the character\'s reaction, with the reaction-register and intake-register telling you HOW they relate to the change and to the act of intake. If a <rebirth> note is present this is a NEW body — render it forming whole and young, not the old one repaired, keeping only a faint passing resemblance to who they were; when <new-age>, <heal>, or a <limb-regrowth-guide> are present, render the youth, the healing, and any limb regrowth as part of that same transformation. Make each telling different.</tx-direction>');
 
   return _stripEffectNames(lines.join('\n'));
 }
@@ -15990,6 +16016,55 @@ function buildTransformationGuidance(pillDescriptor, cardBody, cardSex, rs, stat
 // "the two important ones are tits and the dick becoming a pussy, sad that all the
 // prose tabes made are not being used". Both are keyed size x attitude, and the
 // attitude group is the masculinity band the engine already computes.
+// ── v7.13.26: CARD-FED TRANSFORMATION GUIDES ─────────────────────────────────
+// Cody 2026-09-12: "the result should fit the char card that is being used not
+// just the same for all of them." Until now every character got the same six
+// stage guides, written in anatomy-textbook register ("tissue swells", "larynx
+// position lifts", "mass redistributed") — and the model paraphrased that
+// register faithfully no matter how the direction line begged it not to. Three
+// instruction-only attempts (7.13.15 "never echo", 7.13.24 speech floor,
+// 7.13.25 interior monologue) could not out-argue the source text.
+// So the source text changes: the guides are rebuilt per character from the
+// card's Appearance prose and Behavioral Traits, in felt register. The precise
+// "final:" end-state is unchanged. Cards with nothing to extract (8 of 439 have
+// no Appearance prose) get the generic phrasing — never a throw.
+// Library survey 2026-09-12: hair 83%, eyes 78%, skin 76%, physical tells 85%.
+var _CT_COL = '(?:red|auburn|ginger|copper|strawberry|blonde?|platinum|golden|honey|sandy|brown|brunette|chestnut|dark|black|raven|jet|white|silver|grey|gray|ash|pink|blue|green|purple|lavender|violet|teal|dyed|bleached)';
+var _CT_LEN = '(?:long|short|shoulder-length|chin-length|cropped|buzzed|shaved|bob|ponytail|braids?|braided|curls|curly|wavy|straight|messy|tousled|undercut|mohawk|bangs|fringe|bun|pigtails|tied back|slicked)';
+var _CT_HAIR = new RegExp('((?:\\b(?:' + _CT_LEN + '|' + _CT_COL + ')\\b[\\s,-]*){1,4}\\bhair\\b(?:[^.;,]{0,40})?|\\bhair\\b[^.;]{0,25}\\b(?:' + _CT_COL + '|' + _CT_LEN + ')\\b[^.;,]{0,25})', 'i');
+var _CT_EYES = new RegExp('((?:\\b(?:bright|pale|deep|dark|light|warm|cold|sharp|soft|big|wide)\\b\\s+)?\\b(?:' + _CT_COL + '|hazel|amber|gold)\\b(?:-\\w+)?\\s+eyes\\b|\\beyes\\b[^.;]{0,12}\\b(?:' + _CT_COL + '|hazel|amber)\\b)', 'i');
+var _CT_SKIN = /\b(freckle\w*|tan(?:ned)?|pale|fair|olive|caramel|dark[- ]skin\w*|brown skin|scar\w*|tattoo\w*|pierc\w*|birthmark|mole|flush\w*|blush\w*|pinks? up|goes? (?:red|scarlet)|scarlet)\b[^.;]{0,90}/gi;
+// A physical tell needs a body VERB, not just a body noun in passing.
+var _CT_TELL = /\b(blush\w*|flush\w*|scarlet|goes? red|pinks? up|jaw|reflection|mirror|fidget\w*|shiver\w*|trembl\w*|catch(?:es|ing)? (?:him|her|them)self|posture|stance|hands? (?:never still|shake|twitch)|chin (?:up|lifts|drops))\b/i;
+
+function _cardTraits(raw) {
+  var out = { hair: '', eyes: '', skin: [], tells: [] };
+  if (!raw || typeof raw !== 'string') return out;
+  try {
+    var ap = raw.match(/Appearance:\s*\n([\s\S]*?)(?=\n\s*\n|\nAnatomy Snapshot:)/);
+    var prose = '';
+    if (ap) {
+      prose = ap[1].split('\n').filter(function (l) { return !/^\s*(Height|Weight|Build|Bust):/.test(l); }).join(' ');
+    }
+    var h = prose.match(_CT_HAIR); if (h) out.hair = h[0].trim();
+    var e = prose.match(_CT_EYES); if (e) out.eyes = e[0].trim();
+    var m; _CT_SKIN.lastIndex = 0;
+    while ((m = _CT_SKIN.exec(prose)) && out.skin.length < 3) out.skin.push(m[0].trim());
+    var bt = raw.match(/Behavioral Traits:\s*\n([\s\S]*?)(?=\n\s*\n|\n[A-Z][A-Za-z ]+:\s*\n)/);
+    if (bt) {
+      var bullets = bt[1].match(/^\s*-\s*(.+)$/gm) || [];
+      for (var i = 0; i < bullets.length && out.tells.length < 2; i++) {
+        var b = bullets[i].replace(/^\s*-\s*/, '').replace(/\s+/g, ' ');
+        if (_CT_TELL.test(b)) {
+          if (b.length > 160) { b = b.slice(0, 160); b = b.slice(0, Math.max(b.lastIndexOf(' '), b.lastIndexOf(' — '))) + '…'; }
+          out.tells.push(b);
+        }
+      }
+    }
+  } catch (_) { /* never let card parsing break a transformation turn */ }
+  return out;
+}
+
 function _txAttitudeGroup(band) {
   if (band >= 9) return 'horror';
   if (band >= 5) return 'conflicted';

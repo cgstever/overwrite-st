@@ -5,7 +5,7 @@
 const LORE_DATA = 
 {
   "name": "X-Change World (Full Mechanics)",
-  "version": "7.13.29",
+  "version": "7.13.30",
   "versionUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/version.json",
   "sourceUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/x_change_world.js",
   "schema_version": 1,
@@ -16703,6 +16703,8 @@ function buildHeader(name, cardSex, state, notes, events, rs, persona, personaSt
   // v7.0.2: strip engine-redundant sections (Scenario, Stats, Anatomy Snapshot,
   // Outfit, Height/Weight/Build, Name, Sex, Sex Baseline). Keeps card prose.
   var _cleanedDesc = _cleanCardDescription(cardDescription);
+  // v7.13.30 — post-TX: body, anatomy and gender come from the rolls, not the card.
+  _cleanedDesc = _postTxCardText(_cleanedDesc, state);
   if (_cleanedDesc) {
     charLines.push(_cleanedDesc);
   }
@@ -19950,6 +19952,148 @@ function _cleanCardDescription(desc) {
     if (cleanedBlock) kept.push(cleanedBlock);
   }
   return kept.join('\n\n').trim();
+}
+
+// v7.13.30 — post-transformation card text.
+//
+// Cody 2026-09-12: "it should be overriding all the anatomical/apperence and even
+// behavure as is approptete" / "after tx the body.gendr stops geting sent from tha
+// card and is sent from the tx rolls".
+//
+// After a pill lands, the card's own body prose is a lie: it still says flat chest,
+// still lists a cock in the kink profile, still calls the character he. The state
+// header meanwhile says female, C cup, vagina. The model gets both and reconciles
+// them badly. handleResponse has built _card_anatomy_override + _card_strip_words
+// since v6.x, but the only consumer lived in the extension and was dead there (the
+// lore's systemPrompt overwrote the text the extension had just edited), so the
+// correction has never actually reached a prompt. It runs here now, where the
+// <character> block is built.
+//
+// Three passes, in order:
+//   1. APPEARANCE  — the card's Appearance block is dropped and the override
+//                    (rolled height/weight/build/bust + anatomy snapshot) takes its
+//                    place, at the same position in the block order.
+//   2. ANATOMY     — _card_strip_words name parts the character no longer has.
+//                    A bullet is a single topic, so a matching bullet is dropped
+//                    whole ("Small penis teasing — ... the little cock that won't
+//                    stay soft"). Prose is not: only the offending SENTENCE goes,
+//                    so one wrong noun can't delete a 600-char paragraph.
+//   3. PRONOUNS    — third person is rewritten to the current gender. Only runs
+//                    when the sex actually changed. Past-tense history is left
+//                    alone in substance ("the hoodies he used to hide it under"
+//                    becomes "she used to", which is the arc, not a contradiction).
+//
+// Section headers (Behavioral Traits:, Kink Profile:) are never dropped, so a
+// section emptied by the strip pass disappears cleanly with its header.
+function _postTxCardText(text, state) {
+  if (!text || !state) return text;
+  var over = state._card_anatomy_override || '';
+  var strip = (state._card_strip_words || []).slice();
+  if (!over && !strip.length) return text;
+
+  // 'cum' is in _card_strip_words because semen is male anatomy, but as a VERB it is
+  // not: a transformed female still cums, and the word also shows up in scene-partner
+  // context. Stripping it from card prose deleted "Humiliate me and I cum embarrassingly
+  // fast" from a behaviour paragraph, which is a behaviour fact, not an anatomy one.
+  // 'semen' is unambiguous and stays.
+  strip = strip.filter(function (w) { return w !== 'cum' && w !== 'cums'; });
+
+  // ── pass 1: pull the card's Appearance block out, remember where it sat ──
+  var blocks = String(text).split(/\n\s*\n/);
+  var kept = [], appearanceAt = -1;
+  for (var bi = 0; bi < blocks.length; bi++) {
+    var b = blocks[bi];
+    if (!b || !b.trim()) continue;
+    if (over && appearanceAt < 0 && /^Appearance\s*:/i.test(b.split('\n')[0].trim())) {
+      appearanceAt = kept.length;
+      continue;
+    }
+    kept.push(b);
+  }
+
+  // ── pass 2: remove anatomy the character no longer has ──
+  // Runs on CARD text only. The override is spliced in afterwards so the engine's own
+  // "No penis." line -- a deliberate negative assertion -- does not strip itself out.
+  if (strip.length) {
+    var re = new RegExp('\\b(' + strip.join('|') + ')\\b', 'i');
+    var kept2 = [];
+    for (var ki = 0; ki < kept.length; ki++) {
+      var lines = kept[ki].split('\n'), keptLines = [];
+      for (var li = 0; li < lines.length; li++) {
+        var line = lines[li], t = line.trim();
+        if (!t) { keptLines.push(line); continue; }
+        if (/^[A-Z][A-Za-z /-]*:\s*$/.test(t)) { keptLines.push(line); continue; }
+        // a bullet is a single topic -- drop the whole bullet
+        if (/^[-*+•]\s/.test(t)) {
+          if (!re.test(t)) keptLines.push(line);
+          continue;
+        }
+        if (!re.test(t)) { keptLines.push(line); continue; }
+        // prose -- drop only the offending sentence. Split on . ! ? ONLY: splitting on
+        // ';' left lowercase orphan clauses ("...we both watch it happen. be patient
+        // with me and I fall apart worse.").
+        var label = '', body = t;
+        var lm = t.match(/^([A-Z][A-Za-z /-]*:\s*)([\s\S]*)$/);
+        if (lm) { label = lm[1]; body = lm[2]; }
+        var sentences = body.match(/[^.!?]+[.!?]*\s*/g) || [body];
+        var keepS = [];
+        for (var si = 0; si < sentences.length; si++) {
+          if (!re.test(sentences[si])) keepS.push(sentences[si].trim());
+        }
+        var rebuilt = (label + keepS.join(' ')).trim();
+        if (rebuilt && rebuilt !== label.trim()) keptLines.push(rebuilt);
+      }
+      var meaningful = keptLines.filter(function (l) {
+        var q = l.trim();
+        return q && !/^[A-Z][A-Za-z /-]*:\s*$/.test(q);
+      });
+      if (meaningful.length) kept2.push(keptLines.join('\n').trim());
+    }
+    // keep the Appearance insertion point valid after blocks were dropped
+    if (appearanceAt > kept2.length) appearanceAt = kept2.length;
+    kept = kept2;
+  }
+
+  // ── pass 3: pronouns, card text only, and only if the sex actually changed ──
+  var sexNow = (state.form && state.form.sex) || '';
+  var sexWas = state._sex_origin || state._card_sex || '';
+  if (sexNow && sexWas && sexNow !== sexWas) {
+    var map = null;
+    if (sexNow === 'female') {
+      map = [[/\bhe\b/g, 'she'], [/\bHe\b/g, 'She'],
+             [/\bhimself\b/g, 'herself'], [/\bHimself\b/g, 'Herself'],
+             [/\bhim\b/g, 'her'], [/\bHim\b/g, 'Her'],
+             [/\bhis\b/g, 'her'], [/\bHis\b/g, 'Her']];
+    } else if (sexNow === 'male') {
+      map = [[/\bshe\b/g, 'he'], [/\bShe\b/g, 'He'],
+             [/\bherself\b/g, 'himself'], [/\bHerself\b/g, 'Himself'],
+             [/\bhers\b/g, 'his'], [/\bHers\b/g, 'His'],
+             [/\bher\b/g, 'his'], [/\bHer\b/g, 'His']];
+    }
+    if (map) {
+      for (var pi = 0; pi < kept.length; pi++) {
+        // Line-at-a-time, and a line naming {{user}} is left alone. Some cards refer
+        // to {{user}} in third person ("he decides when you are ready"), and flipping
+        // those would regender the WRONG person. Lines about the character almost
+        // never name {{user}}, so the loss is small and the failure mode is safe.
+        var _plines = kept[pi].split('\n');
+        for (var pl = 0; pl < _plines.length; pl++) {
+          if (_plines[pl].indexOf('{{user}}') !== -1) continue;
+          for (var mi = 0; mi < map.length; mi++) {
+            _plines[pl] = _plines[pl].replace(map[mi][0], map[mi][1]);
+          }
+        }
+        kept[pi] = _plines.join('\n');
+      }
+    }
+  }
+
+  // ── pass 4: splice the rolled body in where Appearance was ──
+  if (over) {
+    if (appearanceAt < 0 || appearanceAt > kept.length) appearanceAt = 0;
+    kept.splice(appearanceAt, 0, over.trim());
+  }
+  return kept.join('\n\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
 function _buildInjectArray(header, state, rs) {

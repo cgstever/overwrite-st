@@ -5,7 +5,7 @@
 const LORE_DATA = 
 {
   "name": "X-Change World (Full Mechanics)",
-  "version": "7.13.27",
+  "version": "7.13.28",
   "versionUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/version.json",
   "sourceUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/x_change_world.js",
   "schema_version": 1,
@@ -17214,6 +17214,23 @@ function buildHeader(name, cardSex, state, notes, events, rs, persona, personaSt
   if (voiceLines.length) sections.push(voiceLines.join('\n'));
   if (stateLines.length) sections.push(stateLines.join('\n'));
   if (txLines.length) sections.push(txLines.join('\n'));
+
+  // v7.13.28 — record what this turn's injection was made of, so the debug panel can
+  // show it without anyone reading a 7.5 MB file on an iPad. Sizes only; the text is
+  // already visible elsewhere in the panel.
+  if (state) {
+    try {
+      var _dbgJoined = sections.join('\n\n');
+      var _dbgParts = [];
+      var _dbgRe = /<([a-z_-]+)(?: [^>]*)?>[\s\S]*?<\/\1>/g, _dbgM;
+      while ((_dbgM = _dbgRe.exec(_dbgJoined))) _dbgParts.push([_dbgM[1], _dbgM[0].length]);
+      state._debug_injection = {
+        total: _dbgJoined.length,
+        parts: _dbgParts.sort(function (a, b) { return b[1] - a[1]; }),
+        priority: (state._priority_directive_this_turn || '').length
+      };
+    } catch (_dbgErr) { state._debug_injection = null; }
+  }
   sections.push(rulesSection);
   sections.push(outputSection);
 
@@ -19429,7 +19446,7 @@ function processTurn({systemText, messages, state, personaState, config, charNam
     personaBlock: _lastPersonaBlock || null,
     // Card strip patterns — engine tells extension what to remove from card (Layer 1)
     // so the extension stays generic and all "what to strip" logic lives here.
-    cardStripPatterns: [
+    cardStripPatterns: _rememberCardStrips(state, [
       // Outfit block — engine owns clothing via [CLOTHING] tag
       '^Outfit:\\s*\\n(?:.*\\n)*?(?=\\n[A-Z]|\\n*$)',
       // Height/Weight/Build lines — engine owns via [BODY] tag
@@ -19438,8 +19455,23 @@ function processTurn({systemText, messages, state, personaState, config, charNam
       '^Build:\\s*.*$',
       // D20 stats line — engine owns state via fragment tokens
       '^Stats:\\s*.*$',
-    ],
+    ]),
   };
+}
+
+// v7.13.28 — stash the card-section strips on state, in readable form, so the debug
+// panel's HIDDEN FROM MODEL section can show them. Returns the list unchanged.
+function _rememberCardStrips(state, pats) {
+  if (state) {
+    try {
+      state._debug_card_strips = pats.map(function (p) {
+        if (/^\^Outfit/.test(p)) return 'Outfit: block';
+        var m = p.match(/^\^([A-Za-z]+):/);
+        return m ? (m[1] + ': line') : p;
+      });
+    } catch (_) { /* non-critical */ }
+  }
+  return pats;
 }
 
 // v7.0.0: Build the unified ## REQUIRED block for after_last_user inject.
@@ -20842,6 +20874,71 @@ function getDebugInfo(state, events, config, personaState) {
     for (const n of notesLog) {
       _ln('', typeof n === 'string' ? n : String(n));
     }
+  }
+
+  // ── v7.13.28: the three questions that were previously unanswerable from the UI ──
+  // Cody 2026-09-12: "its hard for me to keep track of everything as its a big block
+  // and not easy to find from an iPad."
+
+  // WHAT THE MODEL WAS SENT
+  var _inj = s._debug_injection;
+  if (_inj && _inj.parts) {
+    _section('SENT TO MODEL');
+    _ln('total', _inj.total + ' chars');
+    if (_inj.priority) _ln('priority', _inj.priority + ' chars (appended last)');
+    for (var _pi = 0; _pi < _inj.parts.length; _pi++) {
+      var _pct = _inj.total ? Math.round(100 * _inj.parts[_pi][1] / _inj.total) : 0;
+      _ln(_inj.parts[_pi][0], _inj.parts[_pi][1] + ' chars  ' + _pct + '%');
+    }
+  }
+
+  // WHAT IS HIDDEN FROM IT — the disclosure layer.
+  // Word-level scrub and the anatomy override land on state once a TX has applied;
+  // the card-section strips are issued to the extension every turn. Show whichever
+  // are in play so the panel is never silently empty.
+  var _strip = s._card_strip_words || [];
+  var _anat = s._card_anatomy_override || '';
+  var _cardStrips = s._debug_card_strips || [];
+  if (_strip.length || _anat || _cardStrips.length) {
+    _section('HIDDEN FROM MODEL');
+    if (_strip.length) {
+      _ln('word scrub', _strip.join(', '));
+      _ln('', '(removed from the card + history so the character cannot');
+      _ln('', ' narrate anatomy she no longer has)');
+    }
+    if (_cardStrips.length) {
+      _ln('card sections', '');
+      for (var _csi = 0; _csi < _cardStrips.length; _csi++) _ln('', _cardStrips[_csi]);
+      _ln('', '(engine owns these — clothing, body, stats)');
+    }
+    if (_anat) {
+      _ln('replaced by', '');
+      var _al = _anat.split('\n');
+      for (var _ai = 0; _ai < _al.length; _ai++) if (_al[_ai].trim()) _ln('', _al[_ai].trim());
+    }
+  }
+
+  // BANDS — what the fragment tables are being selected by
+  _section('BANDS');
+  var _mv = parseInt(s.masculinity != null ? s.masculinity : 50, 10);
+  _ln('masculinity', _mv + '  band ' + _masculinityBand(_mv) + '  ' + _masculinityBandName(_mv));
+  _ln('arousal', (s.arousal != null ? s.arousal : 0) + '  tier ' + Math.min(19, Math.floor(parseFloat(s.arousal || 0) / 5)));
+  var _eff = s.active_effects || [];
+  _ln('effects', _eff.length ? _eff.join(', ') : 'none');
+  var _stg = s.effect_stages || {};
+  for (var _ek = 0; _ek < _eff.length; _ek++) {
+    var _en = _eff[_ek];
+    _ln('  ' + _en, 'stage ' + (_stg[_en] != null ? _stg[_en] : '-')
+      + (s.effect_dcs && s.effect_dcs[_en] != null ? '   DC ' + s.effect_dcs[_en] : ''));
+  }
+  if (s._intake_consent) _ln('intake', s._intake_consent);
+
+  // FRAGMENTS — which table lines actually fired
+  var _fs = s._frag_seen || [];
+  if (_fs.length) {
+    _section('FRAGMENTS FIRED');
+    _ln('', '(recency window — these are suppressed from re-firing)');
+    for (var _fi = Math.max(0, _fs.length - 12); _fi < _fs.length; _fi++) _ln('', _fs[_fi]);
   }
 
   // Persona (side-channel, add as last section if present)

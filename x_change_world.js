@@ -5,7 +5,7 @@
 const LORE_DATA = 
 {
   "name": "X-Change World (Full Mechanics)",
-  "version": "7.13.58",
+  "version": "7.13.59",
   "versionUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/version.json",
   "sourceUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/x_change_world.js",
   "schema_version": 1,
@@ -15778,7 +15778,7 @@ function _txbLand(val, rungs, parse) {
 // Read a card into start rungs. Where a card says nothing the axis resolves to its `unstated`
 // rung; NEVER guess a value from another axis — a wrong start picks a wrong cell that then
 // reads with total confidence.
-function _txbStart(cardBody, raw) {
+function _txbStart(cardBody, raw, cardSex) {
   var txt = String(raw || '');
   var s = {};
   var bk = ((cardBody.build_keywords || [])[0] || '').toLowerCase();
@@ -15804,6 +15804,11 @@ function _txbStart(cardBody, raw) {
     for (var i = 0; i < pats.length; i++) if (pats[i][1].test(txt)) { s[ax] = pats[i][0]; break; }
   }
   if (s.tuck === 'unstated') s.tuck = null;      // a flag: absent emits nothing
+  // v7.13.59 — hrt is a TRANS-ONLY axis. Cody 2026-09-13: "why do we even have the hrt on the
+  // male tables that is a trans only thing". A cis male card has no hormone story, so the axis
+  // fired "nothing had prepared the tissue for any of it" on every single male turn and ate a
+  // slot the body could have used.
+  if (!/trans|mtf|ftm/i.test(String(cardSex || ''))) s.hrt = null;
   s.muscular = _TXB_MUSCLE.test(txt) ? 'yes' : null;
   return s;
 }
@@ -15855,10 +15860,10 @@ function _txbTravel(ax, a, b) {
 }
 
 // Assemble the block. Returns [] when nothing travelled.
-function _txbBuild(cardBody, raw, rb, build, state) {
+function _txbBuild(cardBody, raw, rb, build, state, cardSex) {
   if (!_TX_BODY || !rb) return [];
   var P = _TX_BODY.pairs, T = _TX_BODY.travel;
-  var s = _txbStart(cardBody, raw), f = _txbFinish(rb, build);
+  var s = _txbStart(cardBody, raw, cardSex), f = _txbFinish(rb, build);
   // Own list. _frag_seen is capped at SEEN_WINDOW = 3 on purpose for the arousal tables, and
   // it truncated these to three on the very next turn, killing the dedupe silently.
   var seen = (state && state._txb_seen) || [];
@@ -15937,6 +15942,24 @@ function buildTransformationGuidance(pillDescriptor, cardBody, cardSex, rs, stat
   startingBuild = resolveStartingBuild(resolveBody, colorEntryForResolve);
   // v6.5.224: Re-roll auto-resolved body type on swipe; keep user-specified ones.
   // _body_modifier_auto is set when the engine picked the modifier (no user keyword).
+  // v7.13.59 — RE-ROLL ON EVERY GENERATION, swipes included. Cody 2026-09-13: "it needs to re
+  // roll the target body on every swipe". The first generation stamped the resolved modifier
+  // back onto the descriptor, and because the pill descriptor is consumed after that turn the
+  // stamp was all any later call saw: every swipe rebuilt the identical body from the identical
+  // modifier. Clearing the AUTO-resolved stamp sends it back through resolveBodyModifier.
+  //
+  // A modifier the pill descriptor named explicitly is NOT auto and is left alone — "pink bimbo
+  // petite" must stay petite on every swipe.
+  if (pillDescriptor._body_modifier_auto && !noChange) {
+    modifier = null;
+    if (state) {
+      // resolved_body and the rolled vulva are cached deliberately so they hold across a turn;
+      // on a re-roll they are exactly what has to go.
+      delete state.resolved_body;   // band and vulva are rederived from the new roll
+      if (state._pill_descriptor_this_turn) delete state._pill_descriptor_this_turn.body_modifier;
+      if (state._deferred_transformation) delete state._deferred_transformation.body_modifier;
+    }
+  }
   if ((!modifier || pillDescriptor._body_modifier_auto) && !noChange) {
     modifier = resolveBodyModifier(color, cardBody || {}, rs, (state && state.active_effects) || []);
     resolvedFromCard = !!modifier;
@@ -16618,7 +16641,7 @@ function buildTransformationGuidance(pillDescriptor, cardBody, cardSex, rs, stat
   try {
     if (_TX_BODY_MODE !== 'off' && state && state.resolved_body && toSex === 'female' && color === 'pink') {
       _txbLines = _txbBuild(cardBody || {}, (state && state._card_raw_text) || '',
-                            state.resolved_body, sampledBuild || modifier || '', state);
+                            state.resolved_body, sampledBuild || modifier || '', state, cardSex);
     }
   } catch (e) {
     console.log('[XCW] tx-body tables failed, falling back to the stage guides: ' + e.message);

@@ -5,7 +5,7 @@
 const LORE_DATA = 
 {
   "name": "X-Change World (Full Mechanics)",
-  "version": "7.13.53",
+  "version": "7.13.54",
   "versionUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/version.json",
   "sourceUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/x_change_world.js",
   "schema_version": 1,
@@ -14903,13 +14903,21 @@ function weightedRandomPick(weightMap) {
 // carry without ever forcing one outcome. Effects with no physical expression are absent on
 // purpose.
 var _EFFECT_BODY_TILT = {
-  breeder:   { target: { curvy: 3, voluptuous: 3, busty: 2, average: 1 },
-               hips: 'childbearing', waist: 'natural' },
-  bimbo:     { target: { busty: 4, voluptuous: 3, curvy: 2 } },
-  pinup:     { target: { curvy: 4, busty: 3, slim: 2, average: 1 },
-               hips: 'full', waist: 'cinched' },
-  surrogate: { target: { curvy: 3, voluptuous: 3, average: 2 },
-               hips: 'childbearing', waist: 'thickened' },
+  breeder:    { target: { curvy: 3, voluptuous: 3, busty: 2, average: 1 },
+                hips: 'childbearing', waist: 'natural' },
+  bimbo:      { target: { busty: 4, voluptuous: 3, curvy: 2 } },
+  pinup:      { target: { curvy: 4, busty: 3, slim: 2, average: 1 },
+                hips: 'full', waist: 'cinched' },
+  surrogate:  { target: { curvy: 3, voluptuous: 3, average: 2 },
+                hips: 'childbearing', waist: 'thickened' },
+  // Cody 2026-09-13, correcting an earlier call of mine to leave these out: "sub and
+  // compliant are reflected in that as well". Both read as smaller and less imposing;
+  // submissive goes further than compliant, which only has to comply rather than want to.
+  // The bodies and directions are my reading of what each effect means, not his words.
+  submissive: { target: { petite: 3, slim: 3, average: 1 },
+                shoulders: 'narrow', waist: 'defined' },
+  compliant:  { target: { slim: 2, average: 3, petite: 1 },
+                shoulders: 'narrow' },
 };
 
 // Merge the active effects' target tilt into a copy of the weight map. Never mutates the
@@ -15028,6 +15036,8 @@ function _bustVolume(band, cup) {
 var _EFFECT_VULVA_TILT = {
   breeder: { minora: { protruding: 2, long: 1 }, clit: { prominent: 3, large: 3 } },
   pinup:   { majora: { full: 3 }, minora: { tucked: 4, 'just-showing': 3 }, clit: { average: 3 } },
+  submissive: { majora: { average: 2, full: 1 }, minora: { tucked: 3, 'just-showing': 2 }, clit: { small: 2, average: 2 } },
+  compliant:  { minora: { 'just-showing': 2, tucked: 1 }, clit: { average: 2 } },
 };
 // Source tissue matters: the scrotum becomes the outer lips, shaft skin the inner lips, the
 // glans the clitoris. A bigger tier leans the roll bigger, it does not force it.
@@ -15880,12 +15890,14 @@ function buildTransformationGuidance(pillDescriptor, cardBody, cardSex, rs, stat
   // hips because that is the point of it; pinup cinches the waist because that is the shape.
   var _fxHips  = _effectBodyOverride(_vFx, 'hips');
   var _fxWaist = _effectBodyOverride(_vFx, 'waist');
+  var _fxShoulders = _effectBodyOverride(_vFx, 'shoulders');
   var sampledHips  = _fxHips  || (sampledModEntry && sampledModEntry.hips) || '';
   var sampledWaist = _fxWaist || '';
-  if ((_fxHips || _fxWaist) && state) {
+  if ((_fxHips || _fxWaist || _fxShoulders) && state) {
     var _fxPatch = {};
     if (_fxHips)  _fxPatch.hips  = _fxHips;
     if (_fxWaist) _fxPatch.waist = _fxWaist;
+    if (_fxShoulders) _fxPatch.shoulders = _fxShoulders;
     state.resolved_body = Object.assign({}, state.resolved_body || {}, _fxPatch);
     console.log('[XCW] effect body override:', JSON.stringify(_fxPatch));
   }

@@ -5,7 +5,7 @@
 const LORE_DATA = 
 {
   "name": "X-Change World (Full Mechanics)",
-  "version": "7.13.40",
+  "version": "7.13.41",
   "versionUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/version.json",
   "sourceUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/x_change_world.js",
   "schema_version": 1,
@@ -10521,13 +10521,18 @@ function _buildResistanceBeats(state) {
 
   for (var i = 0; i < effects.length; i++) {
     var eff = effects[i];
-    // v7.13.40 — compliant used to be suppressed ENTIRELY here (v6.5.225), because its
-    // Untouched beats say "no automatic pull toward compliance" and that contradicts its
-    // injection_rule. But only band 10 says that. Bands 9 down to 0 describe agreement
-    // getting easier and then total — exactly what the rule is about — and all ten were
-    // being thrown away to avoid the one conflict. Cody 2026-09-12: "the effects each have
-    // there own band tables that effect how the effects are recting in the char that took
-    // them." The conflicting band is skipped below, once the band is known; the rest ship.
+    // v7.13.41 — compliant ships at EVERY band, including Untouched.
+    //
+    // Cody 2026-09-12: "compliant is they have to complie, they just 'fight' it based on
+    // the stat band, so a more dom char will be diff [from] a more sub char."
+    //
+    // That settles a five-month-old misreading. v6.5.225 suppressed the whole table because
+    // Untouched says "no automatic pull toward compliance", taken as contradicting the rule
+    // that she carries out instructions. It does not: compliance is NOT in question under
+    // this effect. She complies either way. The band describes how hard she fights on the
+    // way there, so Untouched — preferences intact, agreement a conscious choice, nothing
+    // pulling her — is the loudest fight, not an exemption. 7.13.40 restored ten bands;
+    // this restores the eleventh.
     // Motherhood mode — breeder beats suppressed once motherhood begins (post-conception turn).
     // On conception turn itself, beats still present so the breeder climax narrates correctly.
     if (eff === 'breeder' && _inMotherhood) continue;
@@ -10550,8 +10555,6 @@ function _buildResistanceBeats(state) {
     if (eff === 'breeder') resist = _breederEffectiveResistance(state);
 
     var band = _effectResistanceBand(resist);
-    // the one contradictory band (see the compliant note above)
-    if (eff === 'compliant' && band === 10) continue;
     var bandBeats = beats[band];
     if (!bandBeats) continue;
 
@@ -10560,11 +10563,29 @@ function _buildResistanceBeats(state) {
     // v6.5.208: nest beats as <beat> children inside <resistance> instead of
     // emitting them as loose "DOM — text" lines, so the whole block is structured
     // engine-data and the model reads it as reference rather than prose.
-    var statOrder = ['DOM', 'SUB', 'WIS', 'CHA', 'CON', 'INT'];
-    var hasBeats = false;
-    for (var s = 0; s < statOrder.length; s++) {
-      if (bandBeats[statOrder[s]]) { hasBeats = true; break; }
+    // v7.13.41 — the fight is this character's fight.
+    //
+    // Every one of the six stat beats used to ship for everyone, in a fixed order, so a
+    // DOM 18 bully and a SUB 18 doormat received identical text about how they were
+    // struggling. Cody: "based on the stat band, so a more dom char will be diff [from] a
+    // more sub char." Now: the effect's own two governing stats (the axis the mechanic
+    // pushes against, _EFFECT_RESIST_STATS) come first, then the stat this character is
+    // furthest from average on. Three beats, and they are hers.
+    var _charStats = state.stats || {};
+    var _govern = _EFFECT_RESIST_STATS[eff] || [];
+    var statOrder = [];
+    for (var _g = 0; _g < _govern.length; _g++) {
+      if (bandBeats[_govern[_g]] && statOrder.indexOf(_govern[_g]) === -1) statOrder.push(_govern[_g]);
     }
+    var _byExtreme = ['DOM', 'SUB', 'WIS', 'CHA', 'CON', 'INT']
+      .filter(function (st) { return bandBeats[st] && statOrder.indexOf(st) === -1; })
+      .sort(function (a, b) {
+        var av = Math.abs((parseInt(_charStats[a], 10) || 10) - 10);
+        var bv = Math.abs((parseInt(_charStats[b], 10) || 10) - 10);
+        return bv - av;
+      });
+    statOrder = statOrder.concat(_byExtreme).slice(0, 3);
+    var hasBeats = statOrder.length > 0;
 
     // v7.13.39 — no effect="" attribute. The name is scrubbed out of this block before it
     // reaches the model (_stripEffectNames at the stateLines push), so the attribute always

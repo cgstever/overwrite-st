@@ -5,7 +5,7 @@
 const LORE_DATA = 
 {
   "name": "X-Change World (Full Mechanics)",
-  "version": "7.14.2",
+  "version": "7.14.3",
   "versionUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/version.json",
   "sourceUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/x_change_world.js",
   "schema_version": 1,
@@ -17647,7 +17647,16 @@ function buildHeader(name, cardSex, state, notes, events, rs, persona, personaSt
   }
 
   // ── TX turn detection ──
-  var _txCandidate = state._pill_descriptor_this_turn || state._deferred_transformation || null;
+  // v7.14.3 — the ARCHIVE counts too, on a re-generation of the same turn.
+  //
+  // The regen path already knows a swipe of a transformation turn is a transformation: it
+  // restores _pre_tx_card_body and deletes resolved_body specifically so the body re-samples.
+  // But buildHeader looked only at the live descriptor, which the first generation consumes.
+  // So on swipe two onward _isTxTurn went false, no fresh block was built, and the one from
+  // the first swipe was re-injected unchanged — a frozen body for as many swipes as you cared
+  // to take. Cody 2026-09-13: "it seems stuck same body a few swipes in a row."
+  var _txCandidate = state._pill_descriptor_this_turn || state._deferred_transformation
+                  || state._deferred_tx_archive || null;
   var _txColor = _txCandidate ? (_txCandidate.color || '') : '';
   var _txPillRule = _txColor ? ((rs.pill_rules || {})[_txColor] || {}) : {};
   var _txHasBimbo = _txCandidate && ((_txCandidate.effects || []).includes('bimbo') || (_txCandidate.effects || []).includes('pinup'));
@@ -17713,7 +17722,20 @@ function buildHeader(name, cardSex, state, notes, events, rs, persona, personaSt
   // Outfit, Height/Weight/Build, Name, Sex, Sex Baseline). Keeps card prose.
   var _cleanedDesc = _cleanCardDescription(cardDescription);
   // v7.13.30 — post-TX: body, anatomy and gender come from the rolls, not the card.
-  _cleanedDesc = _postTxCardText(_cleanedDesc, state);
+  //
+  // v7.14.3 — but NOT on the turn that performs the transformation. The override describes the
+  // body the character ENDS this turn with; applying it to the card on the TX turn itself hands
+  // the model an already-female card and then asks it to narrate her becoming female. Found in
+  // a real chat: from the second swipe onward the card read "Transformed female body, 32DD,
+  // moderate breasts" and "Female genitalia — vagina" while <origin> still said "male, 5'6",
+  // flat". Every swipe after the first was describing a change that had, on paper, already
+  // happened, and replies came back short and unfinished.
+  //
+  // The override survives a swipe because it is committed to state by the first one, and a
+  // swipe re-runs the same turn against that state.
+  if (!_isTxTurn) {
+    _cleanedDesc = _postTxCardText(_cleanedDesc, state);
+  }
   if (_cleanedDesc) {
     charLines.push(_cleanedDesc);
   }
@@ -18192,6 +18214,17 @@ function buildHeader(name, cardSex, state, notes, events, rs, persona, personaSt
   // so processTurn can emit it as turnResult.priorityDirective for the extension to
   // append at message[-1] on priority turns. Lore owns the prose; extension stays generic.
   if (state) {
+    // v7.14.3 — clear the stale block FIRST. _tx_user_block was written on the transformation
+    // turn and never cleared, while _buildInjectArray emitted it on the strength of its
+    // existence alone. So once the pill was consumed and this stopped being a TX turn, every
+    // later turn kept re-injecting the SAME block with the SAME frozen body.
+    //
+    // Cody 2026-09-13: "idk if the body is rerolling right it seems stuck same body a few
+    // swipes in a row". Swipes 16-20 of his chat are byte-identical — 5'7" voluptuous 36G —
+    // all of them replaying the block built on swipe 14. The roll was fine; it was never
+    // being asked for again.
+    if (!_isTxTurn) delete state._tx_user_block;
+
     // v7.9.0 — TX block wins the priority slot; otherwise a fresh scene-jump stamp
     // (present only on a time-skip turn, auto-cleared by scene_jump_clear) injects the
     // <scene-jump> directive at the after-last-user generation point.

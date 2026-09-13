@@ -5,7 +5,7 @@
 const LORE_DATA = 
 {
   "name": "X-Change World (Full Mechanics)",
-  "version": "7.13.52",
+  "version": "7.13.53",
   "versionUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/version.json",
   "sourceUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/x_change_world.js",
   "schema_version": 1,
@@ -4215,6 +4215,11 @@ const LORE_DATA =
           "build": "delicate slim frame, narrow shoulders",
           "bust": "B-DD cup, proportional to frame",
           "band": "28-30",
+          "vulva": {
+            "majora": {"thin": 4, "average": 3, "full": 2, "fat": 1},
+            "minora": {"tucked": 4, "just-showing": 3, "protruding": 2, "long": 1},
+            "clit": {"small": 4, "average": 3, "prominent": 2, "large": 1}
+          },
           "hips": "narrow to moderate, feminine curve",
           "note": "Small everywhere. Nothing oversized. Natural petite proportions."
         },
@@ -4224,6 +4229,11 @@ const LORE_DATA =
           "build": "lean toned, light muscle definition",
           "bust": "B-DD cup",
           "band": "30-32",
+          "vulva": {
+            "majora": {"thin": 3, "average": 4, "full": 2, "fat": 1},
+            "minora": {"tucked": 3, "just-showing": 4, "protruding": 2, "long": 1},
+            "clit": {"small": 3, "average": 4, "prominent": 2, "large": 1}
+          },
           "hips": "moderate, defined waist",
           "note": "Athletic lean look without bulk."
         },
@@ -4233,6 +4243,11 @@ const LORE_DATA =
           "build": "natural balanced proportions",
           "bust": "C-E cup",
           "band": "32-34",
+          "vulva": {
+            "majora": {"thin": 2, "average": 4, "full": 3, "fat": 1},
+            "minora": {"tucked": 3, "just-showing": 3, "protruding": 3, "long": 1},
+            "clit": {"small": 2, "average": 4, "prominent": 3, "large": 1}
+          },
           "hips": "moderate, natural curve",
           "note": "Default natural female proportions."
         },
@@ -4242,6 +4257,11 @@ const LORE_DATA =
           "build": "full figure, defined waist, soft",
           "bust": "D-E cup",
           "band": "34-36",
+          "vulva": {
+            "majora": {"thin": 1, "average": 3, "full": 4, "fat": 2},
+            "minora": {"tucked": 2, "just-showing": 3, "protruding": 3, "long": 2},
+            "clit": {"small": 1, "average": 3, "prominent": 3, "large": 2}
+          },
           "hips": "full, pronounced hourglass",
           "note": "Defined curves, everything proportional to each other."
         },
@@ -4251,6 +4271,11 @@ const LORE_DATA =
           "build": "average frame, chest prominent",
           "bust": "D-F cup, proportional support",
           "band": "32-34",
+          "vulva": {
+            "majora": {"thin": 1, "average": 3, "full": 4, "fat": 2},
+            "minora": {"tucked": 2, "just-showing": 3, "protruding": 3, "long": 2},
+            "clit": {"small": 1, "average": 3, "prominent": 4, "large": 2}
+          },
           "hips": "moderate-full to balance chest",
           "note": "Larger chest but frame and hips must support it naturally."
         },
@@ -4260,6 +4285,11 @@ const LORE_DATA =
           "build": "toned muscle, strong legs, flat stomach",
           "bust": "B-DD cup, firm",
           "band": "30-32",
+          "vulva": {
+            "majora": {"thin": 3, "average": 4, "full": 2, "fat": 1},
+            "minora": {"tucked": 2, "just-showing": 3, "protruding": 3, "long": 2},
+            "clit": {"small": 2, "average": 3, "prominent": 3, "large": 2}
+          },
           "hips": "athletic, toned",
           "note": "Strong and capable looking. Not bulky."
         },
@@ -4269,11 +4299,17 @@ const LORE_DATA =
           "build": "full everywhere, soft rounded, deep curves",
           "bust": "DD-G cup",
           "band": "34-38",
+          "vulva": {
+            "majora": {"thin": 1, "average": 2, "full": 4, "fat": 3},
+            "minora": {"tucked": 1, "just-showing": 2, "protruding": 4, "long": 3},
+            "clit": {"small": 1, "average": 2, "prominent": 4, "large": 3}
+          },
           "hips": "very full, deep hourglass",
           "note": "Everything full and rounded but proportional. No single feature extreme."
         },
         "bimbo_overlay": {
           "note": "Stacks on top of any base modifier when bimbo or pinup is in the pill descriptor. Overrides bust, hips, and waist. Height and weight remain from base modifier.",
+        "vulva_override": {"majora": {"full": 2, "fat": 5}, "minora": {"protruding": 3, "long": 4}, "clit": {"prominent": 4, "large": 4}},
           "bust_override": {
             "petite": "DD-F cup",
             "slim": "DD-F cup",
@@ -4290,6 +4326,7 @@ const LORE_DATA =
         },
         "surrogate_overlay": {
           "note": "Applies whenever surrogate effect is active. Pre-conception mirrors bimbo_overlay bust scale. Pregnancy stages progressively enlarge chest. Waist NOT narrowed — pregnancy thickens the midsection, opposite of the bimbo silhouette.",
+        "vulva_override": {"majora": {"full": 4, "fat": 2}, "minora": {"just-showing": 2, "protruding": 3}, "clit": {"average": 3, "prominent": 2}},
           "bust_override": {
             "pre": {
               "petite": "DD-F cup",
@@ -14860,7 +14897,45 @@ function weightedRandomPick(weightMap) {
   return pool[Math.floor(Math.random() * pool.length)];
 }
 
-function resolveBodyModifier(color, cardBody, rs) {
+// The effect shapes the whole body, not just the vulva. Cody 2026-09-13: "like bimpo/piniup
+// or breeder makes the body for breeding wider hips things like that". These ADD to the
+// starting build's target_weights, so a breeder pill leans the roll toward a body built to
+// carry without ever forcing one outcome. Effects with no physical expression are absent on
+// purpose.
+var _EFFECT_BODY_TILT = {
+  breeder:   { target: { curvy: 3, voluptuous: 3, busty: 2, average: 1 },
+               hips: 'childbearing', waist: 'natural' },
+  bimbo:     { target: { busty: 4, voluptuous: 3, curvy: 2 } },
+  pinup:     { target: { curvy: 4, busty: 3, slim: 2, average: 1 },
+               hips: 'full', waist: 'cinched' },
+  surrogate: { target: { curvy: 3, voluptuous: 3, average: 2 },
+               hips: 'childbearing', waist: 'thickened' },
+};
+
+// Merge the active effects' target tilt into a copy of the weight map. Never mutates the
+// lore data, and never zeroes an option that the starting build left open.
+function _tiltTargetWeights(weightMap, effects) {
+  if (!weightMap || !effects || !effects.length) return weightMap;
+  var out = {}, k;
+  for (k in weightMap) out[k] = weightMap[k];
+  for (var i = 0; i < effects.length; i++) {
+    var t = (_EFFECT_BODY_TILT[effects[i]] || {}).target;
+    if (!t) continue;
+    for (k in t) if (k !== 'note' && k.charAt(0) !== '_') out[k] = (out[k] || 0) + t[k];
+  }
+  return out;
+}
+
+// Hips and waist an effect insists on, whatever body was rolled.
+function _effectBodyOverride(effects, field) {
+  for (var i = 0; i < (effects || []).length; i++) {
+    var v = (_EFFECT_BODY_TILT[effects[i]] || {})[field];
+    if (v) return v;
+  }
+  return null;
+}
+
+function resolveBodyModifier(color, cardBody, rs, effects) {
   // Resolve a target body modifier using weighted random based on starting body.
   // 1. Read the card's starting build from build keywords
   // 2. Look up target_weights for that starting build
@@ -14886,7 +14961,8 @@ function resolveBodyModifier(color, cardBody, rs) {
     console.log('[PILL] resolveBodyModifier: using _default target_weights (no starting build match)');
   }
 
-  // Weighted random pick
+  // Weighted random pick, after any active effect has leaned it
+  weightMap = _tiltTargetWeights(weightMap, effects);
   if (weightMap) {
     var pick = weightedRandomPick(weightMap);
     if (pick) {
@@ -14946,6 +15022,46 @@ function _bustVolume(band, cup) {
 
 // Resolve the band for a body ONCE and keep it. Overlays (bimbo, surrogate) change the cup but
 // not the ribcage, so they must reuse the base body's band or a 30F would silently become a 36F.
+// The pill effect shapes the result, not just the frame. Cody 2026-09-13: "not to mentchen
+// teh pill effect can have an impact on the bodys outcome". Effects that have no body
+// expression stay out of this on purpose — saying nothing beats saying "no change".
+var _EFFECT_VULVA_TILT = {
+  breeder: { minora: { protruding: 2, long: 1 }, clit: { prominent: 3, large: 3 } },
+  pinup:   { majora: { full: 3 }, minora: { tucked: 4, 'just-showing': 3 }, clit: { average: 3 } },
+};
+// Source tissue matters: the scrotum becomes the outer lips, shaft skin the inner lips, the
+// glans the clitoris. A bigger tier leans the roll bigger, it does not force it.
+var _TIER_VULVA_TILT = {
+  tiny:    { majora: { thin: 3, average: 1 },  minora: { tucked: 3, 'just-showing': 1 }, clit: { small: 3, average: 1 } },
+  small:   { majora: { thin: 1, average: 2 },  minora: { tucked: 1, 'just-showing': 2 }, clit: { small: 1, average: 2 } },
+  average: {},
+  large:   { majora: { full: 2, fat: 1 },      minora: { protruding: 2, long: 1 },       clit: { prominent: 2, large: 1 } },
+  huge:    { majora: { full: 2, fat: 3 },      minora: { protruding: 2, long: 3 },       clit: { prominent: 2, large: 3 } },
+};
+
+// Roll majora / minora / clit. Base weights come from the rolled body; the penis tier and any
+// active effect ADD to those weights rather than replacing them, so every landing stays
+// reachable and the same card does not resolve the same way twice.
+function _sampleVulva(modEntry, penisTier, effects, overrides) {
+  var base = (modEntry && modEntry.vulva) || null;
+  if (!base) return null;
+  var out = {};
+  var tiers = _TIER_VULVA_TILT[penisTier] || {};
+  for (var axis in base) {
+    var w = {};
+    for (var k in base[axis]) w[k] = base[axis][k];
+    var add = function (tilt) {
+      if (!tilt || !tilt[axis]) return;
+      for (var kk in tilt[axis]) w[kk] = (w[kk] || 0) + tilt[axis][kk];
+    };
+    add(tiers);
+    for (var e = 0; e < (effects || []).length; e++) add(_EFFECT_VULVA_TILT[effects[e]]);
+    for (var o = 0; o < (overrides || []).length; o++) add(overrides[o]);
+    out[axis] = weightedRandomPick(w);
+  }
+  return out;
+}
+
 function _bodyBand(colorEntry, modName, state) {
   var rb = (state && state.resolved_body) || null;
   if (rb && rb.band) return rb.band;
@@ -15521,7 +15637,7 @@ function buildTransformationGuidance(pillDescriptor, cardBody, cardSex, rs, stat
   // v6.5.224: Re-roll auto-resolved body type on swipe; keep user-specified ones.
   // _body_modifier_auto is set when the engine picked the modifier (no user keyword).
   if ((!modifier || pillDescriptor._body_modifier_auto) && !noChange) {
-    modifier = resolveBodyModifier(color, cardBody || {}, rs);
+    modifier = resolveBodyModifier(color, cardBody || {}, rs, (state && state.active_effects) || []);
     resolvedFromCard = !!modifier;
     if (modifier) {
       console.log('[PILL] buildTransformationGuidance: resolved target "' + modifier + '" from starting build "' + (startingBuild || '?') + '"');
@@ -15549,7 +15665,7 @@ function buildTransformationGuidance(pillDescriptor, cardBody, cardSex, rs, stat
     var _hasSurrogateEff = effects.includes('surrogate')
                         || (state && (state.active_effects || []).includes('surrogate'));
     if (_hasSurrogateEff && state) {
-      var _greenSMod = modifier || resolveBodyModifier(bmColor, cardBody || {}, rs) || '_default';
+      var _greenSMod = modifier || resolveBodyModifier(bmColor, cardBody || {}, rs, (state && state.active_effects) || []) || '_default';
       var _greenSColorEntry = bm[color] || bm[bmColor] || {};
       if (!_greenSColorEntry.modifiers) {
         var _fallbackSColor = (pRule.form_sex === 'female') ? 'pink' : 'blue';
@@ -15611,7 +15727,7 @@ function buildTransformationGuidance(pillDescriptor, cardBody, cardSex, rs, stat
         var _pFallback = (pRule.form_sex === 'female') ? 'pink' : 'blue';
         _pColorEntry = bm[_pFallback] || {};
       }
-      var _pMod = modifier || resolveBodyModifier(bmColor, cardBody || {}, rs) || '';
+      var _pMod = modifier || resolveBodyModifier(bmColor, cardBody || {}, rs, (state && state.active_effects) || []) || '';
       var _pModEntry = _pMod ? ((_pColorEntry.modifiers || {})[_pMod] || null) : null;
       if (_pModEntry) {
         var _pHeight = _pModEntry.height ? _sampleHeightRange(_pModEntry.height) : '';
@@ -15669,7 +15785,7 @@ function buildTransformationGuidance(pillDescriptor, cardBody, cardSex, rs, stat
                      || (state && (state.active_effects || []).includes('bimbo'));
     if (_hasBimboEff && state) {
       // Resolve modifier from card body for bust-level lookup
-      var _greenMod = modifier || resolveBodyModifier(bmColor, cardBody || {}, rs) || '_default';
+      var _greenMod = modifier || resolveBodyModifier(bmColor, cardBody || {}, rs, (state && state.active_effects) || []) || '_default';
       // Green/red have no body_modifiers entry — fall back to pink (female) or blue (male)
       var _greenColorEntry = bm[color] || bm[bmColor] || {};
       if (!_greenColorEntry.modifiers) {
@@ -15740,6 +15856,39 @@ function buildTransformationGuidance(pillDescriptor, cardBody, cardSex, rs, stat
   if (sampledBand && state) state.resolved_body = Object.assign({}, state.resolved_body || {}, { band: sampledBand });
   var sampledBust = sampledModEntry && sampledModEntry.bust ? _sampleBustRange(sampledModEntry.bust, sampledBand) : '';
   var sampledBuild = modifier || (sampledModEntry && sampledModEntry.build ? sampledModEntry.build.split(',')[0].trim() : '');
+
+  // v7.13.53 — the RESULTING vulva. Homologous tissue: scrotum -> outer lips, shaft skin ->
+  // inner lips, glans -> clitoris, so the card's own penis tier steers the roll. Active
+  // effects tilt it further (bimbo exaggerates, pinup tidies, breeder sensitises, surrogate
+  // makes it functional). Resolved once and kept on state so it stays stable across turns.
+  var _vTierNames = ['tiny', 'small', 'average', 'large', 'huge'];
+  var _vInches = parseFloat((cardBody && cardBody.penis_inches) || 0) || 0;
+  var _vTier = _vInches ? (_vInches < 3.5 ? 'tiny' : _vInches < 5.5 ? 'small'
+              : _vInches < 7.5 ? 'average' : _vInches < 9.5 ? 'large' : 'huge') : 'average';
+  var _vFx = (state && state.active_effects) || [];
+  var _vOver = [];
+  var _vOvl = colorEntry.modifiers || {};
+  if (_vFx.indexOf('bimbo') >= 0 && (_vOvl.bimbo_overlay || {}).vulva_override) _vOver.push(_vOvl.bimbo_overlay.vulva_override);
+  if (_vFx.indexOf('surrogate') >= 0 && (_vOvl.surrogate_overlay || {}).vulva_override) _vOver.push(_vOvl.surrogate_overlay.vulva_override);
+  var sampledVulva = (state && state.resolved_body && state.resolved_body.vulva)
+    || _sampleVulva(sampledModEntry, _vTier, _vFx, _vOver);
+  if (sampledVulva && state) {
+    state.resolved_body = Object.assign({}, state.resolved_body || {}, { vulva: sampledVulva });
+  }
+
+  // Hips and waist the effect insists on, whatever body was rolled. A breeder pill widens the
+  // hips because that is the point of it; pinup cinches the waist because that is the shape.
+  var _fxHips  = _effectBodyOverride(_vFx, 'hips');
+  var _fxWaist = _effectBodyOverride(_vFx, 'waist');
+  var sampledHips  = _fxHips  || (sampledModEntry && sampledModEntry.hips) || '';
+  var sampledWaist = _fxWaist || '';
+  if ((_fxHips || _fxWaist) && state) {
+    var _fxPatch = {};
+    if (_fxHips)  _fxPatch.hips  = _fxHips;
+    if (_fxWaist) _fxPatch.waist = _fxWaist;
+    state.resolved_body = Object.assign({}, state.resolved_body || {}, _fxPatch);
+    console.log('[XCW] effect body override:', JSON.stringify(_fxPatch));
+  }
 
   // v7.13.50 — the ROLLED BODY'S OWN DESCRIPTION, not just its name.
   //

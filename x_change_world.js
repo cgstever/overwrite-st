@@ -5,7 +5,7 @@
 const LORE_DATA = 
 {
   "name": "X-Change World (Full Mechanics)",
-  "version": "7.14.1",
+  "version": "7.14.2",
   "versionUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/version.json",
   "sourceUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/x_change_world.js",
   "schema_version": 1,
@@ -15665,6 +15665,10 @@ var _TX_BODY = {"_shape":"PAIRED. Every body cell is keyed on BOTH endpoints —
 // the exact failure these tables exist to fix. The books dwell on four to six things.
 var _TX_BODY_CAP = 6;
 var _TX_BODY_MODE = 'on';   // 'off' falls back to the stage-list guides with no other change
+// v7.14.2 — false puts the whole transformation block back on the user message (pre-7.14.2).
+var _TX_SPLIT_PLACEMENT = true;
+// Test hook only — lets a harness A/B the placement without editing the file.
+function _xcwSetSplitPlacement(v) { _TX_SPLIT_PLACEMENT = !!v; }
 
 var _TXB_WORDS = ['zero','an','two','three','four','five','six','seven','eight','nine','ten',
   'eleven','twelve','thirteen','fourteen','fifteen','sixteen','seventeen','eighteen','nineteen','twenty'];
@@ -21217,13 +21221,45 @@ function _buildInjectArray(header, state, rs) {
     });
   }
 
-  // v7.13.47 — the transformation block, last thing before the model writes. Measured as
-  // the strongest placement by a wide margin; see the note in buildHeader.
+  // v7.14.2 — SPLIT the transformation block by kind. Measured 2026-09-13 over 40 generations
+  // per arrangement on grok-4.20-non-reasoning.
+  //
+  // The whole block used to ride on the user message, which meant the model was answering a
+  // "user" whose turn was 33 characters of roleplay followed by 10 KB of markup. Two separate
+  // effects were tangled in that:
+  //
+  //   LENGTH comes from the ASK sitting next to the reply.
+  //   COMPLIANCE comes from the MARKUP being off the user turn.
+  //
+  // They looked like one dial because the block moved as one piece. Split it and both improve:
+  //
+  //                                        words   floor   scene_state returned
+  //   everything on the user message        594     323          88%
+  //   reference to system, ask stays        676     534          97%
+  //
+  // Moving the WHOLE block to system is the case to avoid — the ask goes with it and output
+  // drops to 443 words.
   if (state && state._tx_user_block) {
-    arr.push({
-      text: state._tx_user_block,
-      position: 'after_last_user',
-    });
+    var _txAsk = _TX_SPLIT_PLACEMENT
+      ? state._tx_user_block.match(/<tx-direction>[\s\S]*?<\/tx-direction>/)
+      : null;
+    if (_txAsk) {
+      // Reference — what is true about this body — reads as background, so it goes where
+      // background belongs. The ask still refers to it; a different message is still "above".
+      arr.push({
+        text: state._tx_user_block.replace(_txAsk[0], '').replace(/\n{3,}/g, '\n\n'),
+        position: 'system',
+      });
+      arr.push({
+        text: _txAsk[0],
+        position: 'after_last_user',
+      });
+    } else {
+      arr.push({
+        text: state._tx_user_block,
+        position: 'after_last_user',
+      });
+    }
   }
 
   // Prefill — start assistant response with * to anchor character-POV narration
@@ -22330,6 +22366,8 @@ function updateHud(state, config) {
 export default {
     name: 'X-Change World',
     version: LORE_DATA.version,
+    // Test hook: A/B the transformation-block placement without editing the file.
+    __setSplit: _xcwSetSplitPlacement,
     author: 'Cody',
     description: 'Transformation-themed interactive fiction with pill mechanics, arousal tracking, and identity systems.',
     data: LORE_DATA,

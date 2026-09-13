@@ -5,7 +5,7 @@
 const LORE_DATA = 
 {
   "name": "X-Change World (Full Mechanics)",
-  "version": "7.13.56",
+  "version": "7.13.57",
   "versionUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/version.json",
   "sourceUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/x_change_world.js",
   "schema_version": 1,
@@ -15970,15 +15970,21 @@ function buildTransformationGuidance(pillDescriptor, cardBody, cardSex, rs, stat
     }
   }
 
-  // Commit resolved_body to state — engine uses this directly, model does not echo it back
+  // Commit resolved_body to state — engine uses this directly, model does not echo it back.
+  //
+  // v7.13.57 — MERGE, do not replace. This was a wholesale assignment and it silently threw
+  // away everything set earlier in this same function: the band (7.13.52), the rolled vulva
+  // (7.13.53) and the effect hips/waist/shoulders overrides (7.13.54/55). All three shipped
+  // and none of them ever reached state. Nothing threw; resolved_body just came out with five
+  // keys instead of nine.
   if (state && (sampledHeight || sampledBuild)) {
-    state.resolved_body = {
+    state.resolved_body = Object.assign({}, state.resolved_body || {}, {
       height: sampledHeight,
       weight: sampledWeight,
       bust: sampledBust,
       build: sampledBuild,
       modifier: modifier || '',
-    };
+    });
     console.log('[XCW] resolved_body pre-set:', JSON.stringify(state.resolved_body));
   }
 
@@ -16076,6 +16082,15 @@ function buildTransformationGuidance(pillDescriptor, cardBody, cardSex, rs, stat
   if (sampledBuild) _targetParts.push(sampledBuild);
   if (_resolvedBust) _targetParts.push(_resolvedBust);
   _targetParts.push('genitals: ' + genitals);
+  // v7.13.57 — the rolled vulva. 7.13.53 resolved it and persisted it to state, and nothing
+  // ever put it in the prompt, so the model never saw which one it was. A cup size without a
+  // band was the same mistake: rolled detail that never left the engine.
+  var _rv = (state && state.resolved_body) ? state.resolved_body.vulva : null;
+  if (_rv && _rv.majora) {
+    _targetParts.push('outer lips: ' + _rv.majora
+      + ', inner lips: ' + _rv.minora
+      + ', clitoris: ' + _rv.clit);
+  }
 
   // ── Build clothing string ──
   var _clothingStr = '';

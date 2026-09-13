@@ -5,7 +5,7 @@
 const LORE_DATA = 
 {
   "name": "X-Change World (Full Mechanics)",
-  "version": "7.13.45",
+  "version": "7.13.46",
   "versionUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/version.json",
   "sourceUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/x_change_world.js",
   "schema_version": 1,
@@ -17399,7 +17399,7 @@ function buildHeader(name, cardSex, state, notes, events, rs, persona, personaSt
     // <scene-jump> directive at the after-last-user generation point.
     if (_isTxTurn && txLines.length) {
       state._priority_directive_this_turn = txLines.join('\n');
-      _txLinesGoToDirective = true;
+      _txLinesGoToDirective = true;  // kept for reference; the header copy is deliberate (see v7.13.46)
       // v7.13.2 — a time-skip can co-occur with a pill intake in the same user message. The TX
       // block wins the slot, but DON'T silently drop the scene-jump — append it so the model still
       // cuts to the new scene/time instead of narrating the transformation in the old scene.
@@ -17476,7 +17476,24 @@ function buildHeader(name, cardSex, state, notes, events, rs, persona, personaSt
   if (sceneLines.length) sections.push(sceneLines.join('\n'));
   if (voiceLines.length) sections.push(voiceLines.join('\n'));
   if (stateLines.length) sections.push(stateLines.join('\n'));
-  if (txLines.length && !_txLinesGoToDirective) sections.push(txLines.join('\n'));
+  // v7.13.46 — the transformation block goes in BOTH places on purpose. MEASURED, do not
+  // "fix" this again.
+  //
+  // 7.13.29 removed this copy because the block also ships as priorityDirective and sending
+  // it twice looked like waste — 8,962 chars, a third of the turn. It was not waste. Cody
+  // 2026-09-12 asked how the prose compared; three samples a side on the same Cilla pill
+  // turn, same model, same settings:
+  //   block twice (as it was)      21,360 chars -> 211 words, 6.7 of 8 body axes rendered
+  //   block once, directive only   18,291 chars ->  97 words, 4.7 of 8
+  //   block twice, current engine  27,081 chars -> 340 words, 7.0 of 8
+  // Removing the second copy cost more than half the length and two axes. The model needs
+  // the guidance as CONTEXT while it writes as well as an instruction at the end; one copy
+  // at the tail gets acknowledged and then thinned out. Restoring it beats the original,
+  // because everything else around it is cleaner now.
+  //
+  // The extension no longer strips it either — the 2.1.2 de-dupe went out with 2.2.0, which
+  // is what let this copy reach the model again.
+  if (txLines.length) sections.push(txLines.join('\n'));
 
   // v7.13.28 — record what this turn's injection was made of, so the debug panel can
   // show it without anyone reading a 7.5 MB file on an iPad. Sizes only; the text is

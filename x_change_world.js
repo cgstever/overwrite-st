@@ -5,7 +5,7 @@
 const LORE_DATA = 
 {
   "name": "X-Change World (Full Mechanics)",
-  "version": "7.13.51",
+  "version": "7.13.52",
   "versionUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/version.json",
   "sourceUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/x_change_world.js",
   "schema_version": 1,
@@ -4214,6 +4214,7 @@ const LORE_DATA =
           "weight": "95-115lbs",
           "build": "delicate slim frame, narrow shoulders",
           "bust": "B-DD cup, proportional to frame",
+          "band": "28-30",
           "hips": "narrow to moderate, feminine curve",
           "note": "Small everywhere. Nothing oversized. Natural petite proportions."
         },
@@ -4222,6 +4223,7 @@ const LORE_DATA =
           "weight": "110-130lbs",
           "build": "lean toned, light muscle definition",
           "bust": "B-DD cup",
+          "band": "30-32",
           "hips": "moderate, defined waist",
           "note": "Athletic lean look without bulk."
         },
@@ -4230,6 +4232,7 @@ const LORE_DATA =
           "weight": "120-145lbs",
           "build": "natural balanced proportions",
           "bust": "C-E cup",
+          "band": "32-34",
           "hips": "moderate, natural curve",
           "note": "Default natural female proportions."
         },
@@ -4238,6 +4241,7 @@ const LORE_DATA =
           "weight": "130-155lbs",
           "build": "full figure, defined waist, soft",
           "bust": "D-E cup",
+          "band": "34-36",
           "hips": "full, pronounced hourglass",
           "note": "Defined curves, everything proportional to each other."
         },
@@ -4246,6 +4250,7 @@ const LORE_DATA =
           "weight": "125-150lbs",
           "build": "average frame, chest prominent",
           "bust": "D-F cup, proportional support",
+          "band": "32-34",
           "hips": "moderate-full to balance chest",
           "note": "Larger chest but frame and hips must support it naturally."
         },
@@ -4254,6 +4259,7 @@ const LORE_DATA =
           "weight": "125-145lbs",
           "build": "toned muscle, strong legs, flat stomach",
           "bust": "B-DD cup, firm",
+          "band": "30-32",
           "hips": "athletic, toned",
           "note": "Strong and capable looking. Not bulky."
         },
@@ -4262,6 +4268,7 @@ const LORE_DATA =
           "weight": "140-165lbs",
           "build": "full everywhere, soft rounded, deep curves",
           "bust": "DD-G cup",
+          "band": "34-38",
           "hips": "very full, deep hourglass",
           "note": "Everything full and rounded but proportional. No single feature extreme."
         },
@@ -14911,25 +14918,68 @@ function _sampleWeightRange(str) {
   return (parseInt(m[1]) + Math.floor(Math.random() * (parseInt(m[2]) - parseInt(m[1]) + 1))) + 'lbs';
 }
 
-function _sampleBustRange(str) {
+// Band (underbust) sampler. Band is a real measurement and lives with height/weight on each
+// body; without it a "cup" is meaningless. Cody 2026-09-13: "30d is very diff from a 36d".
+function _sampleBandRange(str) {
+  if (!str) return 0;
+  var m = String(str).match(/(\d{2})\s*[-–—]\s*(\d{2})/);
+  if (m) {
+    var lo = parseInt(m[1], 10), hi = parseInt(m[2], 10);
+    if (hi >= lo) {
+      var steps = Math.floor((hi - lo) / 2) + 1;               // bands step by 2
+      return lo + 2 * Math.floor(Math.random() * steps);
+    }
+  }
+  var one = String(str).match(/(\d{2})/);
+  return one ? parseInt(one[1], 10) : 0;
+}
+
+// Cup letter is the DIFFERENCE between band and full bust, not a size. 30C, 32B and 34A are the
+// same breast; 34C is two volume steps bigger than 30C. So the roll emits a real bra size and a
+// volume rank, and the bare letter is kept only for the legacy ladder helpers.
+var _CUP_INDEX = { AA: 0, A: 1, B: 2, C: 3, D: 4, DD: 5, E: 5, F: 6, G: 7, H: 8, J: 9, K: 10 };
+function _bustVolume(band, cup) {
+  var c = _CUP_INDEX[String(cup).toUpperCase()];
+  if (c === undefined || !band) return null;
+  return c + (band - 32) / 2;
+}
+
+// Resolve the band for a body ONCE and keep it. Overlays (bimbo, surrogate) change the cup but
+// not the ribcage, so they must reuse the base body's band or a 30F would silently become a 36F.
+function _bodyBand(colorEntry, modName, state) {
+  var rb = (state && state.resolved_body) || null;
+  if (rb && rb.band) return rb.band;
+  var ent = modName ? ((colorEntry.modifiers || {})[modName] || null) : null;
+  var band = ent && ent.band ? _sampleBandRange(ent.band) : 0;
+  if (band && state) {
+    state.resolved_body = Object.assign({}, state.resolved_body || {}, { band: band });
+  }
+  return band;
+}
+
+function _sampleBustRange(str, band) {
   if (!str) return str;
   // Extended ladder for surrogate late-pregnancy stages (skips I to match common UK/US sizing)
   var _bustSizes = ['A', 'B', 'C', 'D', 'DD', 'E', 'F', 'G', 'H', 'J', 'K'];
+  var cup = '';
   // Match range like "D-DD cup" or "DD-F cup" or "G-H cup" or "J-K cup"
   var rm = str.match(/(DD|[A-HJK])\s*[-–—]\s*(DD|[A-HJK])\s*cup/i);
   if (rm) {
-    var lo = rm[1].toUpperCase();
-    var hi = rm[2].toUpperCase();
-    var loIdx = _bustSizes.indexOf(lo);
-    var hiIdx = _bustSizes.indexOf(hi);
-    if (loIdx >= 0 && hiIdx >= 0 && hiIdx >= loIdx) {
-      return _bustSizes[loIdx + Math.floor(Math.random() * (hiIdx - loIdx + 1))] + ' cup';
-    }
+    var lo = rm[1].toUpperCase(), hi = rm[2].toUpperCase();
+    var loIdx = _bustSizes.indexOf(lo), hiIdx = _bustSizes.indexOf(hi);
+    if (loIdx >= 0 && hiIdx >= 0 && hiIdx >= loIdx)
+      cup = _bustSizes[loIdx + Math.floor(Math.random() * (hiIdx - loIdx + 1))];
   }
-  // Match single size like "DD cup" or "C cup" or "K cup"
-  var sm = str.match(/(DD|[A-HJK])\s*cup/i);
-  return sm ? sm[1].toUpperCase() + ' cup' : str;
+  if (!cup) {
+    var sm = str.match(/(DD|[A-HJK])\s*cup/i);
+    if (!sm) return str;
+    cup = sm[1].toUpperCase();
+  }
+  if (!band) return cup + ' cup';
+  var v = _bustVolume(band, cup);
+  return band + cup + (v === null ? '' : ' (volume ' + v + ')');
 }
+
 
 // Pick the surrogate bust sub-map key based on pregnancy stage
 function _surrogateBustStage(state) {
@@ -15509,7 +15559,8 @@ function buildTransformationGuidance(pillDescriptor, cardBody, cardSex, rs, stat
       var _greenSStage = _surrogateBustStage(state);
       var _greenSStageMap = (_greenSurrOverlay.bust_override || {})[_greenSStage] || {};
       var _greenSBustRange = (typeof _greenSStageMap === 'string') ? _greenSStageMap : (_greenSStageMap[_greenSMod] || _greenSStageMap._default || '');
-      var _greenSurrBust = _greenSBustRange ? _sampleBustRange(_greenSBustRange) : '';
+      var _greenSBand = _bodyBand(_greenSColorEntry, _greenSMod, state);
+      var _greenSurrBust = _greenSBustRange ? _sampleBustRange(_greenSBustRange, _greenSBand) : '';
       if (_greenSurrBust) {
         var _greenSPatch = { bust: _greenSurrBust };
         if (_greenSurrOverlay.hips_override) _greenSPatch.hips = _greenSurrOverlay.hips_override;
@@ -15565,7 +15616,8 @@ function buildTransformationGuidance(pillDescriptor, cardBody, cardSex, rs, stat
       if (_pModEntry) {
         var _pHeight = _pModEntry.height ? _sampleHeightRange(_pModEntry.height) : '';
         var _pWeight = _pModEntry.weight ? _sampleWeightRange(_pModEntry.weight) : '';
-        var _pBust = _pModEntry.bust ? _sampleBustRange(_pModEntry.bust) : '';
+        var _pBand = _pModEntry.band ? _sampleBandRange(_pModEntry.band) : 0;
+        var _pBust = _pModEntry.bust ? _sampleBustRange(_pModEntry.bust, _pBand) : '';
         var _pBuild = _pMod || (_pModEntry.build ? _pModEntry.build.split(',')[0].trim() : '');
         var _pHips = _pModEntry.hips || '';
         // Card bust floor — a female body never shrinks below the card's declared cup (mirrors the full path)
@@ -15627,7 +15679,8 @@ function buildTransformationGuidance(pillDescriptor, cardBody, cardSex, rs, stat
       var _greenBimboOverlay = (_greenColorEntry.modifiers || {}).bimbo_overlay || {};
       var _greenBustMap = _greenBimboOverlay.bust_override || {};
       var _greenBustRange = (typeof _greenBustMap === 'string') ? _greenBustMap : (_greenBustMap[_greenMod] || _greenBustMap._default || '');
-      var _greenBimboBust = _greenBustRange ? _sampleBustRange(_greenBustRange) : '';
+      var _greenBimboBand = _bodyBand(_greenColorEntry, _greenMod, state);
+      var _greenBimboBust = _greenBustRange ? _sampleBustRange(_greenBustRange, _greenBimboBand) : '';
       if (_greenBimboBust) {
         var _greenPatch = { bust: _greenBimboBust };
         if (_greenBimboOverlay.hips_override) _greenPatch.hips = _greenBimboOverlay.hips_override;
@@ -15683,7 +15736,9 @@ function buildTransformationGuidance(pillDescriptor, cardBody, cardSex, rs, stat
   var sampledModEntry = modifier ? ((colorEntry.modifiers || {})[modifier] || null) : null;
   var sampledHeight = sampledModEntry && sampledModEntry.height ? _sampleHeightRange(sampledModEntry.height) : '';
   var sampledWeight = sampledModEntry && sampledModEntry.weight ? _sampleWeightRange(sampledModEntry.weight) : '';
-  var sampledBust = sampledModEntry && sampledModEntry.bust ? _sampleBustRange(sampledModEntry.bust) : '';
+  var sampledBand = sampledModEntry && sampledModEntry.band ? _sampleBandRange(sampledModEntry.band) : 0;
+  if (sampledBand && state) state.resolved_body = Object.assign({}, state.resolved_body || {}, { band: sampledBand });
+  var sampledBust = sampledModEntry && sampledModEntry.bust ? _sampleBustRange(sampledModEntry.bust, sampledBand) : '';
   var sampledBuild = modifier || (sampledModEntry && sampledModEntry.build ? sampledModEntry.build.split(',')[0].trim() : '');
 
   // v7.13.50 — the ROLLED BODY'S OWN DESCRIPTION, not just its name.
@@ -15784,7 +15839,8 @@ function buildTransformationGuidance(pillDescriptor, cardBody, cardSex, rs, stat
     var bimboBustMap = bimboOverlay.bust_override || {};
     // Support legacy flat string or new per-modifier map
     var bimboBustRange = (typeof bimboBustMap === 'string') ? bimboBustMap : (bimboBustMap[modifier] || bimboBustMap._default || '');
-    const bimboBust = bimboBustRange ? _sampleBustRange(bimboBustRange) : '';
+    const bimboBand = _bodyBand(colorEntry, modifier, state);
+    const bimboBust = bimboBustRange ? _sampleBustRange(bimboBustRange, bimboBand) : '';
     if (bimboBust && state) {
       var bimboBodyPatch = { bust: bimboBust };
       if (bimboOverlay.hips_override) bimboBodyPatch.hips = bimboOverlay.hips_override;
@@ -15804,7 +15860,8 @@ function buildTransformationGuidance(pillDescriptor, cardBody, cardSex, rs, stat
     var surrStage = _surrogateBustStage(state);
     var surrStageMap = (surrOverlay.bust_override || {})[surrStage] || {};
     var surrBustRange = (typeof surrStageMap === 'string') ? surrStageMap : (surrStageMap[modifier] || surrStageMap._default || '');
-    const surrBust = surrBustRange ? _sampleBustRange(surrBustRange) : '';
+    const surrBand = _bodyBand(colorEntry, modifier, state);
+    const surrBust = surrBustRange ? _sampleBustRange(surrBustRange, surrBand) : '';
     if (surrBust && state) {
       var surrBodyPatch = { bust: surrBust };
       if (surrOverlay.hips_override) surrBodyPatch.hips = surrOverlay.hips_override;

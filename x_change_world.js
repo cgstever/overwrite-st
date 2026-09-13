@@ -5,7 +5,7 @@
 const LORE_DATA = 
 {
   "name": "X-Change World (Full Mechanics)",
-  "version": "7.13.55",
+  "version": "7.13.56",
   "versionUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/version.json",
   "sourceUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/x_change_world.js",
   "schema_version": 1,
@@ -12926,7 +12926,9 @@ function scanCardBody(systemText, rs) {
     body.bust = bustLabel[1].trim();
     console.log('[CARD] Bust label found: ' + body.bust);
   } else {
-    var bustProse = text.match(/\b([A-H]{1,2})-?cup\b/i);
+    // band+cup first ("32D", "30A-to-B"), then the legacy bare letter
+    var bustProse = text.match(/\b\d{2}\s*(?:DD|[A-HJK])(?:[- ]to[- ]?(?:DD|[A-HJK]))?\b/i)
+                 || text.match(/\b([A-H]{1,2})-?cup\b/i);
     if (bustProse) {
       body.bust = bustProse[0].trim();
       console.log('[CARD] Bust scanned from prose: ' + body.bust);
@@ -15146,10 +15148,25 @@ function _bumpBust(bustStr, cups) {
 // real cup size. Gated on the literal "cup" token so prose like "flat" can't be
 // misread as F-cup. For a declared range (e.g. "D-DD cup") the first letter (low
 // end) is the floor — the minimum the card guarantees.
+// v7.13.56 — cards now carry a real bra size ("32D"), not a bare letter ("D-cup"), because a
+// cup letter is the gap between band and bust and is not a size on its own. This used to
+// require the literal word "cup", so after the card rewrite it returned -1 for every card and
+// the floor that stops a female body shrinking below its declared chest silently stopped
+// working. Both forms are accepted; the older one still appears in blue and legacy content.
 function _cardBustFloorIdx(bustStr) {
-  if (!bustStr || !/cup/i.test(String(bustStr))) return -1;
-  var m = String(bustStr).match(/(DD|[A-HJK])/i);
+  if (!bustStr) return -1;
+  var str = String(bustStr);
+  // The legacy branch used to match ANY letter, so "Bust: C-cup" read the B in "Bust".
+  // Both branches now anchor on the size itself.
+  var m = str.match(/\b\d{2}\s*(DD|[A-HJK])\b/i) || str.match(/\b(DD|[A-HJK])[- ]?cups?\b/i);
   return m ? _BUST_LADDER.indexOf(m[1].toUpperCase()) : -1;
+}
+
+// The band off a card's declared size, so a card's chest can be ranked by volume against a
+// rolled one. Returns 0 when the card states only a letter.
+function _cardBustBand(bustStr) {
+  var m = bustStr ? String(bustStr).match(/\b(\d{2})\s*(?:DD|[A-HJK])\b/i) : null;
+  return m ? parseInt(m[1], 10) : 0;
 }
 
 // ── v7.13.16: origin→target DELTA ────────────────────────────────────────────

@@ -5,7 +5,7 @@
 const LORE_DATA = 
 {
   "name": "X-Change World (Full Mechanics)",
-  "version": "7.13.43",
+  "version": "7.13.44",
   "versionUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/version.json",
   "sourceUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/x_change_world.js",
   "schema_version": 1,
@@ -16560,14 +16560,26 @@ function evaluateFragments(state, events, cardSex, rs) {
   // each token by its source layer (portrait / arousal / effect) disambiguates.
   // NEG and BIM are special whole-block tokens — kept without a layer prefix.
   const LAYER_PREFIX = { 0: 'portrait_', 1: 'arousal_', 2: 'effect_', 3: 'identity_' };
-  const tokens = kept.map(function(p) {
+  // v7.13.44 — one line per layer. Cody 2026-09-12: "the hard part is making sure the
+  // output is readable." Twenty-four tokens on a single unbroken line is a wall for the
+  // model to parse and for anyone to read in the debug panel. Grouped by layer, each line
+  // is one coherent read of the character across her six stats, and the layer order tells
+  // the model what it is looking at: who she is, how aroused, what the effect is doing,
+  // where her identity sits. Same tokens, same count, four newlines.
+  const _byLayer = new Map();
+  for (const p of kept) {
     const statKey = p[0];
     const pri = p[1];
-    const phrase = p[2];
     const prefix = (statKey === 'NEG' || statKey === 'BIM') ? '' : (LAYER_PREFIX[pri] || '');
-    return prefix + statKey + '=' + _condense(phrase);
-  });
-  return [tokens.join(' ')];
+    const token = prefix + statKey + '=' + _condense(p[2]);
+    if (!_byLayer.has(pri)) _byLayer.set(pri, []);
+    _byLayer.get(pri).push(token);
+  }
+  const _lines = [];
+  for (const pri of [...(_byLayer.keys())].sort(function (a, b) { return a - b; })) {
+    _lines.push(_byLayer.get(pri).join(' '));
+  }
+  return _lines;
 }
 
 function getIdentityText(state) {
@@ -16590,11 +16602,14 @@ function getIdentityText(state) {
     const rawVal = parseInt(statsDict[stat] || 10, 10);
     const val = Math.max(0, Math.min(20, rawVal));
 
-    // Layer 1: Pill identity
-    const pillPhrase = _pick(
-      ((((_PILL_IDENTITY_EXPANDED[pill] || {})[origin] || {})[stat] || {})[band] || {})[val] || ''
-    );
-    if (pillPhrase) candidates.push([stat, 0, pillPhrase]);
+    // v7.13.44 — the pill-identity layer is GONE from here. It reads the same
+    // _PILL_IDENTITY_EXPANDED table as the continuous identity layer in
+    // evaluateFragments, so once 7.13.43 made that expander work, both fired on a shift
+    // turn and the block carried the same read twice under two names:
+    //   identity_CON=gentle_frame_wearing   pill_CON=gentle_frame_wearing
+    //   identity_INT=ordinary_womans_mind   pill_INT=ordinary_womans_mind
+    // The standing read belongs to the continuous layer, which ships every turn. What is
+    // left here is the effect-identity and body layers, which say something else.
 
     // Layer 2: Effect identity (per active effect)
     // Priority split: bimbo always owns INT/CHA when stacked (same as evaluateFragments)
@@ -17121,9 +17136,13 @@ function buildHeader(name, cardSex, state, notes, events, rs, persona, personaSt
     }
   }
   var mascLines = getIdentityText(state);
-  if (mascLines.length && flavorBlocks.length > 3) {
-    flavorBlocks = flavorBlocks.slice(0, 3);
-  }
+  // v7.13.44 — this cap is retired. It was written when evaluateFragments returned ONE
+  // joined string and `flavorBlocks.length > 3` could only mean several separate flavour
+  // notes. It now returns one line PER LAYER, so slicing to three silently deleted the
+  // whole identity layer the moment masculinity lines were present. The fragment budget is
+  // enforced inside evaluateFragments (MAX_FRAGS with per-layer quotas), which is where it
+  // belongs.
+
   delete state._masc_shifted_this_turn;
   var _resistBeats = _buildResistanceBeats(state);
 
@@ -17144,7 +17163,7 @@ function buildHeader(name, cardSex, state, notes, events, rs, persona, personaSt
 
   var stateLines = [];
   var stateContent = [];
-  if (flavorBlocks.length) stateContent.push(_stripEffectNames(flavorBlocks.join(' ')));
+  if (flavorBlocks.length) stateContent.push(_stripEffectNames(flavorBlocks.join('\n')));
   if (mascLines.length) stateContent.push(_stripEffectNames(mascLines.join(' ')));
   // One-turn cue after surrogate revert — signal that body carries lasting traces from prior breeding.
   // Model produces its own prose in character voice; this is an awareness prompt, not a script.

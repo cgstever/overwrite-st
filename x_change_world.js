@@ -5,7 +5,7 @@
 const LORE_DATA = 
 {
   "name": "X-Change World (Full Mechanics)",
-  "version": "7.13.49",
+  "version": "7.13.50",
   "versionUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/version.json",
   "sourceUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/x_change_world.js",
   "schema_version": 1,
@@ -15606,6 +15606,28 @@ function buildTransformationGuidance(pillDescriptor, cardBody, cardSex, rs, stat
   var sampledBust = sampledModEntry && sampledModEntry.bust ? _sampleBustRange(sampledModEntry.bust) : '';
   var sampledBuild = modifier || (sampledModEntry && sampledModEntry.build ? sampledModEntry.build.split(',')[0].trim() : '');
 
+  // v7.13.50 — the ROLLED BODY'S OWN DESCRIPTION, not just its name.
+  //
+  // Cody 2026-09-12: "a tx from a 6'2" male to a 5'2" female with c tits and a petite frame
+  // is diff than the same person ending in a slim or curvy or athletic frame."
+  //
+  // He was right and it was one word. sampledModEntry already holds the authored descriptors
+  // for the rolled build — petite is "delicate slim frame, narrow shoulders / narrow to
+  // moderate, feminine curve / Small everywhere. Nothing oversized." — and the engine used
+  // it for the height/weight/bust ROLL and then threw the prose away, keeping only
+  // build.split(',')[0]. Measured: five different builds produced the same frame guide with
+  // one adjective swapped. "Ends: petite frame, mass redistributed feminine." vs
+  // "Ends: curvy frame, mass redistributed feminine." A 4'11" petite C cup and a 5'7" curvy
+  // D cup were being described to the model identically.
+  var _bodyDesc = '';
+  if (sampledModEntry) {
+    var _bdParts = [];
+    if (sampledModEntry.build) _bdParts.push(sampledModEntry.build);
+    if (sampledModEntry.hips)  _bdParts.push('hips ' + sampledModEntry.hips);
+    if (sampledModEntry.note)  _bdParts.push(sampledModEntry.note);
+    _bodyDesc = _bdParts.join('; ');
+  }
+
   // ── Card bust floor: a female TX never shrinks tits below the card's declared cup ──
   // If the card declares a Bust: cup size, the body type it transforms into can never
   // resolve to a SMALLER bust. When the body type would have shrunk below the card's
@@ -15841,7 +15863,7 @@ function buildTransformationGuidance(pillDescriptor, cardBody, cardSex, rs, stat
       + '(1) the shoulders lose their width first, the top of the body drawing in narrow, '
       + '(2) then the weight moves — settling down and out into hips, backside, thighs until the stance has to widen to hold it, '
       + '(3) the waist pulls in above it, '
-      + '(4) final: ' + (sampledBuild || 'feminine') + ' frame, mass redistributed feminine. '
+      + '(4) final: ' + (sampledBuild || 'feminine') + ' frame — ' + (_bodyDesc || 'mass redistributed feminine') + '. '
       + 'Felt: the balance tipping lower, the floor and the clothes both fitting differently than a minute ago.';
     // v7.13.18 — scale the chest telling to the CUP, not just name it.
     var _bIdx = _cardBustFloorIdx(_bustForGuide);   // A=0 B=1 C=2 D=3 DD=4 E=5 F=6 G=7 H=8 J=9 K=10
@@ -15887,7 +15909,7 @@ function buildTransformationGuidance(pillDescriptor, cardBody, cardSex, rs, stat
       + ((_ctFlush && _ctFlush !== _ctSkin) ? ('. And the flush comes the way it always does: ' + _ctFlush) : (_ctFlush ? ' — and it still flushes exactly the way it always has' : ''))
       + '. Felt: warm all over, everything silkier under the hands and the clothes.';
     _axisEnds = {
-      frame: (sampledBuild || 'feminine') + ' frame, mass redistributed feminine',
+      frame: (sampledBuild || 'feminine') + ' frame — ' + (_bodyDesc || 'mass redistributed feminine'),
       chest: (_bustForGuide || 'a feminine bust') + ', ' + _bEnd,
       face:  'the same recognizable features in feminized proportions',
       hair:  'feminized scalp hair, body hair receded',

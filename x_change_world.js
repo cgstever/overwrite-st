@@ -5,7 +5,7 @@
 const LORE_DATA = 
 {
   "name": "X-Change World (Full Mechanics)",
-  "version": "7.13.46",
+  "version": "7.13.48",
   "versionUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/version.json",
   "sourceUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/x_change_world.js",
   "schema_version": 1,
@@ -17398,8 +17398,12 @@ function buildHeader(name, cardSex, state, notes, events, rs, persona, personaSt
     // (present only on a time-skip turn, auto-cleared by scene_jump_clear) injects the
     // <scene-jump> directive at the after-last-user generation point.
     if (_isTxTurn && txLines.length) {
-      state._priority_directive_this_turn = txLines.join('\n');
-      _txLinesGoToDirective = true;  // kept for reference; the header copy is deliberate (see v7.13.46)
+      // v7.13.47 — the TX block rides the USER message now (see the placement measurements
+      // above). _priority_directive_this_turn stays for scene-jump and antidote, which are
+      // different content and are fine where they are.
+      state._tx_user_block = txLines.join('\n');
+      state._priority_directive_this_turn = null;
+      _txLinesGoToDirective = true;
       // v7.13.2 — a time-skip can co-occur with a pill intake in the same user message. The TX
       // block wins the slot, but DON'T silently drop the scene-jump — append it so the model still
       // cuts to the new scene/time instead of narrating the transformation in the old scene.
@@ -17417,11 +17421,11 @@ function buildHeader(name, cardSex, state, notes, events, rs, persona, personaSt
     // v7.11.0 — append the <outfit> line when the auto-pick repopulated outfit slots
     // on this turn (scene-jump or antidote). Tells the model what she's wearing in the
     // new scene so the prose doesn't reinvent clothes that don't match the new body.
-    if (state._priority_directive_this_turn && state._outfit_slots
+    if (state._tx_user_block && state._outfit_slots
         && (state._scene_jump_this_turn || state._antidote_revert_this_turn)) {
       var _ofline = (typeof _buildOutfitDirectiveLine === 'function')
                   ? _buildOutfitDirectiveLine(state) : '';
-      if (_ofline) state._priority_directive_this_turn += '\n' + _ofline;
+      if (_ofline) state._tx_user_block += '\n' + _ofline;
     }
     // v7.12.1 — voice-lock. On a TX / antidote transformation, the big body-directive at the
     // after-last-user slot (the last thing before generation) out-shouts the <voice> anchor
@@ -17429,10 +17433,10 @@ function buildHeader(name, cardSex, state, notes, events, rs, persona, personaSt
     // (it parrots the guide's own clinical language). Re-assert the voice at the END of the
     // directive — the strongest position — so the BODY changes but the person narrating does not.
     // Validated A/B on the real Paul TX prompt: 2/6 → 6/6 in-voice. Reinforce-only.
-    if (state._priority_directive_this_turn && state._voice_anchor
+    if (state._tx_user_block && state._voice_anchor
         && (_isTxTurn || state._antidote_revert_this_turn)) {
       var _vName = state._card_name || 'this character';
-      state._priority_directive_this_turn += '\n\n<voice-lock>\n'
+      state._tx_user_block += '\n\n<voice-lock>\n'
         + String(state._voice_anchor).trim() + '\n\n'
         + 'ALL of the transformation above is the BODY changing. Narrate every beat of it in '
         + _vName + "'s exact voice and personality — first person, same attitude, slang, and humor "
@@ -17476,24 +17480,26 @@ function buildHeader(name, cardSex, state, notes, events, rs, persona, personaSt
   if (sceneLines.length) sections.push(sceneLines.join('\n'));
   if (voiceLines.length) sections.push(voiceLines.join('\n'));
   if (stateLines.length) sections.push(stateLines.join('\n'));
-  // v7.13.46 — the transformation block goes in BOTH places on purpose. MEASURED, do not
-  // "fix" this again.
+  // v7.13.48 — the block is sent ONCE, on the user message. CORRECTION of what 7.13.46 and
+  // 7.13.47 claimed.
   //
-  // 7.13.29 removed this copy because the block also ships as priorityDirective and sending
-  // it twice looked like waste — 8,962 chars, a third of the turn. It was not waste. Cody
-  // 2026-09-12 asked how the prose compared; three samples a side on the same Cilla pill
-  // turn, same model, same settings:
-  //   block twice (as it was)      21,360 chars -> 211 words, 6.7 of 8 body axes rendered
-  //   block once, directive only   18,291 chars ->  97 words, 4.7 of 8
-  //   block twice, current engine  27,081 chars -> 340 words, 7.0 of 8
-  // Removing the second copy cost more than half the length and two axes. The model needs
-  // the guidance as CONTEXT while it writes as well as an instruction at the end; one copy
-  // at the tail gets acknowledged and then thinned out. Restoring it beats the original,
-  // because everything else around it is cleaner now.
+  // Those two versions carried placement numbers that are WRONG. They came from a harness
+  // that hand-assembled the payload instead of running the extension's buildScenePage, so
+  // the messages were not what SillyTavern sends. Cody 2026-09-12: "you should be sending a
+  // prompt that st would send." Re-measured through the real assembler, same Cilla pill
+  // turn, grok-4.3, 5 samples each:
+  //   7.13.26, block in BOTH places   21,360 chars -> 249 words, 6.8 of 8 axes
+  //   block once, on the user message 18,753 chars -> 277 words, 6.4 of 8
+  //   block once, trailing system msg 18,753 chars -> 283 words, 7.2 of 8
+  // Spreads are 151-398 words. All three are the same within noise. Placement does not
+  // matter much, and neither does duplication — the earlier "97 words vs 340 words" result
+  // was an artifact of the broken harness, not a property of the engine.
   //
-  // The extension no longer strips it either — the 2.1.2 de-dupe went out with 2.2.0, which
-  // is what let this copy reach the model again.
-  if (txLines.length) sections.push(txLines.join('\n'));
+  // The block stays on the user message because that sends it once and keeps the payload
+  // ~2,600 chars smaller than 7.13.26 at equal quality. No claim that it writes better.
+  // Detail is NOT solved: 6-7 of 8 axes and ~250-280 words against an ask of 700-900 tokens,
+  // the same as it has always been. Whatever fixes that is not in this file's placement.
+  // (txLines deliberately NOT pushed here — see the note above)
 
   // v7.13.28 — record what this turn's injection was made of, so the debug panel can
   // show it without anyone reading a 7.5 MB file on an iPad. Sizes only; the text is
@@ -20413,6 +20419,15 @@ function _buildInjectArray(header, state, rs) {
   if (requiredBlock) {
     arr.push({
       text: requiredBlock,
+      position: 'after_last_user',
+    });
+  }
+
+  // v7.13.47 — the transformation block, last thing before the model writes. Measured as
+  // the strongest placement by a wide margin; see the note in buildHeader.
+  if (state && state._tx_user_block) {
+    arr.push({
+      text: state._tx_user_block,
       position: 'after_last_user',
     });
   }

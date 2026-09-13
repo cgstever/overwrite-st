@@ -5,7 +5,7 @@
 const LORE_DATA = 
 {
   "name": "X-Change World (Full Mechanics)",
-  "version": "7.13.41",
+  "version": "7.13.42",
   "versionUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/version.json",
   "sourceUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/x_change_world.js",
   "schema_version": 1,
@@ -16326,13 +16326,44 @@ function evaluateFragments(state, events, cardSex, rs) {
 
       const minFlavArousal = effectiveMinArousal(((rs.effect_mechanics || {})[eff] || {}).min_flavor_arousal || 0, state);
       if (arousal < minFlavArousal) continue;
+
+      // v7.13.42 — RESISTANCE DEPTH SHIFTS THE EFFECT LAYER.
+      //
+      // Cody 2026-09-12: "the resistance tables are how deep the effects are on the char,
+      // they effect things other than arousal and masculinity" / "that was the goal, so
+      // different sessions even on the same char can be very different."
+      //
+      // Until now the effect fragments keyed off arousal tier, stat value and (for bimbo)
+      // stage, and never looked at resistance at all. Two sessions with the same character
+      // at the same arousal produced the same lines whether the effect had just landed or
+      // had been eroding her for fifty turns. Resistance was a closed loop: it made itself
+      // harder to resist and described the fight, and reached nothing else.
+      //
+      // The shift moves ONLY this effect's lookup, and only for THIS effect — each carries
+      // its own resistance. The generic arousal layer still reads her true arousal, so the
+      // body stays honest; what moves is how far along the EFFECT reads at that arousal.
+      // Untouched shifts nothing; Rewritten shifts five tiers, 25 arousal points of table.
+      // No new prose: this reaches further into the tables already authored.
+      var _depthResist = (state.effect_resistance || {})[eff];
+      if (eff === 'breeder' && typeof _breederEffectiveResistance === 'function') {
+        _depthResist = _breederEffectiveResistance(state);
+      }
+      var _depthShift = 0;
+      if (_depthResist != null) {
+        _depthShift = Math.floor((10 - _effectResistanceBand(_depthResist)) / 2);
+        if (_depthShift < 0) _depthShift = 0;
+        if (_depthShift > 5) _depthShift = 5;
+      }
+      const effTier = Math.min(19, tier + _depthShift);
+      const effTierGroup = _TIER_BAND_GROUP[effTier] || tierGroup;
+
       let effPhrase;
       if (eff === 'bimbo' && origin === 'female') {
         // Staged bimbo female: lazy lookup from compact table through stage key
         const bStage = String(Math.max(1, parseInt((state.effect_stages || {}).bimbo || (state._effect_stages || {}).bimbo || (state.flavor || {}).bimbo && (state.flavor.bimbo.stage) || 1, 10)));
         const vg = _STAT_VAL_GROUP[val] || 'avg';
         effPhrase = _pick(
-          ((((((_EFFECT_AROUSAL_COMPACT['bimbo'] || {})['female'] || {})[stat] || {})[bStage] || {})[tierGroup] || {})[vg] || '')
+          ((((((_EFFECT_AROUSAL_COMPACT['bimbo'] || {})['female'] || {})[stat] || {})[bStage] || {})[effTierGroup] || {})[vg] || '')
         );
       } else {
         // Breeder-family + surrogate tables are keyed 'female'; submissive is keyed 'universal'
@@ -16343,7 +16374,7 @@ function evaluateFragments(state, events, cardSex, rs) {
         // Surrogate pre-conception uses breeder tables; post-conception uses its own
         const _effKey = (eff === 'surrogate' && !(state._surrogate_pregnant || state.surrogate_conceived)) ? 'breeder' : eff;
         effPhrase = _pick(
-          (((((_EFFECT_AROUSAL_EXPANDED[_effKey] || {})[_effOrigin] || {})[stat] || {})[tier] || {})[val] || '')
+          (((((_EFFECT_AROUSAL_EXPANDED[_effKey] || {})[_effOrigin] || {})[stat] || {})[effTier] || {})[val] || '')
         );
       }
       if (effPhrase) candidates.push([stat, 2, effPhrase]);
@@ -16352,7 +16383,7 @@ function evaluateFragments(state, events, cardSex, rs) {
     // confirmed_submissive uses submissive fragment tables (keyed 'universal') without polluting active_effects
     if ((state.active_side_effects || []).includes('confirmed_submissive') && !effects.includes('submissive')) {
       const csPhrase = _pick(
-        (((((_EFFECT_AROUSAL_EXPANDED['submissive'] || {})['universal'] || {})[stat] || {})[tier] || {})[val] || '')
+        (((((_EFFECT_AROUSAL_EXPANDED['submissive'] || {})['universal'] || {})[stat] || {})[effTier] || {})[val] || '')
       );
       if (csPhrase) candidates.push([stat, 2, csPhrase]);
     }
@@ -16413,7 +16444,32 @@ function evaluateFragments(state, events, cardSex, rs) {
   const kept = [];
   if (negBlock) kept.push(['NEG', -1, negBlock]);
 
-  for (const [stat, pri, phrase] of interleaved) {
+  // v7.13.42 — PER-LAYER QUOTA. The interleave above walks depth-first: every stat's
+  // portrait phrase, then every stat's arousal phrase, then every stat's EFFECT phrase.
+  // With six stats that is twelve entries before the effect layer is reached, and
+  // MAX_FRAGS is twelve — so the effect tables almost never shipped. Measured on a live
+  // state: effect fragments appeared only at arousal 85, and only because a stat happened
+  // to have no portrait phrase that turn and freed a slot.
+  //
+  // That is the "all the prose tables made are not being used" problem at its source, and
+  // it is also what stops resistance depth from mattering: the layer it feeds was being
+  // truncated away. Each layer now has a floor, and any layer that under-fills hands its
+  // slack to the others, so the total stays at MAX_FRAGS.
+  const _quotaOrdered = [];
+  const _LAYER_QUOTA = { 0: 5, 1: 4, 2: 3 };
+  const _layerUsed = { 0: 0, 1: 0, 2: 0 };
+  const _overflow = [];
+
+  for (const entry of interleaved) {
+    const pri = entry[1];
+    const quota = _LAYER_QUOTA[pri];
+    if (quota != null && _layerUsed[pri] >= quota) { _overflow.push(entry); continue; }
+    if (quota != null) _layerUsed[pri]++;
+    _quotaOrdered.push(entry);
+  }
+  for (const entry of _overflow) _quotaOrdered.push(entry);
+
+  for (const [stat, pri, phrase] of _quotaOrdered) {
     if (kept.length >= MAX_FRAGS) break;
     // Skip if seen recently
     if (seenSet.has(phrase)) continue;

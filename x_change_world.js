@@ -5,7 +5,7 @@
 const LORE_DATA = 
 {
   "name": "X-Change World (Full Mechanics)",
-  "version": "7.13.42",
+  "version": "7.13.43",
   "versionUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/version.json",
   "sourceUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/x_change_world.js",
   "schema_version": 1,
@@ -9196,7 +9196,24 @@ function _getTransformBodyPhrases(pill, bodyPath, origin, stats, band) {
 // Expand tables at module load
 const _NEGATIVE_BLOCKS = _expandNegativeBlocks(_NEGATIVE_BLOCKS_COMPACT);
 const _GENERIC_AROUSAL_EXPANDED = _expandArousalTable(_GENERIC_AROUSAL_COMPACT);
-const _PILL_IDENTITY_EXPANDED = _expandIdentityTable(_PILL_IDENTITY_COMPACT);
+// v7.13.43 — _expandIdentityTable takes {origin:{stat:{band:{val_group:phrase}}}}, FOUR
+// levels. Both identity tables are FIVE: the pill / effect name sits on top. Feeding them
+// straight in made the expander read pill as origin, origin as stat, stat as band and the
+// band dict as val_groups, so every single expanded entry came out as ''. The lookups
+// (_PILL_IDENTITY_EXPANDED[pill][origin][stat][band][val]) have therefore returned nothing
+// since the tables were written — 17,820 authored pill phrases, none of which ever reached
+// a prompt. Expand per top-level key instead.
+function _expandKeyedIdentityTable(compact) {
+  const out = {};
+  for (const key of Object.keys(compact || {})) out[key] = _expandIdentityTable(compact[key]);
+  return out;
+}
+const _PILL_IDENTITY_EXPANDED = _expandKeyedIdentityTable(_PILL_IDENTITY_COMPACT);
+// ⚠ NOT fixed here, separate bug: _EFFECT_IDENTITY_COMPACT's fourth level is the effect
+// STAGE (0-4), but the lookup at getIdentityText passes the masculinity BAND (0-10). Even
+// correctly expanded it would be reading the wrong dimension, and bands 5-10 do not exist
+// in it. Left as-is pending Cody's call on which key that layer should use. (bimbo is
+// unaffected — it reads _EFFECT_IDENTITY_COMPACT directly, at the right depth.)
 const _EFFECT_IDENTITY_EXPANDED = _expandIdentityTable(_EFFECT_IDENTITY_COMPACT);
 const _EFFECT_AROUSAL_EXPANDED = _expandEffectArousalTable(_EFFECT_AROUSAL_COMPACT);
 const _TRANSFORM_AROUSAL_EXPANDED = _expandTransformArousalTable(_TRANSFORM_AROUSAL_COMPACT);
@@ -16278,7 +16295,13 @@ function buildContext(state, events, cardSex, rs) {
 }
 
 function evaluateFragments(state, events, cardSex, rs) {
-  const MAX_FRAGS = 12;
+  // v7.13.43 — 12 -> 24. The cap was set when the <state> block rode along in chat history
+  // and every turn's copy stacked up. Under Scene Page the extension rebuilds the payload
+  // each turn and the block exists exactly once in it (verified against a live capture:
+  // 3 messages, one <state>). Nothing accumulates, so the budget that shaped this number
+  // is gone. Four layers x six stats = 24, which is the combined block Cody wanted
+  // originally: portrait, arousal, effect and masculinity all reading at once.
+  const MAX_FRAGS = 24;
 
   const origin = state._sex_origin || 'male';
   const pill = state.active_pill;
@@ -16388,6 +16411,29 @@ function evaluateFragments(state, events, cardSex, rs) {
       if (csPhrase) candidates.push([stat, 2, csPhrase]);
     }
 
+    // v7.13.43 — LAYER 3: MASCULINITY, every turn.
+    //
+    // Cody 2026-09-12: "my original goal was to have one state block that was a combo of
+    // the tables, but early it was set aside because it was token heavy in history. Now
+    // that is not an issue... we control all of the prompt."
+    //
+    // The identity tables are the largest authored set in the engine — 3 pills x 3 origins
+    // x 6 stats x 11 masculinity bands, 17,820 phrases — and they only reached the model on
+    // a turn where masculinity actually SHIFTED (getIdentityText returns [] otherwise). Most
+    // turns the lever contributed one word in the <state> tag and nothing else. The phrases
+    // read as state, not as change ("submissive but clinging to male authority", "pliant
+    // female nature is the only nature"), so they are correct to ship continuously.
+    // getIdentityText still fires on shift turns — it says something different, that the
+    // ground moved — this is the standing read underneath it.
+    if (pill) {
+      const _mascVal = parseInt(state.masculinity != null ? state.masculinity : 50, 10);
+      const _mascBand = _masculinityBand(_mascVal);
+      const mascPhrase = _pick(
+        ((((_PILL_IDENTITY_EXPANDED[pill] || {})[origin] || {})[stat] || {})[_mascBand] || {})[val] || ''
+      );
+      if (mascPhrase) candidates.push([stat, 3, mascPhrase]);
+    }
+
 
   }
 
@@ -16456,8 +16502,8 @@ function evaluateFragments(state, events, cardSex, rs) {
   // truncated away. Each layer now has a floor, and any layer that under-fills hands its
   // slack to the others, so the total stays at MAX_FRAGS.
   const _quotaOrdered = [];
-  const _LAYER_QUOTA = { 0: 5, 1: 4, 2: 3 };
-  const _layerUsed = { 0: 0, 1: 0, 2: 0 };
+  const _LAYER_QUOTA = { 0: 6, 1: 6, 2: 6, 3: 6 };
+  const _layerUsed = { 0: 0, 1: 0, 2: 0, 3: 0 };
   const _overflow = [];
 
   for (const entry of interleaved) {
@@ -16476,6 +16522,13 @@ function evaluateFragments(state, events, cardSex, rs) {
     const pw = _words(phrase);
     let tooSimilar = false;
     for (const ent of kept) {
+      // v7.13.43 — compare WITHIN a layer only. The four layers are four deliberate reads
+      // of the same stat -- baseline, arousal, the effect working on them, and where their
+      // identity sits -- so they SHOULD share vocabulary. Judging them against each other
+      // deleted the entire identity layer: phrases about femininity scored past 0.35
+      // against arousal phrases about yielding and were dropped as duplicates. The guard
+      // still catches real repetition inside a layer.
+      if (ent[1] !== pri) continue;
       const kw = _words(ent[2]);
       const union = new Set([...pw, ...kw]);
       if (union.size > 0) {
@@ -16506,7 +16559,7 @@ function evaluateFragments(state, events, cardSex, rs) {
   // contradictory — causing role mis-casting on low-context turns. Labeling
   // each token by its source layer (portrait / arousal / effect) disambiguates.
   // NEG and BIM are special whole-block tokens — kept without a layer prefix.
-  const LAYER_PREFIX = { 0: 'portrait_', 1: 'arousal_', 2: 'effect_' };
+  const LAYER_PREFIX = { 0: 'portrait_', 1: 'arousal_', 2: 'effect_', 3: 'identity_' };
   const tokens = kept.map(function(p) {
     const statKey = p[0];
     const pri = p[1];

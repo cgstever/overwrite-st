@@ -5,7 +5,7 @@
 const LORE_DATA = 
 {
   "name": "X-Change World (Full Mechanics)",
-  "version": "7.13.59",
+  "version": "7.14.0",
   "versionUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/version.json",
   "sourceUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/x_change_world.js",
   "schema_version": 1,
@@ -16825,8 +16825,23 @@ function buildTransformationGuidance(pillDescriptor, cardBody, cardSex, rs, stat
   var _LEN_BY_SCALE = { DRASTIC: '850-1050', MODERATE: '700-900', SUBTLE: '450-600' };
   var _lenLine = 'Length: ' + (_LEN_BY_SCALE[_txDeltaMeta.scale] || '700-900')
     + ' tokens — spend it on depth in the full-stage axes, not on adding more axes. ';
+  // v7.14.0 — name the axes ACTUALLY emitted this turn. This used to list the stage-list guide
+  // names (chest, frame) whether or not those guides fired, so after the tables took over it
+  // was telling the model to go deep on tags that were no longer in the prompt.
   var _varietyLine = '';
-  if (_presentAxes.length) {
+  var _txbEmitted = [];
+  for (var _ve = 0; _ve < lines.length; _ve++) {
+    var _vm = String(lines[_ve]).match(/<tx-body axis="([a-z]+)"/);
+    if (_vm) _txbEmitted.push(_vm[1]);
+  }
+  if (_txbEmitted.length) {
+    // Go deep on the axes that travelled furthest — they are emitted in that order — and let
+    // the remainder land as single beats.
+    var _deep = _txbEmitted.slice(0, 3), _light = _txbEmitted.slice(3);
+    _varietyLine = 'THIS TELLING: give ' + _deep.join(', ')
+      + ' their full stages; ' + (_light.length ? _light.join(', ') + ' get' : 'the rest gets')
+      + ' one distinct felt beat each and no more. ' + _entryHint + ' ';
+  } else if (_presentAxes.length) {
     var _bgAxes = _presentAxes.filter(function (a) { return _focusAxes.indexOf(a) < 0; });
     if (_skinGuide) _bgAxes.push('skin');
     _varietyLine = 'THIS TELLING: render ' + _focusAxes.join(' and ')
@@ -16834,7 +16849,47 @@ function buildTransformationGuidance(pillDescriptor, cardBody, cardSex, rs, stat
       + ' through their full stages; ' + (_bgAxes.length ? _bgAxes.join(', ') + ' get' : 'the rest gets')
       + ' one distinct felt beat each and no more. ' + _entryHint + ' ';
   }
-  lines.push('<tx-direction>Continue the scene in the character\'s voice and pacing. The stage-list guides above (frame, chest, face, hair, voice, skin, genitals — only the ones present this turn apply) are REFERENCE ANATOMY, not a script: they define what becomes true, not how to write it or what order to write it in. Hard requirements: every present guide surfaces in the prose (minimum one distinct felt beat each, plus one beat for the reaction); the body ends EXACTLY as the target listed above; nothing contradicts a guide\'s end state; the genital change lands last or near-last; and the character SPEAKS ALOUD at least twice inside the transformation, in their own words — quoted dialogue, not narration about speaking. If the <voice-lock> names a speech tell, this turn is where it matters most. Where a <chest-color> or <genital-color> line is present it is what this specific character feels about that specific change — write the beat through it, in their words, do not quote it. ' + _varietyLine + _lenLine + 'Everything else is yours: pick your own order and let changes overlap and interleave instead of marching axis by axis; paraphrase the guides in the character\'s own words — never echo their wording; and do NOT open the way a previous telling of this transformation would (no default standing-at-the-mirror pose, no restating the pill going down — the intake-register already covers how intake happened). Narrate it the way THIS character would experience it — through their mannerisms, dialect, kinks, and natural turn-length; don\'t list body parts or produce a paragraph per area; weave the axes through the character\'s reaction, with the reaction-register and intake-register telling you HOW they relate to the change and to the act of intake. If a <rebirth> note is present this is a NEW body — render it forming whole and young, not the old one repaired, keeping only a faint passing resemblance to who they were; when <new-age>, <heal>, or a <limb-regrowth-guide> are present, render the youth, the healing, and any limb regrowth as part of that same transformation. Make each telling different.</tx-direction>');
+  // v7.14.0 — REWRITTEN. Two things were wrong with the old block.
+  //
+  // It named "the stage-list guides above (frame, chest, face, hair, voice, skin, genitals)"
+  // when several of those now stand down for <tx-body>, so it pointed at tags that were often
+  // absent. And it carried four clauses about rebirth, age, healing and limb regrowth on EVERY
+  // transformation, whether or not any of those tags were present.
+  //
+  // Measured 2026-09-13 against removing it entirely: the block is worth 2.6x on length (444
+  // words with, 170 without) and NOTHING on variety (31% word overlap with, 29% without). The
+  // fragment tables do the variety now. So the length demand and the hard requirements stay,
+  // and everything that was fighting sameness goes.
+  var _tdHas = function (tag) { return lines.some(function (l) { return l.indexOf('<' + tag) >= 0; }); };
+  var _td = [
+    'Continue the scene in the character\'s voice and pacing. Everything tagged above is '
+    + 'REFERENCE, not phrasing: it defines what becomes true, never how to write it or in what '
+    + 'order. Paraphrase it in the character\'s own words and never echo its wording.',
+    'Hard requirements: every tag present this turn surfaces in the prose, one distinct felt '
+    + 'beat each, plus a beat for the reaction; the body ends EXACTLY as <target> states; '
+    + 'nothing contradicts it; the genital change lands last or near-last; and the character '
+    + 'SPEAKS ALOUD at least twice inside the transformation, in quoted dialogue.'
+  ];
+  if (_tdHas('tx-body'))
+    _td.push('Each <tx-body> line is one axis: where the body started, where it lands, how far '
+      + 'it travels. Let them overlap and interleave rather than marching through them, and do '
+      + 'not give each its own paragraph.');
+  if (_tdHas('voice-lock'))
+    _td.push('The <voice-lock> names a speech tell; this turn is where it matters most.');
+  if (_tdHas('chest-color') || _tdHas('genital-color'))
+    _td.push('A colour line is what THIS character feels about that specific change. Write the '
+      + 'beat through it, in their words; do not quote it.');
+  if (_tdHas('rebirth'))
+    _td.push('<rebirth> means a NEW body: render it forming whole and young rather than the old '
+      + 'one repaired, keeping only a faint resemblance to who they were.');
+  if (_tdHas('new-age') || _tdHas('heal') || _tdHas('limb-regrowth-guide'))
+    _td.push('Render the youth, the healing and any limb regrowth as part of this same '
+      + 'transformation, not as separate events.');
+  _td.push(_varietyLine + _lenLine
+    + 'Narrate it as THIS character would live it, through their mannerisms, dialect and kinks, '
+    + 'with the reaction-register and intake-register telling you how they relate to the change '
+    + 'and to having taken it. Do not open on a mirror, and do not restate the pill going down.');
+  lines.push('<tx-direction>' + _td.join(' ') + '</tx-direction>');
 
   return _stripEffectNames(lines.join('\n'));
 }

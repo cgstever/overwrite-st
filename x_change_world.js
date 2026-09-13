@@ -5,7 +5,7 @@
 const LORE_DATA = 
 {
   "name": "X-Change World (Full Mechanics)",
-  "version": "7.13.48",
+  "version": "7.13.49",
   "versionUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/version.json",
   "sourceUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/x_change_world.js",
   "schema_version": 1,
@@ -16002,6 +16002,48 @@ function buildTransformationGuidance(pillDescriptor, cardBody, cardSex, rs, stat
   if (_hairGuide)  lines.push('  <hair-tx-guide>'  + _axisGuide('hair',  _hairGuide)  + '</hair-tx-guide>');
   if (_voiceGuide) lines.push('  <voice-tx-guide>' + _axisGuide('voice', _voiceGuide) + '</voice-tx-guide>');
   if (_skinGuide)  lines.push('  <skin-tx-guide>'  + _skinGuide  + '</skin-tx-guide>');
+
+  // v7.13.49 — TRANSFORMATION FELT-LINES, one per stat, from _TRANSFORM_AROUSAL_EXPANDED.
+  //
+  // Cody 2026-09-12: "i dont like reading the same fucking prompt every tx... a tx from a
+  // 6'2" male to a 5'2" female with c tits and a petite frame is diff than the same person
+  // ending in a slim or curvy or athletic frame... we dont need new tables we can just use
+  // parts from the existing tables based on the char stats masculinity arousal."
+  //
+  // He was right that the material already exists and isn't being used. This table holds
+  // 11,340 authored phrases keyed pill x origin x stat x arousal-tier x stat-value, built
+  // for exactly this job, and it has NEVER been read — `_TRANSFORM_AROUSAL_EXPANDED`
+  // appeared once in the whole file, on the line that builds it.
+  //
+  // Measured before this: across all 400 cards taking a pink pill, the genital guide had 1
+  // distinct version, the reaction and intake registers 1 each, voice 2, chest 7. The parts
+  // describing what is HAPPENING to her were the same for everyone. These lines key off the
+  // character's own six stats and her live arousal, so a CON 18 reads "iron frame noticing
+  // breast weight clearly" where a CON 6 reads "soft curves emerging slowly on frame".
+  try {
+    var _tfColor = (pillDescriptor && pillDescriptor.color) || state.active_pill || '';
+    var _tfOrigin = (state && state._sex_origin) || (cardSex || 'male');
+    var _tfArousal = parseInt((state && state.arousal) || 0, 10);
+    var _tfTier = Math.min(19, Math.floor(_tfArousal / 5));
+    var _tfStats = (state && state.stats) || {};
+    var _tfSeen = new Set((state && state._frag_seen) || []);
+    var _tfLines = [];
+    var _tfOrder = ['CON', 'DOM', 'INT', 'SUB', 'CHA', 'WIS'];
+    for (var _tfi = 0; _tfi < _tfOrder.length; _tfi++) {
+      var _tfStat = _tfOrder[_tfi];
+      var _tfVal = Math.max(0, Math.min(20, parseInt(_tfStats[_tfStat] || 10, 10)));
+      var _tfCell = ((((_TRANSFORM_AROUSAL_EXPANDED[_tfColor] || {})[_tfOrigin] || {})[_tfStat] || {})[_tfTier] || {})[_tfVal] || '';
+      var _tfPhrase = _pick(_tfCell);
+      if (!_tfPhrase || _tfSeen.has(_tfPhrase)) continue;
+      _tfSeen.add(_tfPhrase);
+      _tfLines.push(_tfStat + ': ' + _tfPhrase);
+    }
+    if (_tfLines.length) {
+      lines.push('  <tx-felt note="how THIS body, at THIS arousal, is taking it — one per stat. '
+        + 'Reference, not phrasing: these are what she notices, write them her way.">'
+        + _tfLines.join(' | ') + '</tx-felt>');
+    }
+  } catch (_tfErr) { /* never break a turn over flavour */ }
   // Genital-tx guide — preserved unchanged (already rich)
   if (!noChange) {
     var _genitalKey = pRule.genitals || '';

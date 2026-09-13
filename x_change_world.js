@@ -5,7 +5,7 @@
 const LORE_DATA = 
 {
   "name": "X-Change World (Full Mechanics)",
-  "version": "7.13.50",
+  "version": "7.13.51",
   "versionUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/version.json",
   "sourceUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/x_change_world.js",
   "schema_version": 1,
@@ -4340,43 +4340,62 @@ const LORE_DATA =
         "voluptuous": "Fullness everywhere — the body rounds out in every direction, soft and heavy and deeply curved. Weight settles on hips, thighs, chest, ass. Nothing is slight or sharp. The frame feels lush, gravity-heavy, warm."
       },
       "keyword_map": {
-        "note": "Maps card build keywords to modifier names for auto-resolution when no modifier is on the pill.",
-        "petite": [
-          "petite",
-          "small",
-          "tiny",
-          "delicate",
-          "little",
-          "slight"
+        "note": "Card Build: line -> starting mass rung. Settled 2026-09-13: the male start is a five-rung MASS ladder (BMI quintiles of the 292 male-origin cards) plus a separate muscular flag. Legacy card words are folded into the rung they actually mean. Order matters \u2014 resolveStartingBuild takes the first hit, so the five rungs come first and 'athletic' sits last as a composition-only fallback for cards whose Build line says nothing about mass.",
+        "thin": [
+          "thin",
+          "skinny",
+          "scrawny",
+          "bony",
+          "wiry",
+          "gaunt",
+          "waifish",
+          "slight",
+          "frail",
+          "rail"
         ],
         "slim": [
           "slim",
           "lean",
           "slender",
-          "thin",
           "narrow",
-          "willowy"
+          "willowy",
+          "petite",
+          "small",
+          "delicate",
+          "little",
+          "trim"
         ],
         "average": [
           "average",
           "medium",
           "normal",
           "moderate",
-          "typical"
+          "typical",
+          "ordinary",
+          "unremarkable"
         ],
-        "curvy": [
-          "curvy",
-          "full",
-          "hourglass",
-          "full-figured",
-          "shapely"
+        "solid": [
+          "solid",
+          "sturdy",
+          "broad",
+          "thickset",
+          "husky",
+          "heavyset",
+          "well-built",
+          "stout",
+          "dense"
         ],
-        "busty": [
-          "busty",
-          "chesty",
-          "large-chested",
-          "big-breasted",
-          "stacked"
+        "stocky": [
+          "stocky",
+          "burly",
+          "beefy",
+          "barrel",
+          "chunky",
+          "heavy",
+          "thick",
+          "plus-size",
+          "brawny",
+          "hefty"
         ],
         "athletic": [
           "athletic",
@@ -4384,22 +4403,38 @@ const LORE_DATA =
           "fit",
           "muscular",
           "strong",
-          "sporty"
+          "sporty",
+          "ripped",
+          "jacked",
+          "chiseled",
+          "built"
         ],
-        "voluptuous": [
+        "solid_f": [
+          "curvy",
+          "full-figured",
+          "shapely",
+          "hourglass"
+        ],
+        "average_f": [
+          "busty",
+          "chesty",
+          "large-chested",
+          "big-breasted",
+          "stacked"
+        ],
+        "stocky_f": [
           "voluptuous",
-          "thick",
-          "plus-size",
+          "plus size",
           "plush",
           "lush",
           "rubenesque"
         ]
       },
       "target_weights": {
-        "note": "Weighted random target selection based on starting body. Keys are starting build categories, values are {target: weight} maps. Higher weight = more likely. Starting body is read from the card.",
-        "petite": {
+        "note": "Weighted random target selection based on the starting mass rung. A heavier start leans toward a fuller female result, a lighter one toward petite/slim, but every row keeps at least two live options so the same card does not roll the same body twice.",
+        "thin": {
           "petite": 4,
-          "slim": 3,
+          "slim": 4,
           "average": 2,
           "athletic": 1,
           "curvy": 0,
@@ -4424,13 +4459,13 @@ const LORE_DATA =
           "busty": 1,
           "voluptuous": 1
         },
-        "athletic": {
+        "solid": {
           "petite": 0,
-          "slim": 2,
-          "average": 2,
-          "athletic": 4,
-          "curvy": 1,
-          "busty": 1,
+          "slim": 1,
+          "average": 3,
+          "athletic": 3,
+          "curvy": 2,
+          "busty": 2,
           "voluptuous": 1
         },
         "stocky": {
@@ -4442,6 +4477,24 @@ const LORE_DATA =
           "busty": 2,
           "voluptuous": 4
         },
+        "athletic": {
+          "petite": 0,
+          "slim": 2,
+          "average": 2,
+          "athletic": 4,
+          "curvy": 1,
+          "busty": 1,
+          "voluptuous": 1
+        },
+        "petite": {
+          "petite": 4,
+          "slim": 3,
+          "average": 2,
+          "athletic": 1,
+          "curvy": 0,
+          "busty": 0,
+          "voluptuous": 0
+        },
         "heavy": {
           "petite": 0,
           "slim": 0,
@@ -4451,7 +4504,34 @@ const LORE_DATA =
           "busty": 2,
           "voluptuous": 4
         },
-        "_default": {
+        "solid_f": {
+        "petite": 0,
+        "slim": 1,
+        "average": 3,
+        "athletic": 3,
+        "curvy": 2,
+        "busty": 2,
+        "voluptuous": 1
+      },
+      "average_f": {
+        "petite": 1,
+        "slim": 2,
+        "average": 4,
+        "athletic": 2,
+        "curvy": 2,
+        "busty": 1,
+        "voluptuous": 1
+      },
+      "stocky_f": {
+        "petite": 0,
+        "slim": 0,
+        "average": 1,
+        "athletic": 1,
+        "curvy": 3,
+        "busty": 2,
+        "voluptuous": 4
+      },
+      "_default": {
           "petite": 1,
           "slim": 2,
           "average": 4,

@@ -5,7 +5,7 @@
 const LORE_DATA = 
 {
   "name": "X-Change World (Full Mechanics)",
-  "version": "7.13.44",
+  "version": "7.13.45",
   "versionUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/version.json",
   "sourceUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/x_change_world.js",
   "schema_version": 1,
@@ -19096,40 +19096,7 @@ function processTurn({systemText, messages, state, personaState, config, charNam
       console.log('[VOICE] Personality anchor saved (' + state._voice_anchor.length + ' chars)');
     }
 
-    // ── Seed initial scene context from card (persona excluded) ──
-    if (!state._scene_tracker) {
-      const firstCharMsg = (messages || []).find(m => m.role !== 'user')?.content || '';
-      const sceneSourceText = cardDescription || systemText;
-      state._scene_tracker = parseCardSceneContext(sceneSourceText, firstCharMsg, cardScenario, name);
-      const sc = state._scene_tracker;
-      // Seed the live clothing state from the card Outfit block so the clothing
-      // block reflects what the character is wearing when the chat starts; the
-      // normal per-turn clothing scan then takes over. _last_clothing_char was
-      // seeded just above from outfit_slots (drop 'none' slots for display
-      // parity with the <character> Clothing line).
-      if (!sc.clothing_char && state._last_clothing_char) {
-        var _seedClothing = state._last_clothing_char.split(',')
-          .map(function (s) { return s.trim(); })
-          .filter(function (s) { return s && s.toLowerCase() !== 'none'; })
-          .join(', ');
-        if (_seedClothing) {
-          sc.clothing_char = _seedClothing;
-          console.log('[SCENE] Seeded clothing_char from Outfit block: ' + sc.clothing_char);
-        }
-      }
-      if (locationOverride) {
-        sc.location = locationOverride;
-        console.log('[SCENE] Location overridden to:', locationOverride);
-      }
-      if (scenarioOverride) {
-        sc._scenario_override = scenarioOverride;
-        console.log('[SCENE] Scenario overridden (' + scenarioOverride.length + ' chars)');
-      }
-      console.log('[SCENE] Initial scene seeded: location=' + sc.location +
-        (sc.known_objects ? ' objects=[' + sc.known_objects.join(',') + ']' : '') +
-        (sc.known_props   ? ' props=['   + sc.known_props.join(',')   + ']' : '') +
-        (sc.atmosphere    ? ' atmosphere=' + sc.atmosphere              : ''));
-    }
+
 
 
     // ── Store persona base stats separately; leave state.stats as the character card stats ──
@@ -19171,6 +19138,46 @@ function processTurn({systemText, messages, state, personaState, config, charNam
     if (state.card_body) {
       console.log('[BODY]', state.card_body);
     }
+  }
+
+  // v7.13.45 — seeding moved OUT of the first-turn statgen gate, same reason the override
+  // block was in 7.13.34. It only ran on turn 1, so a chat whose _scene_tracker was ever
+  // absent on a later turn never rebuilt one — and the override block right below does
+  // nothing without a tracker, so location and scenario silently went dead for the rest of
+  // the chat. Found by replaying historical captures: every one came back with no location.
+  // ── Seed initial scene context from card (persona excluded) ──
+  if (!state._scene_tracker) {
+    const firstCharMsg = (messages || []).find(m => m.role !== 'user')?.content || '';
+    const sceneSourceText = cardDescription || systemText;
+    state._scene_tracker = parseCardSceneContext(sceneSourceText, firstCharMsg, cardScenario, name);
+    const sc = state._scene_tracker;
+    // Seed the live clothing state from the card Outfit block so the clothing
+    // block reflects what the character is wearing when the chat starts; the
+    // normal per-turn clothing scan then takes over. _last_clothing_char was
+    // seeded just above from outfit_slots (drop 'none' slots for display
+    // parity with the <character> Clothing line).
+    if (!sc.clothing_char && state._last_clothing_char) {
+      var _seedClothing = state._last_clothing_char.split(',')
+        .map(function (s) { return s.trim(); })
+        .filter(function (s) { return s && s.toLowerCase() !== 'none'; })
+        .join(', ');
+      if (_seedClothing) {
+        sc.clothing_char = _seedClothing;
+        console.log('[SCENE] Seeded clothing_char from Outfit block: ' + sc.clothing_char);
+      }
+    }
+    if (locationOverride) {
+      sc.location = locationOverride;
+      console.log('[SCENE] Location overridden to:', locationOverride);
+    }
+    if (scenarioOverride) {
+      sc._scenario_override = scenarioOverride;
+      console.log('[SCENE] Scenario overridden (' + scenarioOverride.length + ' chars)');
+    }
+    console.log('[SCENE] Initial scene seeded: location=' + sc.location +
+      (sc.known_objects ? ' objects=[' + sc.known_objects.join(',') + ']' : '') +
+      (sc.known_props   ? ' props=['   + sc.known_props.join(',')   + ']' : '') +
+      (sc.atmosphere    ? ' atmosphere=' + sc.atmosphere              : ''));
   }
 
   // v7.13.34 — this block runs EVERY turn, not just the first.

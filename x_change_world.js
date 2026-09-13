@@ -5,7 +5,7 @@
 const LORE_DATA = 
 {
   "name": "X-Change World (Full Mechanics)",
-  "version": "7.13.54",
+  "version": "7.13.55",
   "versionUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/version.json",
   "sourceUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/x_change_world.js",
   "schema_version": 1,
@@ -14906,8 +14906,9 @@ var _EFFECT_BODY_TILT = {
   breeder:    { target: { curvy: 3, voluptuous: 3, busty: 2, average: 1 },
                 hips: 'childbearing', waist: 'natural' },
   bimbo:      { target: { busty: 4, voluptuous: 3, curvy: 2 } },
-  pinup:      { target: { curvy: 4, busty: 3, slim: 2, average: 1 },
-                hips: 'full', waist: 'cinched' },
+  // Identical to bimbo by design, NOT a separate shape. Cody: "pinup is the bimbo body
+  // without the mind effects." If one is retuned, retune both.
+  pinup:      { target: { busty: 4, voluptuous: 3, curvy: 2 } },
   surrogate:  { target: { curvy: 3, voluptuous: 3, average: 2 },
                 hips: 'childbearing', waist: 'thickened' },
   // Cody 2026-09-13, correcting an earlier call of mine to leave these out: "sub and
@@ -15035,7 +15036,6 @@ function _bustVolume(band, cup) {
 // expression stay out of this on purpose — saying nothing beats saying "no change".
 var _EFFECT_VULVA_TILT = {
   breeder: { minora: { protruding: 2, long: 1 }, clit: { prominent: 3, large: 3 } },
-  pinup:   { majora: { full: 3 }, minora: { tucked: 4, 'just-showing': 3 }, clit: { average: 3 } },
   submissive: { majora: { average: 2, full: 1 }, minora: { tucked: 3, 'just-showing': 2 }, clit: { small: 2, average: 2 } },
   compliant:  { minora: { 'just-showing': 2, tucked: 1 }, clit: { average: 2 } },
 };
@@ -15070,6 +15070,20 @@ function _sampleVulva(modEntry, penisTier, effects, overrides) {
     out[axis] = weightedRandomPick(w);
   }
   return out;
+}
+
+// v7.13.55 — pinup applies the bimbo BODY, and only the body.
+//
+// The engine has said this since 7.7.25 ("Bimbo already triggers the bimbo body overlay
+// (which is what pinup applies) AND the cognitive arc") but no code ever did it: every
+// overlay gate tested for 'bimbo' alone, so pinup had no physical effect at all. Worse,
+// 7.13.54 gave pinup a DIFFERENT body tilt of my own invention.
+//
+// Cody 2026-09-13: "pinup is the bimbo body without the mind effects". So the two share one
+// overlay and one tilt, and differ only in the cognitive arc, which pinup does not get.
+function _bimboBodyActive(effects, state) {
+  var fx = (effects || []).concat((state && state.active_effects) || []);
+  return fx.indexOf('bimbo') >= 0 || fx.indexOf('pinup') >= 0;
 }
 
 function _bodyBand(colorEntry, modName, state) {
@@ -15730,7 +15744,7 @@ function buildTransformationGuidance(pillDescriptor, cardBody, cardSex, rs, stat
     // body-type table (the code that already governs it), so "green petite … pinup" lands a
     // petite figure, not an E-cup bombshell. Bimbo (below) is the ONLY bombshell trigger now.
     var _hasPinupEff = effects.includes('pinup') || (state && (state.active_effects || []).includes('pinup'));
-    var _hasBimboToo = effects.includes('bimbo') || (state && (state.active_effects || []).includes('bimbo'));
+    var _hasBimboToo = _bimboBodyActive(effects, state);
     if (_hasPinupEff && !_hasBimboToo && state) {
       var _pColorEntry = bm[color] || bm[bmColor] || {};
       if (!_pColorEntry.modifiers) {
@@ -15791,8 +15805,7 @@ function buildTransformationGuidance(pillDescriptor, cardBody, cardSex, rs, stat
     }
 
     // BIMBO (bombshell overlay) — the only effect that forces the exaggerated body. v7.13.12: pinup-only handled above.
-    var _hasBimboEff = effects.includes('bimbo')
-                     || (state && (state.active_effects || []).includes('bimbo'));
+    var _hasBimboEff = _bimboBodyActive(effects, state);
     if (_hasBimboEff && state) {
       // Resolve modifier from card body for bust-level lookup
       var _greenMod = modifier || resolveBodyModifier(bmColor, cardBody || {}, rs, (state && state.active_effects) || []) || '_default';
@@ -15878,7 +15891,7 @@ function buildTransformationGuidance(pillDescriptor, cardBody, cardSex, rs, stat
   var _vFx = (state && state.active_effects) || [];
   var _vOver = [];
   var _vOvl = colorEntry.modifiers || {};
-  if (_vFx.indexOf('bimbo') >= 0 && (_vOvl.bimbo_overlay || {}).vulva_override) _vOver.push(_vOvl.bimbo_overlay.vulva_override);
+  if (_bimboBodyActive([], { active_effects: _vFx }) && (_vOvl.bimbo_overlay || {}).vulva_override) _vOver.push(_vOvl.bimbo_overlay.vulva_override);
   if (_vFx.indexOf('surrogate') >= 0 && (_vOvl.surrogate_overlay || {}).vulva_override) _vOver.push(_vOvl.surrogate_overlay.vulva_override);
   var sampledVulva = (state && state.resolved_body && state.resolved_body.vulva)
     || _sampleVulva(sampledModEntry, _vTier, _vFx, _vOver);
@@ -15993,8 +16006,7 @@ function buildTransformationGuidance(pillDescriptor, cardBody, cardSex, rs, stat
   // v7.13.12 — BIMBO only. Pinup no longer forces the bombshell here: pinup "follows the
   // body type", so on the full TX path it simply rides the resolved body-type body (petite
   // stays petite). Bimbo is the lone trigger for the exaggerated overlay.
-  const bimboActive = effects.includes('bimbo')
-                   || (state && (state.active_effects || []).includes('bimbo'));
+  const bimboActive = _bimboBodyActive(effects, state);
   if (bimboActive) {
     const bimboOverlay = (colorEntry.modifiers || {}).bimbo_overlay || {};
     var bimboBustMap = bimboOverlay.bust_override || {};

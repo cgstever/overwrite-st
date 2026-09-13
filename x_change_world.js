@@ -5,7 +5,7 @@
 const LORE_DATA = 
 {
   "name": "X-Change World (Full Mechanics)",
-  "version": "7.13.39",
+  "version": "7.13.40",
   "versionUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/version.json",
   "sourceUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/x_change_world.js",
   "schema_version": 1,
@@ -10521,10 +10521,13 @@ function _buildResistanceBeats(state) {
 
   for (var i = 0; i < effects.length; i++) {
     var eff = effects[i];
-    // v6.5.225: compliant's beats describe independence at Untouched level and
-    // would contradict its injection_rule. Suppress the block for the model;
-    // data still exists in _EFFECT_RESISTANCE_BEATS for HUD/debug use.
-    if (eff === 'compliant') continue;
+    // v7.13.40 — compliant used to be suppressed ENTIRELY here (v6.5.225), because its
+    // Untouched beats say "no automatic pull toward compliance" and that contradicts its
+    // injection_rule. But only band 10 says that. Bands 9 down to 0 describe agreement
+    // getting easier and then total — exactly what the rule is about — and all ten were
+    // being thrown away to avoid the one conflict. Cody 2026-09-12: "the effects each have
+    // there own band tables that effect how the effects are recting in the char that took
+    // them." The conflicting band is skipped below, once the band is known; the rest ship.
     // Motherhood mode — breeder beats suppressed once motherhood begins (post-conception turn).
     // On conception turn itself, beats still present so the breeder climax narrates correctly.
     if (eff === 'breeder' && _inMotherhood) continue;
@@ -10547,6 +10550,8 @@ function _buildResistanceBeats(state) {
     if (eff === 'breeder') resist = _breederEffectiveResistance(state);
 
     var band = _effectResistanceBand(resist);
+    // the one contradictory band (see the compliant note above)
+    if (eff === 'compliant' && band === 10) continue;
     var bandBeats = beats[band];
     if (!bandBeats) continue;
 

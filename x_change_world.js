@@ -5,7 +5,7 @@
 const LORE_DATA = 
 {
   "name": "X-Change World (Full Mechanics)",
-  "version": "7.14.0",
+  "version": "7.14.1",
   "versionUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/version.json",
   "sourceUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/x_change_world.js",
   "schema_version": 1,
@@ -15119,7 +15119,7 @@ function _sampleBustRange(str, band) {
   }
   if (!band) return cup + ' cup';
   var v = _bustVolume(band, cup);
-  return band + cup + (v === null ? '' : ' (volume ' + v + ')');
+  return band + cup + (v === null ? '' : ', ' + _txbVolWord(v));
 }
 
 
@@ -15743,6 +15743,24 @@ var _TXB_PROSE = {
 };
 var _TXB_MUSCLE = /\b(muscular|musculature|muscled|well[- ]built|gym[- ]built|toned|jacked|brawny|burly|athletic|chiseled|sinew(?:y)?|corded|lean muscle|six[- ]pack|abs\b|pecs|biceps|broad[- ]shouldered|barrel[- ]chested)\b/i;
 
+// v7.14.1 — internal rung KEYS are not English and the model quotes whatever it is handed.
+// "childbearing", "just-showing" and "(volume 6)" were all turning up verbatim in the prose.
+// Keys stay keys everywhere they are compared; this is the one place they become words.
+var _TXB_SAY = {
+  'just-showing': 'barely visible', 'childbearing': 'wide, built to carry',
+  'very-full': 'very full', 'narrow-moderate': 'narrow', 'moderate-full': 'fuller',
+  'protruding': 'standing out', 'long': 'long and loose', 'tucked': 'hidden',
+  'exaggerated': 'exaggerated', 'thickened': 'thickened'
+};
+function _txbSay(v) { return _TXB_SAY[v] || v; }
+// A cup letter means nothing without its band and a raw volume number reads as engine output.
+// "34DD (volume 6)" becomes "34DD, heavy" — same information, said rather than printed.
+var _TXB_VOL_WORD = [[2.0,'barely there'],[3.5,'small'],[5.0,'moderate'],[6.5,'full'],[8.0,'heavy'],[99,'enormous']];
+function _txbVolWord(v) {
+  for (var i = 0; i < _TXB_VOL_WORD.length; i++) if (v <= _TXB_VOL_WORD[i][0]) return _TXB_VOL_WORD[i][1];
+  return 'enormous';
+}
+
 function _txbBand(v, table) {
   for (var i = 0; i < table.length; i++) if (v < table[i][0]) return table[i][1];
   return table[table.length - 1][1];
@@ -16208,7 +16226,7 @@ function buildTransformationGuidance(pillDescriptor, cardBody, cardSex, rs, stat
   var sampledWaist = _fxWaist || '';
   if ((_fxHips || _fxWaist || _fxShoulders) && state) {
     var _fxPatch = {};
-    if (_fxHips)  _fxPatch.hips  = _fxHips;
+    if (_fxHips)  _fxPatch.hips  = _txbSay(_fxHips);
     if (_fxWaist) _fxPatch.waist = _fxWaist;
     if (_fxShoulders) _fxPatch.shoulders = _fxShoulders;
     state.resolved_body = Object.assign({}, state.resolved_body || {}, _fxPatch);
@@ -16370,9 +16388,9 @@ function buildTransformationGuidance(pillDescriptor, cardBody, cardSex, rs, stat
   // band was the same mistake: rolled detail that never left the engine.
   var _rv = (state && state.resolved_body) ? state.resolved_body.vulva : null;
   if (_rv && _rv.majora) {
-    _targetParts.push('outer lips: ' + _rv.majora
-      + ', inner lips: ' + _rv.minora
-      + ', clitoris: ' + _rv.clit);
+    _targetParts.push('outer lips: ' + _txbSay(_rv.majora)
+      + ', inner lips: ' + _txbSay(_rv.minora)
+      + ', clitoris: ' + _txbSay(_rv.clit));
   }
 
   // ── Build clothing string ──

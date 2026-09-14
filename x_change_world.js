@@ -5,7 +5,7 @@
 const LORE_DATA = 
 {
   "name": "X-Change World (Full Mechanics)",
-  "version": "7.14.3",
+  "version": "7.14.4",
   "versionUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/version.json",
   "sourceUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/x_change_world.js",
   "schema_version": 1,
@@ -15663,7 +15663,13 @@ var _TX_BODY = {"_shape":"PAIRED. Every body cell is keyed on BOTH endpoints —
 
 // Never emit every axis. Fourteen rendered lines is the same body report in a new costume —
 // the exact failure these tables exist to fix. The books dwell on four to six things.
-var _TX_BODY_CAP = 6;
+// v7.14.4 — 0 = no cap. The six was never Cody's; he asked for more detail four times the
+// night the tables were built ("the more cells the finer the detail"). Every axis that
+// resolves a start and finish rung ships.
+var _TX_BODY_CAP = 0;
+// Cody 2026-09-14: "I WANT ALL THE TABLES USED" / "just the fragment table outputs". 'off' = the TX block is the fragment outputs of the
+// three tables — transformation, arousal, masculinity — and nothing else.
+var _TX_RULES = 'off';
 var _TX_BODY_MODE = 'on';   // 'off' falls back to the stage-list guides with no other change
 // v7.14.2 — false puts the whole transformation block back on the user message (pre-7.14.2).
 var _TX_SPLIT_PLACEMENT = true;
@@ -15693,6 +15699,9 @@ var _TXB_WAIST_BY     = { petite:'natural', slim:'defined', athletic:'defined', 
                           busty:'natural', curvy:'cinched', voluptuous:'cinched' };
 var _TXB_THIGH_BY     = { petite:'slim', slim:'slim', athletic:'toned', average:'toned',
                           busty:'full', curvy:'full', voluptuous:'heavy' };
+var _TXB_HIPS_BY      = { petite:'moderate', slim:'narrow-moderate', athletic:'toned',
+                          average:'moderate', busty:'moderate-full', curvy:'full',
+                          voluptuous:'very-full' };
 var _TXB_ASS_BY_HIPS  = { 'narrow-moderate':'pert', moderate:'round', toned:'toned',
                           'moderate-full':'full', full:'full', 'very-full':'heavy',
                           exaggerated:'heavy', childbearing:'heavy' };
@@ -15835,6 +15844,17 @@ function _txbStart(cardBody, raw, cardSex) {
   return s;
 }
 
+// rb.hips is prose ("wide, built to carry"), never a table rung. Match it to one.
+function _txbLandWord(txt, rungs) {
+  var t = String(txt || '').toLowerCase();
+  if (!t) return null;
+  var r = rungs.slice().sort(function (a, b) { return b.length - a.length; });
+  for (var i = 0; i < r.length; i++) if (t.indexOf(r[i].replace(/-/g, ' ')) >= 0 || t.indexOf(r[i]) >= 0) return r[i];
+  if (/\b(wide|broad|generous|carry)\b/.test(t)) return 'full';
+  if (/\b(narrow|slim|slight)\b/.test(t)) return 'narrow-moderate';
+  return null;
+}
+
 function _txbFinish(rb, build) {
   var P = _TX_BODY.pairs, v = rb.vulva || {};
   var hm = String(rb.height || '').match(/(\d+)\s*'\s*(\d+)/);
@@ -15847,13 +15867,13 @@ function _txbFinish(rb, build) {
     weight: fw ? _txbLand(fw, P.weight.finish_rungs, function (n) { return [n[0], n[1]]; }) : null,
     shoulders: rb.shoulders || _TXB_SHOULDER_BY[build] || 'moderate',
     waist: rb.waist || _TXB_WAIST_BY[build] || 'natural',
-    hips: rb.hips || 'moderate',
+    hips: _txbLandWord(rb.hips, P.hips.finish_rungs) || _TXB_HIPS_BY[build] || 'moderate',
     thighs: _TXB_THIGH_BY[build] || 'toned',
     bust: bm ? _txbBustRung(_bustVolume(parseInt(bm[1], 10), bm[2].toUpperCase()), 'finish') : null,
     cock: 'removed', skin: 'soft', voice: 'light', muscular: build,
     hrt: 'complete', tuck: 'removed',
     majora: v.majora || null, minora: v.minora || null, clit: v.clit || null,
-    hair: null
+    hair: P.hair.finish_rungs[Math.floor(Math.random() * P.hair.finish_rungs.length)]   // was null: table never fired
   };
   f.ass = _TXB_ASS_BY_HIPS[f.hips] || 'round';
   return f;
@@ -15924,9 +15944,12 @@ function _txbBuild(cardBody, raw, rb, build, state, cardSex) {
   }
   if (state) state._txb_seen = seen.slice(-120);
   rows.sort(function (x, y) { return y.d - x.d; });
-  var keep = rows.slice(0, Math.max(1, _TX_BODY_CAP - 2));
-  var rest = rows.slice(Math.max(1, _TX_BODY_CAP - 2));
-  while (rest.length && keep.length < _TX_BODY_CAP) keep.push(rest.splice(Math.floor(Math.random() * rest.length), 1)[0]);
+  var keep = rows;
+  if (_TX_BODY_CAP > 0) {
+    keep = rows.slice(0, Math.max(1, _TX_BODY_CAP - 2));
+    var rest = rows.slice(Math.max(1, _TX_BODY_CAP - 2));
+    while (rest.length && keep.length < _TX_BODY_CAP) keep.push(rest.splice(Math.floor(Math.random() * rest.length), 1)[0]);
+  }
   return keep.map(function (r) {
     var extra = (r.ax === 'height' && cardH && rollH) ? ' inches="' + (rollH - cardH) + '"' : '';
     return '  <tx-body axis="' + r.ax + '" from="' + _xmlAttr(r.a) + '" to="' + _xmlAttr(r.b) + '"'
@@ -16883,6 +16906,26 @@ function buildTransformationGuidance(pillDescriptor, cardBody, cardSex, rs, stat
   // fragment tables do the variety now. So the length demand and the hard requirements stay,
   // and everything that was fighting sameness goes.
   var _tdHas = function (tag) { return lines.some(function (l) { return l.indexOf('<' + tag) >= 0; }); };
+  if (_TX_RULES === 'off') {
+    var _fo = lines.filter(function (l) {
+      return /^\s*<(tx-body |chest-color>|genital-color>|tx-felt)/.test(l);
+    }).map(function (l) { return l.replace(/<tx-felt note="[^"]*">/, '<tx-felt>'); });
+    // masculinity table for THIS transformation — _PILL_IDENTITY_EXPANDED, keyed pill x
+    // origin x stat x masculinity band x stat value. Full phrases, six stats.
+    try {
+      var _idColor = (pillDescriptor && pillDescriptor.color) || state.active_pill || '';
+      var _idOrigin = (state && state._sex_origin) || (cardSex || 'male');
+      var _idStats = (state && state.stats) || {};
+      var _idLines = [];
+      ['CON','DOM','INT','SUB','CHA','WIS'].forEach(function (st) {
+        var v = Math.max(0, Math.min(20, parseInt(_idStats[st] || 10, 10)));
+        var ph = _pick(((((_PILL_IDENTITY_EXPANDED[_idColor] || {})[_idOrigin] || {})[st] || {})[_wiBand] || {})[v] || '');
+        if (ph) _idLines.push(st + ': ' + ph);
+      });
+      if (_idLines.length) _fo.push('  <tx-identity>' + _idLines.join(' | ') + '</tx-identity>');
+    } catch (_idErr) { /* never break a turn over flavour */ }
+    return _stripEffectNames(_fo.join('\n'));
+  }
   var _td = [
     'Continue the scene in the character\'s voice and pacing. Everything tagged above is '
     + 'REFERENCE, not phrasing: it defines what becomes true, never how to write it or in what '
@@ -18264,7 +18307,7 @@ function buildHeader(name, cardSex, state, notes, events, rs, persona, personaSt
     // (it parrots the guide's own clinical language). Re-assert the voice at the END of the
     // directive — the strongest position — so the BODY changes but the person narrating does not.
     // Validated A/B on the real Paul TX prompt: 2/6 → 6/6 in-voice. Reinforce-only.
-    if (state._tx_user_block && state._voice_anchor
+    if (state._tx_user_block && state._voice_anchor && _TX_RULES !== 'off'
         && (_isTxTurn || state._antidote_revert_this_turn)) {
       var _vName = state._card_name || 'this character';
       state._tx_user_block += '\n\n<voice-lock>\n'

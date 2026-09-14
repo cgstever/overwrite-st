@@ -5,7 +5,7 @@
 const LORE_DATA = 
 {
   "name": "X-Change World (Full Mechanics)",
-  "version": "7.14.3",
+  "version": "7.14.4",
   "versionUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/version.json",
   "sourceUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/x_change_world.js",
   "schema_version": 1,
@@ -15663,7 +15663,15 @@ var _TX_BODY = {"_shape":"PAIRED. Every body cell is keyed on BOTH endpoints —
 
 // Never emit every axis. Fourteen rendered lines is the same body report in a new costume —
 // the exact failure these tables exist to fix. The books dwell on four to six things.
-var _TX_BODY_CAP = 6;
+// v7.14.4 — 0 = no cap. The six was never Cody's; he asked for more detail four times the
+// night the tables were built ("the more cells the finer the detail"). Every axis that
+// resolves a start and finish rung ships.
+var _TX_BODY_CAP = 0;
+// Cody 2026-09-14: "I WANT ALL THE TABLES USED" / "just the fragment table outputs". 'off' = the TX block is the fragment outputs of the
+// three tables — transformation, arousal, masculinity — and nothing else.
+// 'simple' — Cody 2026-09-14: "now try again but with rules just simple ones less is more".
+// Same fragments-only block plus one short <tx-direction>; no length line.
+var _TX_RULES = 'simple';
 var _TX_BODY_MODE = 'on';   // 'off' falls back to the stage-list guides with no other change
 // v7.14.2 — false puts the whole transformation block back on the user message (pre-7.14.2).
 var _TX_SPLIT_PLACEMENT = true;
@@ -15693,6 +15701,9 @@ var _TXB_WAIST_BY     = { petite:'natural', slim:'defined', athletic:'defined', 
                           busty:'natural', curvy:'cinched', voluptuous:'cinched' };
 var _TXB_THIGH_BY     = { petite:'slim', slim:'slim', athletic:'toned', average:'toned',
                           busty:'full', curvy:'full', voluptuous:'heavy' };
+var _TXB_HIPS_BY      = { petite:'moderate', slim:'narrow-moderate', athletic:'toned',
+                          average:'moderate', busty:'moderate-full', curvy:'full',
+                          voluptuous:'very-full' };
 var _TXB_ASS_BY_HIPS  = { 'narrow-moderate':'pert', moderate:'round', toned:'toned',
                           'moderate-full':'full', full:'full', 'very-full':'heavy',
                           exaggerated:'heavy', childbearing:'heavy' };
@@ -15835,6 +15846,17 @@ function _txbStart(cardBody, raw, cardSex) {
   return s;
 }
 
+// rb.hips is prose ("wide, built to carry"), never a table rung. Match it to one.
+function _txbLandWord(txt, rungs) {
+  var t = String(txt || '').toLowerCase();
+  if (!t) return null;
+  var r = rungs.slice().sort(function (a, b) { return b.length - a.length; });
+  for (var i = 0; i < r.length; i++) if (t.indexOf(r[i].replace(/-/g, ' ')) >= 0 || t.indexOf(r[i]) >= 0) return r[i];
+  if (/\b(wide|broad|generous|carry)\b/.test(t)) return 'full';
+  if (/\b(narrow|slim|slight)\b/.test(t)) return 'narrow-moderate';
+  return null;
+}
+
 function _txbFinish(rb, build) {
   var P = _TX_BODY.pairs, v = rb.vulva || {};
   var hm = String(rb.height || '').match(/(\d+)\s*'\s*(\d+)/);
@@ -15847,13 +15869,13 @@ function _txbFinish(rb, build) {
     weight: fw ? _txbLand(fw, P.weight.finish_rungs, function (n) { return [n[0], n[1]]; }) : null,
     shoulders: rb.shoulders || _TXB_SHOULDER_BY[build] || 'moderate',
     waist: rb.waist || _TXB_WAIST_BY[build] || 'natural',
-    hips: rb.hips || 'moderate',
+    hips: _txbLandWord(rb.hips, P.hips.finish_rungs) || _TXB_HIPS_BY[build] || 'moderate',
     thighs: _TXB_THIGH_BY[build] || 'toned',
     bust: bm ? _txbBustRung(_bustVolume(parseInt(bm[1], 10), bm[2].toUpperCase()), 'finish') : null,
     cock: 'removed', skin: 'soft', voice: 'light', muscular: build,
     hrt: 'complete', tuck: 'removed',
     majora: v.majora || null, minora: v.minora || null, clit: v.clit || null,
-    hair: null
+    hair: P.hair.finish_rungs[Math.floor(Math.random() * P.hair.finish_rungs.length)]   // was null: table never fired
   };
   f.ass = _TXB_ASS_BY_HIPS[f.hips] || 'round';
   return f;
@@ -15924,14 +15946,29 @@ function _txbBuild(cardBody, raw, rb, build, state, cardSex) {
   }
   if (state) state._txb_seen = seen.slice(-120);
   rows.sort(function (x, y) { return y.d - x.d; });
-  var keep = rows.slice(0, Math.max(1, _TX_BODY_CAP - 2));
-  var rest = rows.slice(Math.max(1, _TX_BODY_CAP - 2));
-  while (rest.length && keep.length < _TX_BODY_CAP) keep.push(rest.splice(Math.floor(Math.random() * rest.length), 1)[0]);
-  return keep.map(function (r) {
+  var keep = rows;
+  if (_TX_BODY_CAP > 0) {
+    keep = rows.slice(0, Math.max(1, _TX_BODY_CAP - 2));
+    var rest = rows.slice(Math.max(1, _TX_BODY_CAP - 2));
+    while (rest.length && keep.length < _TX_BODY_CAP) keep.push(rest.splice(Math.floor(Math.random() * rest.length), 1)[0]);
+  }
+  // v7.14.4 — the four genital axes ride ONE line, last. As four separate low-salience lines
+  // mid-block they landed in the prose ~half the time; one combined tag at the end matches the
+  // "last beat is the genital change" direction. All four cells' phrases still ship.
+  var _gen = [], _oth = [];
+  for (var _ki = 0; _ki < keep.length; _ki++)
+    (({cock:1,majora:1,minora:1,clit:1})[keep[_ki].ax] ? _gen : _oth).push(keep[_ki]);
+  var out = _oth.map(function (r) {
     var extra = (r.ax === 'height' && cardH && rollH) ? ' inches="' + (rollH - cardH) + '"' : '';
     return '  <tx-body axis="' + r.ax + '" from="' + _xmlAttr(r.a) + '" to="' + _xmlAttr(r.b) + '"'
          + (r.key ? ' move="' + r.key + '"' : '') + extra + '>' + r.txt + '</tx-body>';
   });
+  if (_gen.length) {
+    var _gAttr = _gen.map(function (r) { return r.ax + '="' + _xmlAttr(r.a + ' -> ' + r.b) + '"'; }).join(' ');
+    out.push('  <tx-body axis="genitals" ' + _gAttr + '>'
+      + _gen.map(function (r) { return r.txt; }).join(' | ') + '</tx-body>');
+  }
+  return out;
 }
 
 function buildTransformationGuidance(pillDescriptor, cardBody, cardSex, rs, state) {
@@ -16883,6 +16920,37 @@ function buildTransformationGuidance(pillDescriptor, cardBody, cardSex, rs, stat
   // fragment tables do the variety now. So the length demand and the hard requirements stay,
   // and everything that was fighting sameness goes.
   var _tdHas = function (tag) { return lines.some(function (l) { return l.indexOf('<' + tag) >= 0; }); };
+  if (_TX_RULES === 'off' || _TX_RULES === 'simple') {
+    var _fo = lines.filter(function (l) {
+      return /^\s*<(tx-body |chest-color>|genital-color>|tx-felt)/.test(l);
+    }).map(function (l) { return l.replace(/<tx-felt note="[^"]*">/, '<tx-felt>'); });
+    // The four state layers — portrait, arousal, effect, identity(masculinity) — as phrases.
+    // Routed here from the <state> builder on a transformation turn; the identity layer IS the
+    // masculinity table (_PILL_IDENTITY_EXPANDED), so nothing else is needed for it.
+    if (state && Array.isArray(state._tx_state_phrases)) {
+      for (var _sp = 0; _sp < state._tx_state_phrases.length; _sp++) _fo.push(state._tx_state_phrases[_sp]);
+      delete state._tx_state_phrases;
+    }
+    if (_TX_RULES === 'simple') {
+      var _who = (state && state._card_name) || 'the character';
+      // name the low-salience axes outright — their fragments often don't contain the body
+      // part's own word, and hair was landing 2/8 until the direction said it by name.
+      var _small = [];
+      for (var _fi = 0; _fi < _fo.length; _fi++) {
+        var _fm = String(_fo[_fi]).match(/axis="(hair|skin|voice|muscular|ass|build)"/);
+        if (_fm) _small.push(_fm[1]);
+      }
+      _fo.push('<tx-direction>First person, as ' + _who + ', in her voice. The tags are the '
+        + 'whole change — nothing tagged is skipped: every <tx-body> axis is on the page, woven '
+        + 'several to a beat or carried in a clause'
+        + (_small.length ? ' (' + _small.join(', ') + ' included)' : '') + ', never listed or echoed. The identity, arousal '
+        + 'and effect lines are how she takes it. The whole change begins and FINISHES inside '
+        + 'this reply — no axis left "still changing" at the end. 500-600 words. ' + _entryHint + ' Her first '
+        + 'sentence is already inside the change; everything before it was last turn. The last '
+        + 'beat, always reached and completed on the page, is the genital change.</tx-direction>');
+    }
+    return _stripEffectNames(_fo.join('\n'));
+  }
   var _td = [
     'Continue the scene in the character\'s voice and pacing. Everything tagged above is '
     + 'REFERENCE, not phrasing: it defines what becomes true, never how to write it or in what '
@@ -17092,7 +17160,7 @@ function buildContext(state, events, cardSex, rs) {
   };
 }
 
-function evaluateFragments(state, events, cardSex, rs) {
+function evaluateFragments(state, events, cardSex, rs, full) {
   // v7.13.43 — 12 -> 24. The cap was set when the <state> block rode along in chat history
   // and every turn's copy stacked up. Under Scene Page the extension rebuilds the payload
   // each turn and the block exists exactly once in it (verified against a live capture:
@@ -17358,6 +17426,22 @@ function evaluateFragments(state, events, cardSex, rs) {
   // each token by its source layer (portrait / arousal / effect) disambiguates.
   // NEG and BIM are special whole-block tokens — kept without a layer prefix.
   const LAYER_PREFIX = { 0: 'portrait_', 1: 'arousal_', 2: 'effect_', 3: 'identity_' };
+  // v7.14.4 — `full`: the authored phrases, one line per layer, for the transformation block.
+  // Cody 2026-09-14: the fragments guide the transformation, mental state and arousal — they
+  // cannot do that as three-word keys.
+  if (full) {
+    const LN = { 0: 'portrait', 1: 'arousal', 2: 'effect', 3: 'identity' };
+    const byL = new Map();
+    for (const p of kept) {
+      if (p[0] === 'NEG' || p[0] === 'BIM') continue;
+      if (!byL.has(p[1])) byL.set(p[1], []);
+      byL.get(p[1]).push(p[0] + ': ' + String(p[2]).trim());
+    }
+    const outL = [];
+    for (const pri of [...byL.keys()].sort(function (a, b) { return a - b; }))
+      outL.push('  <tx-' + LN[pri] + '>' + byL.get(pri).join(' | ') + '</tx-' + LN[pri] + '>');
+    return outL;
+  }
   // v7.13.44 — one line per layer. Cody 2026-09-12: "the hard part is making sure the
   // output is readable." Twenty-four tokens on a single unbroken line is a wall for the
   // model to parse and for anyone to read in the debug panel. Grouped by layer, each line
@@ -17937,7 +18021,15 @@ function buildHeader(name, cardSex, state, notes, events, rs, persona, personaSt
   state._hardRules = _hardRuleTexts.length > 0 ? _hardRuleTexts : null;
 
   // ── <state> block (flavor + identity + resistance + bimbo) ──
-  var flavorBlocks = evaluateFragments(state, events, cardSex, rs);
+  var flavorBlocks;
+  if (_isTxTurn && _TX_RULES !== 'on') {
+    // The four state layers ride the transformation block as phrases this turn (see
+    // buildTransformationGuidance), so <state> does not also carry them as keys.
+    state._tx_state_phrases = evaluateFragments(state, events, cardSex, rs, true);
+    flavorBlocks = [];
+  } else {
+    flavorBlocks = evaluateFragments(state, events, cardSex, rs);
+  }
 
   // Afterglow bridge (non-TX turns)
   if (!_isTxTurn) {
@@ -18264,7 +18356,7 @@ function buildHeader(name, cardSex, state, notes, events, rs, persona, personaSt
     // (it parrots the guide's own clinical language). Re-assert the voice at the END of the
     // directive — the strongest position — so the BODY changes but the person narrating does not.
     // Validated A/B on the real Paul TX prompt: 2/6 → 6/6 in-voice. Reinforce-only.
-    if (state._tx_user_block && state._voice_anchor
+    if (state._tx_user_block && state._voice_anchor && _TX_RULES === 'on'
         && (_isTxTurn || state._antidote_revert_this_turn)) {
       var _vName = state._card_name || 'this character';
       state._tx_user_block += '\n\n<voice-lock>\n'
@@ -18307,10 +18399,16 @@ function buildHeader(name, cardSex, state, notes, events, rs, persona, personaSt
                + 'This is the CURRENT difference — ignore any earlier figure in the conversation.</contrast>';
     }
   }
-  if (contrast) sections.push(contrast);
-  if (sceneLines.length) sections.push(sceneLines.join('\n'));
+  // v7.14.4 — TRIMMED transformation turn. Cody 2026-09-14: "i asked for the prompt to be
+  // trimmed and there is shit everywhere". Under simple/off rules a transformation turn carries
+  // the card, the voice and the three tables — not the engine's housekeeping: no <contrast>,
+  // <scene>, <state> keys/resistance beats/<engine-rules>, ## Rules, ## Output, <story-so-far>.
+  var _txLean = !!(_isTxTurn && _TX_RULES !== 'on');
+  if (state) state._tx_lean_turn = _txLean;
+  if (contrast && !_txLean) sections.push(contrast);
+  if (sceneLines.length && !_txLean) sections.push(sceneLines.join('\n'));
   if (voiceLines.length) sections.push(voiceLines.join('\n'));
-  if (stateLines.length) sections.push(stateLines.join('\n'));
+  if (stateLines.length && !_txLean) sections.push(stateLines.join('\n'));
   // v7.13.48 — the block is sent ONCE, on the user message. CORRECTION of what 7.13.46 and
   // 7.13.47 claimed.
   //
@@ -18348,8 +18446,8 @@ function buildHeader(name, cardSex, state, notes, events, rs, persona, personaSt
       };
     } catch (_dbgErr) { state._debug_injection = null; }
   }
-  sections.push(rulesSection);
-  sections.push(outputSection);
+  if (!_txLean) sections.push(rulesSection);
+  if (!_txLean) sections.push(outputSection);
 
   return sections.join('\n\n');
 }
@@ -20612,7 +20710,7 @@ function processTurn({systemText, messages, state, personaState, config, charNam
     // condensed memory of recent turns; after several scenes in one place it's saturated
     // with that location and was the last thing anchoring the jump (the "locked in
     // memory" pull). It returns to normal on the next turn.
-    systemPrompt: (_condensedSummary && !state._scene_jump_this_turn)
+    systemPrompt: (_condensedSummary && !state._scene_jump_this_turn && !state._tx_lean_turn)
       ? header + '\n\n<story-so-far>\n' + _condensedSummary.trim() + '\n</story-so-far>'
       : header,
     inject: _injectArr,

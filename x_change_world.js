@@ -5,7 +5,7 @@
 const LORE_DATA = 
 {
   "name": "X-Change World (Full Mechanics)",
-  "version": "7.15.7",
+  "version": "7.15.8",
   "versionUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/version.json",
   "sourceUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/x_change_world.js",
   "schema_version": 1,
@@ -17685,7 +17685,7 @@ function getIdentityText(state) {
   // v7.15.6 — FULL PROSE (was 3-word _condense keys). This is the masc-shift line; on the
   // one turn it fires it now matches the rest of the <state> block instead of reading as
   // machine tokens. Grouped one line per layer, same as evaluateFragments.
-  const _LN = { 0: 'shift', 1: 'effect', 2: 'body' };
+  const _LN = { 0: 'shift', 1: 'shift-effect', 2: 'shift-body' };  // v7.15.8 — distinct from evaluateFragments' 'effect'/'identity'
   const _byL = new Map();
   for (const p of kept) {
     if (!_byL.has(p[1])) _byL.set(p[1], []);
@@ -18179,7 +18179,7 @@ function buildHeader(name, cardSex, state, notes, events, rs, persona, personaSt
   var stateLines = [];
   var stateContent = [];
   if (flavorBlocks.length) stateContent.push(_stripEffectNames(flavorBlocks.join('\n')));
-  if (mascLines.length) stateContent.push(_stripEffectNames(mascLines.join(' ')));
+  if (mascLines.length) stateContent.push(_stripEffectNames(mascLines.join('\n')));
   // One-turn cue after surrogate revert — signal that body carries lasting traces from prior breeding.
   // Model produces its own prose in character voice; this is an awareness prompt, not a script.
   if (state.flags && state.flags._surrogate_mark_noticing) {

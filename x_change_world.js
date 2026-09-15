@@ -5,7 +5,7 @@
 const LORE_DATA = 
 {
   "name": "X-Change World (Full Mechanics)",
-  "version": "7.15.6",
+  "version": "7.15.7",
   "versionUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/version.json",
   "sourceUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/x_change_world.js",
   "schema_version": 1,
@@ -9346,12 +9346,13 @@ function _nopillBracket(band){  // band 0-10
   return 'female_pull';
 }
 const _PILL_IDENTITY_EXPANDED = _expandKeyedIdentityTable(_PILL_IDENTITY_COMPACT);
-// ⚠ NOT fixed here, separate bug: _EFFECT_IDENTITY_COMPACT's fourth level is the effect
-// STAGE (0-4), but the lookup at getIdentityText passes the masculinity BAND (0-10). Even
-// correctly expanded it would be reading the wrong dimension, and bands 5-10 do not exist
-// in it. Left as-is pending Cody's call on which key that layer should use. (bimbo is
-// unaffected — it reads _EFFECT_IDENTITY_COMPACT directly, at the right depth.)
-const _EFFECT_IDENTITY_EXPANDED = _expandIdentityTable(_EFFECT_IDENTITY_COMPACT);
+// v7.15.7 — FIXED. This was fed to _expandIdentityTable (which expects origin at the top),
+// but _EFFECT_IDENTITY_COMPACT has the EFFECT name at the top — so it read effect-as-origin,
+// origin-as-stat, stat-as-band and returned '' on every lookup since it was written. Expand
+// PER effect key, exactly like _PILL_IDENTITY_EXPANDED. Non-bimbo effects are
+// origin->stat->band(0-10)->vg, which this handles. Bimbo has an extra stage level but reads
+// the compact table directly (never _EXPANDED), so its mis-expansion here is unused.
+const _EFFECT_IDENTITY_EXPANDED = _expandKeyedIdentityTable(_EFFECT_IDENTITY_COMPACT);
 const _EFFECT_AROUSAL_EXPANDED = _expandEffectArousalTable(_EFFECT_AROUSAL_COMPACT);
 const _TRANSFORM_AROUSAL_EXPANDED = _expandTransformArousalTable(_TRANSFORM_AROUSAL_COMPACT);
 const _PORTRAIT_EXPANDED = _expandPortraitTable(_PORTRAIT_COMPACT);
@@ -17448,14 +17449,7 @@ function evaluateFragments(state, events, cardSex, rs, full) {
   }
 
   // Condense a prose phrase into a data token (max 3 meaningful words, underscored)
-  function _condense(phrase) {
-    return phrase.toLowerCase()
-      .replace(/[^a-z0-9\s]/g, '')
-      .split(/\s+/)
-      .filter(function(w) { return w.length > 2; })
-      .slice(0, 3)
-      .join('_') || 'neutral';
-  }
+  // v7.15.7 — dead _condense removed (both consumers now emit full prose).
 
   // Cross-turn recency filter: skip phrases seen in the last 3 turns
   const SEEN_WINDOW = 3;
@@ -17669,14 +17663,7 @@ function getIdentityText(state) {
   // Cross-phrase Jaccard dedup (>35% → skip)
   function _words(phrase) { return new Set(phrase.toLowerCase().split(/\s+/)); }
 
-  function _condense(phrase) {
-    return phrase.toLowerCase()
-      .replace(/[^a-z0-9\s]/g, '')
-      .split(/\s+/)
-      .filter(function(w) { return w.length > 2; })
-      .slice(0, 3)
-      .join('_') || 'neutral';
-  }
+  // v7.15.7 — dead _condense removed (both consumers now emit full prose).
 
   const kept = [];
   for (const [stat, pri, phrase] of interleaved) {

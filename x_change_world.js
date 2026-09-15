@@ -5,7 +5,7 @@
 const LORE_DATA = 
 {
   "name": "X-Change World (Full Mechanics)",
-  "version": "7.14.10",
+  "version": "7.15.0",
   "versionUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/version.json",
   "sourceUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/x_change_world.js",
   "schema_version": 1,
@@ -9332,6 +9332,19 @@ function _expandKeyedIdentityTable(compact) {
   for (const key of Object.keys(compact || {})) out[key] = _expandIdentityTable(compact[key]);
   return out;
 }
+// v7.15.0 — NO-PILL masculinity read. Cody 2026-09-15: masculinity is the mental-state lever
+// and should read even without a pill. Follows X-Change Life's own semantics (verified in the
+// game source): masc >70 wants male, <30 wants female, middle unsettled. Band = _masculinityBand
+// (0-100 -> 0-10). Male origin authored first (the hot path); other origins fall back to the
+// nearest pill table until authored.
+const _NOPILL_IDENTITY = {"male":{"CON":{"male_pull":["the body sits right, unmistakably his own","solid in his own frame, no wish to leave it","a physique that feels like home again","comfortable carrying himself as a man"],"lean_male":["mostly at ease in his own build","the frame still reads his, if less certainly","settling back toward a body he knows","a man's ease returning by degrees"],"unsettled":["the body no longer clearly his or hers","caught between two ways of wearing a frame","uncertain which build feels like home","a physique that fits neither cleanly"],"lean_female":["the frame starting to feel wrong as a man's","a softness he half wants to keep","the body reading better the other way","less and less at home in the male build"],"female_pull":["aching for a softer body that fits","the male frame feels borrowed now","wants the shape it keeps drifting toward","at home only in a female build now"]},"INT":{"male_pull":["thinks of himself plainly as a man","the mind settled on being male","no question in his head about who he is","mentally at home in manhood"],"lean_male":["mostly still thinks of himself as him","the male self-image holding, a little frayed","reaching back toward thinking of himself as a man","the old identity mostly intact in his head"],"unsettled":["unsure anymore which pronoun fits his head","the self-image flickering between him and her","can't settle what he is when he thinks about it","identity an open question in his own mind"],"lean_female":["starting to picture herself, not himself","the mind sliding toward a female self-image","thinking of himself as her more often","the old manhood loosening in his thoughts"],"female_pull":["thinks of herself as a woman now","the mind has settled on being female","no longer pictures a man in the mirror","at home in a female self-image"]},"WIS":{"male_pull":["his gut says stay a man and means it","instinct anchored firmly to manhood","the deep sense of self reads male","knows in his bones he is a guy"],"lean_male":["instinct still leans male, mostly","the gut mostly points back to manhood","a masculine sense of self holding on","deep down still mostly a man"],"unsettled":["instinct gives no clear read on gender","the gut torn between man and woman","no settled sense of which he is","deep self-knowledge gone quiet on it"],"lean_female":["instinct starting to point female","the gut leaning toward being a woman","a feminine sense of self surfacing","deep down drifting toward her"],"female_pull":["her gut knows she is a woman","instinct settled firmly on female","the deep sense of self reads female","knows in her bones she is a girl"]},"CHA":{"male_pull":["wants to be seen and read as a man","comfortable presenting male","carries himself to be taken for a guy","at ease being read as masculine"],"lean_male":["mostly wants to read as a man still","presenting male, if less surely","reaching to be seen as a guy again","the masculine presentation mostly holding"],"unsettled":["unsure how he wants to be read","caught between presenting man or woman","no settled sense of how to come across","the way he lands on people gone uncertain"],"lean_female":["starting to want to be seen as a woman","drawn to presenting softer, more female","half-wishing to be read as her","the masculine front slipping in how she reads"],"female_pull":["wants to be seen and read as a woman","comfortable presenting female","carries herself to be taken for a girl","at ease being read as feminine"]},"DOM":{"male_pull":["wants to hold the reins as a man does","comfortable taking charge, masculine about it","authority feels natural and his","leads the way a man expects to"],"lean_male":["mostly still wants to lead","the urge to take charge holding, softer","reaching back for a man's authority","command mostly intact, less certain"],"unsettled":["unsure whether to lead or defer","caught between taking charge and giving way","no settled instinct to command or yield","authority and submission both feel possible"],"lean_female":["starting to want to be led instead","the urge to defer surfacing","less drawn to command than before","a wish to hand the reins over growing"],"female_pull":["wants to be led, not to lead","comfortable deferring now","the pull is to yield, not command","at ease letting someone else take charge"]},"SUB":{"male_pull":["no wish to submit, stands as a man","resists yielding, holds his own","a man's refusal to be handled","keeps his footing, gives no ground"],"lean_male":["mostly still resists being led","the refusal to yield holding, thinner","reaching back for a man's independence","mostly unbending, if less so"],"unsettled":["unsure whether yielding feels right","caught between standing firm and giving in","no settled pull to submit or resist","both holding and yielding feel plausible"],"lean_female":["starting to find yielding easier","the pull to give in surfacing","less able to hold out than before","a wish to be handled growing"],"female_pull":["wants to yield and be handled","comfortable giving herself over","the pull is to submit, and it feels right","at ease letting herself be led"]}}};
+function _nopillBracket(band){  // band 0-10
+  if (band>=8) return 'male_pull';
+  if (band>=6) return 'lean_male';
+  if (band>=5) return 'unsettled';
+  if (band>=3) return 'lean_female';
+  return 'female_pull';
+}
 const _PILL_IDENTITY_EXPANDED = _expandKeyedIdentityTable(_PILL_IDENTITY_COMPACT);
 // ⚠ NOT fixed here, separate bug: _EFFECT_IDENTITY_COMPACT's fourth level is the effect
 // STAGE (0-4), but the lookup at getIdentityText passes the masculinity BAND (0-10). Even
@@ -17310,12 +17323,19 @@ function evaluateFragments(state, events, cardSex, rs, full) {
     // female nature is the only nature"), so they are correct to ship continuously.
     // getIdentityText still fires on shift turns — it says something different, that the
     // ground moved — this is the standing read underneath it.
-    if (pill) {
+    {
       const _mascVal = parseInt(state.masculinity != null ? state.masculinity : 50, 10);
       const _mascBand = _masculinityBand(_mascVal);
-      const mascPhrase = _pick(
-        ((((_PILL_IDENTITY_EXPANDED[pill] || {})[origin] || {})[stat] || {})[_mascBand] || {})[val] || ''
-      );
+      let mascPhrase = '';
+      if (pill) {
+        mascPhrase = _pick(
+          ((((_PILL_IDENTITY_EXPANDED[pill] || {})[origin] || {})[stat] || {})[_mascBand] || {})[val] || ''
+        );
+      } else {
+        // v7.15.0 — no pill: read the standing gender-pull from the masculinity band.
+        const _brk = _nopillBracket(_mascBand);
+        mascPhrase = _pick(((( _NOPILL_IDENTITY[origin] || {})[stat] || {})[_brk]) || '');
+      }
       if (mascPhrase) candidates.push([stat, 3, mascPhrase]);
     }
 

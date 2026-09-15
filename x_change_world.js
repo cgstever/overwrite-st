@@ -5,7 +5,7 @@
 const LORE_DATA = 
 {
   "name": "X-Change World (Full Mechanics)",
-  "version": "7.15.3",
+  "version": "7.15.4",
   "versionUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/version.json",
   "sourceUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/x_change_world.js",
   "schema_version": 1,
@@ -15958,6 +15958,24 @@ function _txbTravel(ax, a, b) {
 
 // Assemble the block. Returns [] when nothing travelled.
 function _txbBuild(cardBody, raw, rb, build, state, cardSex, color) {
+  // v7.15.4 — purple depends on the STARTING body (Cody 2026-09-15):
+  //   male origin  -> M->F body (pink axes) + cock kept   (the female-body case)
+  //   female origin-> body stays female (no transformation), only the pussy becomes a cock
+  var _femOrigin = /female/i.test(String(cardSex || '')) || /female/i.test(String((state && state._sex_origin) || ''));
+  if (color === 'purple' && _femOrigin) {
+    // Only the genital transforms: vulva -> cock (reuse blue's cock cells). Body unchanged.
+    var _pc = _TX_BODY_BLUE.pairs.cock;
+    var _fin = (rb && /large|huge|thick|big/i.test(String(rb.cock || ''))) ? 'large'
+             : (rb && /average|medium/i.test(String(rb.cock || ''))) ? 'average' : 'formed';
+    var _cell = _pc.cells['vulva -> ' + _fin] || _pc.cells['vulva -> formed'];
+    var _seen = (state && state._txb_seen) || [];
+    var _pl = _cell.phrases.filter(function (p) { return _seen.indexOf(p) < 0; });
+    if (!_pl.length) _pl = _cell.phrases;
+    var _ph = _pl[Math.floor(Math.random() * _pl.length)];
+    if (_seen.indexOf(_ph) < 0) _seen.push(_ph);
+    if (state) state._txb_seen = _seen.slice(-120);
+    return ['  <tx-body axis="genitals" cock="vulva -> ' + _fin + '">' + _ph + '</tx-body>'];
+  }
   var _TB = (color === 'blue') ? _TX_BODY_BLUE : (color === 'purple') ? _TX_BODY_PURPLE : _TX_BODY;
   if (!_TB || !rb) return [];
   var P = _TB.pairs, T = _TB.travel;

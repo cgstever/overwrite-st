@@ -5,7 +5,7 @@
 const LORE_DATA = 
 {
   "name": "X-Change World (Full Mechanics)",
-  "version": "7.14.7",
+  "version": "7.14.8",
   "versionUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/version.json",
   "sourceUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/x_change_world.js",
   "schema_version": 1,
@@ -17189,6 +17189,12 @@ function evaluateFragments(state, events, cardSex, rs, full) {
     );
     if (portraitPhrase) candidates.push([stat, 0, portraitPhrase]);
 
+    // v7.14.8 — ONE arousal voice per stat. Cody 2026-09-15: effects use their own arousal
+    // tables INSTEAD of the generic one; with several effects their outputs combine — each
+    // stat filled by whichever effect has a phrase, rotating when more than one does — and
+    // the generic table only fills stats no effect covered. Resistance tables untouched.
+    let _effStat = [];
+    let _genericBuf = '';
     if (isPregnant) {
       // When pregnant, pregnancy descriptors replace generic arousal
       const _pregFlags = state.flags || {};
@@ -17202,7 +17208,7 @@ function evaluateFragments(state, events, cardSex, rs, full) {
       const genericPhrase = _pick(
         (((_GENERIC_AROUSAL_EXPANDED[origin] || {})[stat] || {})[tier] || {})[val] || ''
       );
-      if (genericPhrase) candidates.push([stat, 1, genericPhrase]);
+      _genericBuf = genericPhrase || '';
     }
 
     // Priority split: bimbo always owns INT/CHA when stacked with any other effect.
@@ -17266,7 +17272,7 @@ function evaluateFragments(state, events, cardSex, rs, full) {
           (((((_EFFECT_AROUSAL_EXPANDED[_effKey] || {})[_effOrigin] || {})[stat] || {})[effTier] || {})[val] || '')
         );
       }
-      if (effPhrase) candidates.push([stat, 2, effPhrase]);
+      if (effPhrase) _effStat.push(effPhrase);
     }
 
     // confirmed_submissive uses submissive fragment tables (keyed 'universal') without polluting active_effects
@@ -17274,7 +17280,15 @@ function evaluateFragments(state, events, cardSex, rs, full) {
       const csPhrase = _pick(
         (((((_EFFECT_AROUSAL_EXPANDED['submissive'] || {})['universal'] || {})[stat] || {})[effTier] || {})[val] || '')
       );
-      if (csPhrase) candidates.push([stat, 2, csPhrase]);
+      if (csPhrase) _effStat.push(csPhrase);
+    }
+
+    // Resolve the single arousal voice for this stat: an active effect's phrase if any has
+    // one (rotate when several do), else the generic table.
+    if (_effStat.length) {
+      candidates.push([stat, 2, _effStat[Math.floor(Math.random() * _effStat.length)]]);
+    } else if (_genericBuf) {
+      candidates.push([stat, 1, _genericBuf]);
     }
 
     // v7.13.43 — LAYER 3: MASCULINITY, every turn.

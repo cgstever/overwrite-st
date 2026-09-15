@@ -5,7 +5,7 @@
 const LORE_DATA = 
 {
   "name": "X-Change World (Full Mechanics)",
-  "version": "7.14.4",
+  "version": "7.14.5",
   "versionUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/version.json",
   "sourceUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/x_change_world.js",
   "schema_version": 1,
@@ -16945,7 +16945,7 @@ function buildTransformationGuidance(pillDescriptor, cardBody, cardSex, rs, stat
         + 'several to a beat or carried in a clause'
         + (_small.length ? ' (' + _small.join(', ') + ' included)' : '') + ', never listed or echoed. The identity, arousal '
         + 'and effect lines are how she takes it. The whole change begins and FINISHES inside '
-        + 'this reply — no axis left "still changing" at the end. 500-600 words. ' + _entryHint + ' Her first '
+        + 'this reply — no axis left "still changing" at the end. 450-550 words. ' + _entryHint + ' Her first '
         + 'sentence is already inside the change; everything before it was last turn. The last '
         + 'beat, always reached and completed on the page, is the genital change.</tx-direction>');
     }

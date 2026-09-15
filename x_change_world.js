@@ -5,7 +5,7 @@
 const LORE_DATA = 
 {
   "name": "X-Change World (Full Mechanics)",
-  "version": "7.16.0",
+  "version": "7.16.1",
   "versionUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/version.json",
   "sourceUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/x_change_world.js",
   "schema_version": 1,
@@ -17265,13 +17265,29 @@ function evaluateFragments(state, events, cardSex, rs, full) {
   const isPregnant = ((state.flags || {}).pregnancy_confirmed) || false;
   if (isPregnant) MAX_FRAGS = 31;
 
+  // v7.16.1 — SELECTION MEMORY moved up so picks can prefer unseen phrases at pick time
+  // (was: pick random, then hard-drop if seen -> dropped the whole stat/layer and repeated).
+  // Window widened 3 -> 48 so recent picks are remembered across swipes and adjacent turns,
+  // killing the ~50% same-cell swipe-repeat floor on the state layers.
+  const SEEN_WINDOW = 48;
+  state._frag_seen = state._frag_seen || [];
+  const seenSet = new Set(state._frag_seen);
+  // prefer a phrase not seen recently; fall back to any (never drops / never empty).
+  const _pickU = (v) => {
+    const a = Array.isArray(v) ? v : (v ? [v] : []);
+    if (!a.length) return '';
+    const fresh = a.filter(p => !seenSet.has(p));
+    const pool = fresh.length ? fresh : a;
+    return pool[randInt(0, pool.length - 1)];
+  };
+
   // Gather per-stat candidate fragments
   const candidates = [];
   for (const stat of ['INT', 'WIS', 'CHA', 'CON', 'DOM', 'SUB']) {
     const rawVal = parseInt(statsDict[stat] || 10, 10);
     const val = Math.max(0, Math.min(20, rawVal));
 
-    const portraitPhrase = _pick(
+    const portraitPhrase = _pickU(
       ((_PORTRAIT_EXPANDED[origin] || {})[stat] || {})[val] || ''
     );
     if (portraitPhrase) candidates.push([stat, 0, portraitPhrase]);
@@ -17299,18 +17315,18 @@ function evaluateFragments(state, events, cardSex, rs, full) {
         if (_pr != null) { const _sh = Math.max(0, Math.min(5, Math.floor((10 - _effectResistanceBand(_pr)) / 2))); if (_sh > _pregShift) _pregShift = _sh; }
       }
       const _pregTier = _TIER_BAND_GROUP[Math.min(19, tier + _pregShift)] || tierGroup;
-      const pregPhrase = _pick(
+      const pregPhrase = _pickU(
         ((((((_EFFECT_AROUSAL_COMPACT['pregnancy']['female'] || {})[stat] || {})[pregStage] || {})[_pregTier] || {})[pregVg]) || ''
       ));
       if (pregPhrase) candidates.push([stat, 4, pregPhrase]);
       // reaction by masculinity bracket (part B): one line total, hung on the CON stat pass.
       if (stat === 'CON' && typeof _nopillBracket === 'function') {
         const _mb = _nopillBracket(_masculinityBand(parseInt(state.masculinity != null ? state.masculinity : 50, 10)));
-        const _rx = _pick((((_PREG_REACTION[_mb] || {})[pregStage]) || []));
+        const _rx = _pickU((((_PREG_REACTION[_mb] || {})[pregStage]) || []));
         if (_rx) candidates.push(['PREG', 4, _rx]);
       }
     } else {
-      const genericPhrase = _pick(
+      const genericPhrase = _pickU(
         (((_GENERIC_AROUSAL_EXPANDED[origin] || {})[stat] || {})[tier] || {})[val] || ''
       );
       _genericBuf = genericPhrase || '';
@@ -17367,7 +17383,7 @@ function evaluateFragments(state, events, cardSex, rs, full) {
         // Staged bimbo female: lazy lookup from compact table through stage key
         const bStage = String(Math.max(1, parseInt((state.effect_stages || {}).bimbo || (state._effect_stages || {}).bimbo || (state.flavor || {}).bimbo && (state.flavor.bimbo.stage) || 1, 10)));
         const vg = _STAT_VAL_GROUP[val] || 'avg';
-        effPhrase = _pick(
+        effPhrase = _pickU(
           ((((((_EFFECT_AROUSAL_COMPACT['bimbo'] || {})['female'] || {})[stat] || {})[bStage] || {})[effTierGroup] || {})[vg] || '')
         );
       } else {
@@ -17378,7 +17394,7 @@ function evaluateFragments(state, events, cardSex, rs, full) {
           : origin;
         // Surrogate pre-conception uses breeder tables; post-conception uses its own
         const _effKey = (eff === 'surrogate' && !(state._surrogate_pregnant || state.surrogate_conceived)) ? 'breeder' : eff;
-        effPhrase = _pick(
+        effPhrase = _pickU(
           (((((_EFFECT_AROUSAL_EXPANDED[_effKey] || {})[_effOrigin] || {})[stat] || {})[effTier] || {})[val] || '')
         );
       }
@@ -17387,7 +17403,7 @@ function evaluateFragments(state, events, cardSex, rs, full) {
 
     // confirmed_submissive uses submissive fragment tables (keyed 'universal') without polluting active_effects
     if (arousal >= 21 && (state.active_side_effects || []).includes('confirmed_submissive') && !effects.includes('submissive')) {
-      const csPhrase = _pick(
+      const csPhrase = _pickU(
         (((((_EFFECT_AROUSAL_EXPANDED['submissive'] || {})['universal'] || {})[stat] || {})[effTier] || {})[val] || '')
       );
       if (csPhrase) _effStat.push(csPhrase);
@@ -17420,13 +17436,13 @@ function evaluateFragments(state, events, cardSex, rs, full) {
       const _mascBand = _masculinityBand(_mascVal);
       let mascPhrase = '';
       if (pill) {
-        mascPhrase = _pick(
+        mascPhrase = _pickU(
           ((((_PILL_IDENTITY_EXPANDED[pill] || {})[origin] || {})[stat] || {})[_mascBand] || {})[val] || ''
         );
       } else {
         // v7.15.0 — no pill: read the standing gender-pull from the masculinity band.
         const _brk = _nopillBracket(_mascBand);
-        mascPhrase = _pick(((( _NOPILL_IDENTITY[origin] || {})[stat] || {})[_brk]) || '');
+        mascPhrase = _pickU(((( _NOPILL_IDENTITY[origin] || {})[stat] || {})[_brk]) || '');
       }
       if (mascPhrase) candidates.push([stat, 3, mascPhrase]);
     }
@@ -17474,10 +17490,6 @@ function evaluateFragments(state, events, cardSex, rs, full) {
   // Condense a prose phrase into a data token (max 3 meaningful words, underscored)
   // v7.15.7 — dead _condense removed (both consumers now emit full prose).
 
-  // Cross-turn recency filter: skip phrases seen in the last 3 turns
-  const SEEN_WINDOW = 3;
-  state._frag_seen = state._frag_seen || [];
-  const seenSet = new Set(state._frag_seen);
 
   const kept = [];
   if (negBlock) kept.push(['NEG', -1, negBlock]);
@@ -17509,8 +17521,10 @@ function evaluateFragments(state, events, cardSex, rs, full) {
 
   for (const [stat, pri, phrase] of _quotaOrdered) {
     if (kept.length >= MAX_FRAGS) break;
-    // Skip if seen recently
-    if (seenSet.has(phrase)) continue;
+    // v7.16.1 — no hard seen-skip here: _pickU already preferred unseen, and dropping a
+    // seen pick used to delete the whole stat/layer. If the pool was exhausted the pick is a
+    // deliberate fallback; keep it.
+
     const pw = _words(phrase);
     let tooSimilar = false;
     for (const ent of kept) {

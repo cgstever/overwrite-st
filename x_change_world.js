@@ -5,7 +5,7 @@
 const LORE_DATA = 
 {
   "name": "X-Change World (Full Mechanics)",
-  "version": "7.16.1",
+  "version": "7.16.2",
   "versionUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/version.json",
   "sourceUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/x_change_world.js",
   "schema_version": 1,
@@ -15726,6 +15726,10 @@ var _TX_BODY_CAP = 0;
 // 'simple' — Cody 2026-09-14: "now try again but with rules just simple ones less is more".
 // Same fragments-only block plus one short <tx-direction>; no length line.
 var _TX_RULES = 'simple';
+// v7.16.2 — <state> layout: 'stat' = one line per stat weaving its levers together
+// (portrait . arousal . effect . identity), reads as a character not a spreadsheet;
+// 'layer' = the old one-line-per-lever grouping. Reversible A/B.
+var _STATE_LAYOUT = 'stat';
 var _TX_BODY_MODE = 'on';   // 'off' falls back to the stage-list guides with no other change
 // v7.14.2 — false puts the whole transformation block back on the user message (pre-7.14.2).
 var _TX_SPLIT_PLACEMENT = true;
@@ -17603,9 +17607,28 @@ function evaluateFragments(state, events, cardSex, rs, full) {
     _byLayer.get(pri).push(token);
   }
   const _lines = [];
-  for (const pri of [...(_byLayer.keys())].sort(function (a, b) { return a - b; })) {
-    const nm = _LN[pri];
-    _lines.push((nm ? nm + ' — ' : '') + _byLayer.get(pri).join(' | '));
+  if (_STATE_LAYOUT === 'stat') {
+    // STAT-MAJOR: one line per stat, its cells across every layer woven with ' · ', in layer
+    // order (portrait first, identity/pregnancy last). Non-stat tokens (NEG/BIM/PREG) get their
+    // own line. Scales by adding a clause per stat when a lever is added, not a whole new line.
+    const _statOrder = ['CON', 'DOM', 'INT', 'SUB', 'CHA', 'WIS'];
+    const _byStat = new Map(); const _loose = [];
+    const _prisSorted = [...(_byLayer.keys())].sort(function (a, b) { return a - b; });
+    for (const pri of _prisSorted) {
+      for (const tok of _byLayer.get(pri)) {
+        const g = /^([A-Z]{3}): (.+)$/.exec(tok);
+        if (g) { if (!_byStat.has(g[1])) _byStat.set(g[1], []); _byStat.get(g[1]).push(g[2]); }
+        else _loose.push(tok);   // NEG / BIM / PREG reaction — keep as their own line
+      }
+    }
+    const _order = _statOrder.filter(x => _byStat.has(x)).concat([..._byStat.keys()].filter(x => _statOrder.indexOf(x) < 0));
+    for (const st of _order) _lines.push(st + ' — ' + _byStat.get(st).join(' · '));
+    for (const t of _loose) _lines.push(t);
+  } else {
+    for (const pri of [...(_byLayer.keys())].sort(function (a, b) { return a - b; })) {
+      const nm = _LN[pri];
+      _lines.push((nm ? nm + ' — ' : '') + _byLayer.get(pri).join(' | '));
+    }
   }
   return _lines;
 }

@@ -5,7 +5,7 @@
 const LORE_DATA = 
 {
   "name": "X-Change World (Full Mechanics)",
-  "version": "7.19.1",
+  "version": "7.20.0",
   "versionUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/version.json",
   "sourceUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/x_change_world.js",
   "schema_version": 1,
@@ -17565,12 +17565,14 @@ function evaluateFragments(state, events, cardSex, rs, full) {
       if (csPhrase) _effStat.push(csPhrase);
     }
 
-    // Resolve the single arousal voice for this stat: an active effect's phrase if any has
-    // one (rotate when several do), else the generic table.
+    // v7.20.0 — FULL BLOCK EVERY TURN (Cody: "i want the full block every turn"). These were
+    // mutually exclusive, so the moment an effect was active the stat lost its plain arousal
+    // voice and an on-pill turn shipped THINNER than an off-pill one — backwards, since the
+    // on-pill turns are the ones carrying the most state. Both ship now: the generic arousal
+    // read AND what the effect is doing to that stat.
+    if (_genericBuf) candidates.push([stat, 1, _genericBuf]);
     if (_effStat.length) {
       candidates.push([stat, 2, _effStat[Math.floor(Math.random() * _effStat.length)]]);
-    } else if (_genericBuf) {
-      candidates.push([stat, 1, _genericBuf]);
     }
 
     // v7.13.43 — LAYER 3: MASCULINITY, every turn.
@@ -17593,19 +17595,32 @@ function evaluateFragments(state, events, cardSex, rs, full) {
       // v7.17.0 — one origin-voiced ladder for every turn, pill or not. The pill moves
       // masculinity and the body; identity just reads where masculinity sits, in the
       // origin's own voice. Replaces the pill-keyed identity tables here.
-      const mascPhrase = _pickU((((_ORIGIN_IDENTITY[origin] || {})[stat] || {})[_mascBand]) || '');
-      if (mascPhrase) candidates.push([stat, 3, mascPhrase]);
+      const _ladderPool = (((_ORIGIN_IDENTITY[origin] || {})[stat] || {})[_mascBand]) || [];
+      const mascPhrase = _pickU(_ladderPool);
+      if (mascPhrase) candidates.push([stat, 3, mascPhrase, _ladderPool]);
       // v7.18.0 — same slot, two tenses (Cody: "its more comfert in the gender they
       // currently are"). Off pill (and on purple, unvoiced): the standing comfort/want
       // line per stat. On a pill with a reaction table the reaction renders instead —
       // as its OWN LINE after the stat lines (v7.18.2, see the RX block below the loop;
       // Cody: fragments, not tags — six diluted per-stat sub-phrases lost to card
       // gravity in the 2026-09-16 live tests, one positioned line is the fragment fix).
-      if (!(pill && _PILL_REACTION[pill])) {
+      const _brk = _nopillBracket(_mascBand);
+      if (pill && _PILL_REACTION[pill]) {
+        // v7.20.0 — per-stat reaction restored alongside the summary REACTION line, so an
+        // on-pill turn carries two identity reads per stat exactly like an off-pill one.
+        const _rtbl2 = (pill === 'purple')
+          ? (_PILL_REACTION.purple[_originPolarity(state) > 0 ? 'male' : 'female'] || {})
+          : _PILL_REACTION[pill];
+        const _rxHide2 = (state._intake_consent === 'covert' && !state._breeder_first_climb_done);
+        let _rxPool = ((_rtbl2[stat] || {})[_brk]) || [];
+        if (_rxHide2) _rxPool = _rxPool.filter(x => !/\bpill\b/i.test(x));
+        const rxStat = _pickU(_rxPool);
+        if (rxStat) candidates.push([stat, 3, rxStat, _rxPool]);
+      } else {
         // v7.15.0 — the standing gender-pull (game-style want line), additive.
-        const _brk = _nopillBracket(_mascBand);
-        const pullPhrase = _pickU(((( _NOPILL_IDENTITY[origin] || {})[stat] || {})[_brk]) || '');
-        if (pullPhrase) candidates.push([stat, 3, pullPhrase]);
+        const _pullPool = ((( _NOPILL_IDENTITY[origin] || {})[stat] || {})[_brk]) || [];
+        const pullPhrase = _pickU(_pullPool);
+        if (pullPhrase) candidates.push([stat, 3, pullPhrase, _pullPool]);
       }
     }
 
@@ -17688,9 +17703,9 @@ function evaluateFragments(state, events, cardSex, rs, full) {
   // Interleaved stat ordering
   const statOrder = ['CON', 'DOM', 'INT', 'SUB', 'CHA', 'WIS'];
   const perStat = {};
-  for (const [stat, pri, phrase] of candidates) {
-    if (!perStat[stat]) perStat[stat] = [];
-    perStat[stat].push([pri, phrase]);
+  for (const c of candidates) {
+    if (!perStat[c[0]]) perStat[c[0]] = [];
+    perStat[c[0]].push([c[1], c[2], c[3]]);   // v7.20.0 — carry the source pool through
   }
   for (const stat in perStat) {
     perStat[stat].sort((a, b) => a[0] - b[0]);
@@ -17705,7 +17720,7 @@ function evaluateFragments(state, events, cardSex, rs, full) {
     for (const stat of _allKeys) {
       const bucket = perStat[stat] || [];
       if (depth < bucket.length) {
-        interleaved.push([stat, bucket[depth][0], bucket[depth][1]]);
+        interleaved.push([stat, bucket[depth][0], bucket[depth][1], bucket[depth][2]]);
       }
     }
   }
@@ -17725,7 +17740,29 @@ function evaluateFragments(state, events, cardSex, rs, full) {
   // v7.18.0 — the v7.13.42 per-layer quota machinery is gone with the cap: with no
   // budget to share there is nothing to ration. Everything interleaved ships, minus
   // within-layer near-duplicates.
-  for (const [stat, pri, phrase] of interleaved) {
+  // v7.20.0 — a near-duplicate now costs a PHRASING, not the stat's whole line. The dedup
+  // used to drop the entry outright, so e.g. DOM's band-5 pick "command improvised between
+  // his way and hers" scored 0.5 against CON's "caught between carrying it his way and hers"
+  // and DOM simply had no identity read that turn. Entries that carry their source pool (4th
+  // element) retry the other authored phrasings before giving up.
+  const _tooSim = (cand, pri) => {
+    const cw = _words(cand);
+    for (const ent of kept) {
+      if (ent[1] !== pri) continue;
+      const kw = _words(ent[2]);
+      const union = new Set([...cw, ...kw]);
+      if (union.size > 0 && [...cw].filter(w => kw.has(w)).length / union.size > 0.35) return true;
+    }
+    return false;
+  };
+  for (const entry of interleaved) {
+    const stat = entry[0], pri = entry[1];
+    let phrase = entry[2];
+    const alts = Array.isArray(entry[3]) ? entry[3] : null;
+    if (alts && _tooSim(phrase, pri)) {
+      const swap = alts.find(p => p !== phrase && !_tooSim(p, pri));
+      if (swap) phrase = swap;
+    }
     // v7.16.1 — no hard seen-skip here: _pickU already preferred unseen, and dropping a
     // seen pick used to delete the whole stat/layer. If the pool was exhausted the pick is a
     // deliberate fallback; keep it.
@@ -17918,9 +17955,9 @@ function getIdentityText(state) {
   // Round-robin stat interleave
   const interleaveOrder = ['CON', 'DOM', 'INT', 'SUB', 'CHA', 'WIS'];
   const perStat = {};
-  for (const [stat, pri, phrase] of candidates) {
-    if (!perStat[stat]) perStat[stat] = [];
-    perStat[stat].push([pri, phrase]);
+  for (const c of candidates) {
+    if (!perStat[c[0]]) perStat[c[0]] = [];
+    perStat[c[0]].push([c[1], c[2], c[3]]);   // v7.20.0 — carry the source pool through
   }
   for (const stat in perStat) perStat[stat].sort((a, b) => a[0] - b[0]);
 

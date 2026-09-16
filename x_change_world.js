@@ -5,7 +5,7 @@
 const LORE_DATA = 
 {
   "name": "X-Change World (Full Mechanics)",
-  "version": "7.18.5",
+  "version": "7.18.6",
   "versionUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/version.json",
   "sourceUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/x_change_world.js",
   "schema_version": 1,
@@ -22058,11 +22058,19 @@ function buildXcwHudHtml(state, rs) {
       var weight = rb.weight || cb.weight;
       var build  = rb.build  || (cb.build_keywords && cb.build_keywords[0]);
       var bust   = rb.bust   || cb.bust;
+      // v7.18.6 — cup only, volume word dropped (Cody: "just need the 30d part"), and the
+      // vulva detail shown instead of the bust class (Cody: "rather that than the bust stuff").
+      if (bust) bust = String(bust).split(',')[0].trim();
       var parts = [];
       if (height) parts.push(height);
       if (weight) parts.push(weight);
       if (build)  parts.push(build);
       if (bust)   parts.push(bust);
+      var vul = rb.vulva || {};
+      var vparts = [vul.majora ? vul.majora + ' lips' : null,
+                    vul.minora ? vul.minora + ' inner' : null,
+                    vul.clit ? vul.clit + ' clit' : null].filter(Boolean);
+      if (vparts.length) parts.push(vparts.join(', '));
       return parts.length ? ' · ' + parts.join(' · ') : '';
     })() + '</div>' +
 

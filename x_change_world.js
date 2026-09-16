@@ -5,7 +5,7 @@
 const LORE_DATA = 
 {
   "name": "X-Change World (Full Mechanics)",
-  "version": "7.18.1",
+  "version": "7.18.2",
   "versionUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/version.json",
   "sourceUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/x_change_world.js",
   "schema_version": 1,
@@ -17518,22 +17518,34 @@ function evaluateFragments(state, events, cardSex, rs, full) {
       if (mascPhrase) candidates.push([stat, 3, mascPhrase]);
       // v7.18.0 — same slot, two tenses (Cody: "its more comfert in the gender they
       // currently are"). Off pill (and on purple, unvoiced): the standing comfort/want
-      // line. On any pill with a reaction table the slot becomes the REACTION — pill
-      // pushing toward the side they're comfortable on = welcomed, away = fought.
-      // v7.18.1: green/red join pink/blue with their own tables (deeper into your own
-      // sex); any future pill auto-wires the moment its key exists in _PILL_REACTION.
-      const _brk = _nopillBracket(_mascBand);
-      if (pill && _PILL_REACTION[pill]) {
-        const rxPhrase = _pickU((((_PILL_REACTION[pill] || {})[stat] || {})[_brk]) || '');
-        if (rxPhrase) candidates.push([stat, 3, rxPhrase]);
-      } else {
+      // line per stat. On a pill with a reaction table the reaction renders instead —
+      // as its OWN LINE after the stat lines (v7.18.2, see the RX block below the loop;
+      // Cody: fragments, not tags — six diluted per-stat sub-phrases lost to card
+      // gravity in the 2026-09-16 live tests, one positioned line is the fragment fix).
+      if (!(pill && _PILL_REACTION[pill])) {
         // v7.15.0 — the standing gender-pull (game-style want line), additive.
+        const _brk = _nopillBracket(_mascBand);
         const pullPhrase = _pickU(((( _NOPILL_IDENTITY[origin] || {})[stat] || {})[_brk]) || '');
         if (pullPhrase) candidates.push([stat, 3, pullPhrase]);
       }
     }
 
 
+  }
+
+  // v7.18.2 — ON-PILL REACTION LINE. One strong phrase pulled from the active zone across
+  // all six stat voices, shipped as its own line after the stat lines. Same sign logic as
+  // ever: pill pushing toward the side they're comfortable on = welcomed, away = fought.
+  if (pill && _PILL_REACTION[pill]) {
+    const _rmv = parseInt(state.masculinity != null ? state.masculinity : 50, 10);
+    const _rbrk = _nopillBracket(_masculinityBand(_rmv));
+    const _rpool = [];
+    for (const _rs of ['CON', 'INT', 'WIS', 'CHA', 'DOM', 'SUB']) {
+      const _ra = ((_PILL_REACTION[pill][_rs] || {})[_rbrk]) || [];
+      for (const _rp of _ra) _rpool.push(_rp);
+    }
+    const _rx = _pickU(_rpool);
+    if (_rx) candidates.push(['RX', 5, _rx]);
   }
 
   // Gate-fail negative block (priority insert)
@@ -17633,12 +17645,12 @@ function evaluateFragments(state, events, cardSex, rs, full) {
   // Cody 2026-09-14: the fragments guide the transformation, mental state and arousal — they
   // cannot do that as three-word keys.
   if (full) {
-    const LN = { 0: 'portrait', 1: 'arousal', 2: 'effect', 3: 'identity', 4: 'pregnancy' };
+    const LN = { 0: 'portrait', 1: 'arousal', 2: 'effect', 3: 'identity', 4: 'pregnancy', 5: 'reaction' };
     const byL = new Map();
     for (const p of kept) {
       if (p[0] === 'NEG' || p[0] === 'BIM') continue;
       if (!byL.has(p[1])) byL.set(p[1], []);
-      byL.get(p[1]).push((p[0] === 'PREG') ? String(p[2]).trim() : p[0] + ': ' + String(p[2]).trim());
+      byL.get(p[1]).push((p[0] === 'PREG' || p[0] === 'RX') ? String(p[2]).trim() : p[0] + ': ' + String(p[2]).trim());
     }
     const outL = [];
     for (const pri of [...byL.keys()].sort(function (a, b) { return a - b; }))
@@ -17655,12 +17667,13 @@ function evaluateFragments(state, events, cardSex, rs, full) {
   // 3-word _condense() keys were a token-weight workaround from the chat-history era; that
   // is gone (the block ships once, we own the whole prompt). Same layer grouping as the TX
   // block, so <state> reads the same on pill and no-pill turns. NEG/BIM stay label-free.
-  const _LN = { 0: 'portrait', 1: 'arousal', 2: 'effect', 3: 'identity', 4: 'pregnancy' };
+  const _LN = { 0: 'portrait', 1: 'arousal', 2: 'effect', 3: 'identity', 4: 'pregnancy', 5: 'reaction' };
   const _byLayer = new Map();
   for (const p of kept) {
     const statKey = p[0];
     const pri = p[1];
     const token = (statKey === 'NEG' || statKey === 'BIM' || statKey === 'PREG') ? String(p[2]).trim()
+                : (statKey === 'RX') ? 'REACTION — ' + String(p[2]).trim()
                 : statKey + ': ' + String(p[2]).trim();
     if (!_byLayer.has(pri)) _byLayer.set(pri, []);
     _byLayer.get(pri).push(token);
@@ -18290,14 +18303,11 @@ function buildHeader(name, cardSex, state, notes, events, rs, persona, personaSt
   var _resistBeats = _buildResistanceBeats(state);
 
   var _stateAttrs = ['turn="' + (state.turn || 1) + '"'];
-  if (state.masculinity != null) {
-    // v7.18.0 — identity leads (origin-relative: intact -> flipped, how much of the
-    // original self remains). The absolute carriage word stays — the live confusion
-    // tests showed masculinity="soft|firm|androgynous" anchors the model's anatomy read.
-    if (state.identity != null) {
-      _stateAttrs.push('identity="' + _identityWord(state.identity) + '"');
-    }
-    _stateAttrs.push('masculinity="' + _masculinityBandName(parseInt(state.masculinity, 10)) + '"');
+  // v7.18.2 — identity ONLY (Cody: "i said to get rid of masculinity and replace it with
+  // idenity"). The old masculinity="soft|firm" attr is gone from every visible surface;
+  // identity (origin-relative: intact -> flipped) is the one word the model sees.
+  if (state.identity != null) {
+    _stateAttrs.push('identity="' + _identityWord(state.identity) + '"');
   }
   // v7.7.32 — hide pill="<color>" from the model when intake was covert and the
   // character hasn't lived through the first climb yet. The engine still knows
@@ -22028,7 +22038,7 @@ function buildXcwHudHtml(state, rs) {
     '<div style="background:#111;border-radius:4px;overflow:hidden;height:10px;margin-bottom:2px;">' +
       '<div style="width:' + mascPct + '%;background:' + mascColor + ';height:100%;transition:width .3s;"></div>' +
     '</div>' +
-    '<div style="font-size:11px;margin-bottom:8px;">Identity ' + ident + ' · ' + identWord + ' · Masc ' + masc + ' (' + mascLabel + ')</div>' +
+    '<div style="font-size:11px;margin-bottom:8px;">Identity ' + ident + ' · ' + identWord + '</div>' +
 
     // Stats
     '<div style="display:grid;grid-template-columns:repeat(6,1fr);gap:3px;margin-bottom:8px;">' + statGrid + '</div>' +

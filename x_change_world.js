@@ -5,7 +5,7 @@
 const LORE_DATA = 
 {
   "name": "X-Change World (Full Mechanics)",
-  "version": "7.18.6",
+  "version": "7.19.0",
   "versionUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/version.json",
   "sourceUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/x_change_world.js",
   "schema_version": 1,
@@ -7998,6 +7998,9 @@ function registerPregnancy(engine, opts) {
     var v = engine.getFlagValue('detected_time_skip') || {};
     var weeks = v.weeks || 0;
     var label = v.label || 'some time';
+    // v7.19.0 — time recovers stretch fully: weeks pass, the grip returns to its rolled
+    // base on the next per-turn recompute (Cody: "streach and tighten up over time").
+    if (state && state._vaginal_stretch) state._vaginal_stretch = 0;
     // Idempotency key must be stable across swipes but change across turns. state.turn
     // fits (the extension does NOT increment it on a regen); the rebuild's internal
     // turn counter may tick per generation, which would double-count weeks on a swipe.
@@ -11630,11 +11633,18 @@ function buildAnatomyOverride(state, cardSex, rs) {
   // strips that from the card outright, there is nothing left to counterweight and the
   // clause only reintroduces the noun.
   if (genitals === 'vagina_only') {
-    parts.push('Female genitalia — vagina.');
+    // v7.19.0 — grip + depth ride the standing anatomy line so the model always knows the
+    // current fit (grip changes with use/recovery; depth is the body's rolled anatomy).
+    var _vv = (resolved && resolved.vulva) || {};
+    var _gw = (_vv.grip ? ', ' + _vv.grip : '')
+            + (_vv.depth ? ', ' + (_vv.depth === 'average' ? 'average depth' : _vv.depth) : '');
+    parts.push('Female genitalia — vagina' + _gw + '.');
   } else if (genitals === 'penis_only' || genitals === 'penis_only_no_vagina') {
     parts.push('Male genitalia — penis.');
   } else if (genitals === 'both') {
-    parts.push('Both sets of genitalia present.');
+    var _vv2 = (resolved && resolved.vulva) || {};
+    var _gw2 = (_vv2.grip ? ' Vagina ' + _vv2.grip + (_vv2.depth ? ', ' + (_vv2.depth === 'average' ? 'average depth' : _vv2.depth) : '') + '.' : '');
+    parts.push('Both sets of genitalia present.' + _gw2);
   }
   if (resolved.bust && sex === 'female') {
     parts.push(resolved.bust + ' breasts with sensitive nipples.');
@@ -14812,6 +14822,45 @@ function processEvents(state, events, cardSex, notes, rs, personaEffects, person
   // leaked turn-based pregnancy state into the HUD/status. Stages now advance only on
   // the explicit time-skip clock (applyTimeSkip).
 
+  // v7.19.0 — VAGINAL STRETCH -> GRIP, elastic (Cody: "dynamic as they fuck and such it can
+  // loosen like irl" + "was thinking it could streach and tighten up over time?"). Sex turns
+  // add stretch, quiet turns recover half a point, a time skip clears it (see applyTimeSkip).
+  // Grip = the rolled base (grip_base — tight-biased on a fresh body) pushed down the ladder
+  // by CURRENT stretch, so a well-used pussy runs loose for a while and tightens back up
+  // when left alone. Nothing here is permanent except the rolled base.
+  {
+    const _gvb = state.resolved_body;
+    if (_gvb && _gvb.vulva && !_gvb.vulva.grip) {
+      // v7.19.0 migration — a pre-7.19 save has a vulva rolled without grip/depth; roll
+      // them lazily (same tight-biased odds — her equipment is still X-Change fresh).
+      _gvb.vulva.grip = weightedRandomPick({ tight: 6, snug: 3, average: 1 });
+      _gvb.vulva.depth = _gvb.vulva.depth || weightedRandomPick({ shallow: 2, average: 5, deep: 3 });
+      state._vaginal_stretch = 0;
+    }
+    if (_gvb && _gvb.vulva && _gvb.vulva.grip) {
+      const _GRIP = ['tight', 'snug', 'average', 'relaxed', 'loose'];
+      let _gBase = _gvb.vulva.grip_base != null ? _gvb.vulva.grip_base : _GRIP.indexOf(_gvb.vulva.grip);
+      if (_gBase < 0) _gBase = 0;
+      _gvb.vulva.grip_base = _gBase;
+      let _stretch = parseFloat(state._vaginal_stretch || 0) || 0;
+      if (events.penetration_attempt || events.creampie_vaginal) _stretch += 1;
+      else _stretch = Math.max(0, _stretch - 0.5);
+      state._vaginal_stretch = Math.min(60, _stretch);
+      const _THRESH = [3, 8, 16, 30];
+      let _gSteps = 0;
+      for (const _gt of _THRESH) if (state._vaginal_stretch >= _gt) _gSteps++;
+      const _gNew = _GRIP[Math.min(_GRIP.length - 1, _gBase + _gSteps)];
+      if (_gNew !== _gvb.vulva.grip) {
+        (state._notes_log = state._notes_log || []).push('grip: ' + _gvb.vulva.grip + ' -> ' + _gNew
+          + ' (stretch=' + state._vaginal_stretch + ')');
+        // v7.19.0 — one-turn shift signal so the character REACTS the turn the fit changes
+        // (Cody: "will they react as it changes"). Consumed by evaluateFragments.
+        state._grip_shift_this_turn = _GRIP.indexOf(_gNew) > _GRIP.indexOf(_gvb.vulva.grip) ? 'looser' : 'tighter';
+        _gvb.vulva.grip = _gNew;
+      }
+    }
+  }
+
   // Masculinity delta
   const pill = state.active_pill;
   if (pill && state.masculinity !== undefined) {
@@ -15166,6 +15215,13 @@ function _sampleVulva(modEntry, penisTier, effects, overrides) {
     for (var o = 0; o < (overrides || []).length; o++) add(overrides[o]);
     out[axis] = weightedRandomPick(w);
   }
+  // v7.19.0 — GRIP (Cody: tight/loose, "dynamic as they fuck and such it can loosen like
+  // irl"). Every _sampleVulva call is a newly created vagina, so the roll is tight-biased:
+  // a fresh TX body has never been used. Use walks it down the ladder afterwards (see the
+  // vaginal-use block in processTurn); grip_base pins the rolled start.
+  out.grip = weightedRandomPick({ tight: 6, snug: 3, average: 1 });
+  // v7.19.0 — DEPTH (Cody: "and depth"). Rolled once per body, static: shallow/average/deep.
+  out.depth = weightedRandomPick({ shallow: 2, average: 5, deep: 3 });
   return out;
 }
 
@@ -16417,10 +16473,14 @@ function buildTransformationGuidance(pillDescriptor, cardBody, cardSex, rs, stat
   var _vOvl = colorEntry.modifiers || {};
   if (_bimboBodyActive([], { active_effects: _vFx }) && (_vOvl.bimbo_overlay || {}).vulva_override) _vOver.push(_vOvl.bimbo_overlay.vulva_override);
   if (_vFx.indexOf('surrogate') >= 0 && (_vOvl.surrogate_overlay || {}).vulva_override) _vOver.push(_vOvl.surrogate_overlay.vulva_override);
-  var sampledVulva = (state && state.resolved_body && state.resolved_body.vulva)
+  var _vHadVulva = !!(state && state.resolved_body && state.resolved_body.vulva);
+  var sampledVulva = (_vHadVulva && state.resolved_body.vulva)
     || _sampleVulva(sampledModEntry, _vTier, _vFx, _vOver);
   if (sampledVulva && state) {
     state.resolved_body = Object.assign({}, state.resolved_body || {}, { vulva: sampledVulva });
+    // v7.19.0 — a freshly rolled vagina starts unused: grip is the tight-biased roll and
+    // the stretch accumulator resets (a re-TX after blue gets a brand-new one, like the game).
+    if (!_vHadVulva) state._vaginal_stretch = 0;
   }
 
   // Hips and waist the effect insists on, whatever body was rolled. A breeder pill widens the
@@ -16596,7 +16656,10 @@ function buildTransformationGuidance(pillDescriptor, cardBody, cardSex, rs, stat
   if (_rv && _rv.majora) {
     _targetParts.push('outer lips: ' + _txbSay(_rv.majora)
       + ', inner lips: ' + _txbSay(_rv.minora)
-      + ', clitoris: ' + _txbSay(_rv.clit));
+      + ', clitoris: ' + _txbSay(_rv.clit)
+      // v7.19.0 — the new equipment's fit rides the target line too (grip/depth).
+      + (_rv.grip ? ', ' + _rv.grip : '')
+      + (_rv.depth ? ', ' + (_rv.depth === 'average' ? 'average depth' : _rv.depth) : ''));
   }
 
   // ── Build clothing string ──
@@ -17590,6 +17653,24 @@ function evaluateFragments(state, events, cardSex, rs, full) {
     }
   }
 
+  // v7.19.0 — GRIP SHIFT line, one turn only (Cody: "will they react as it changes"). Ships
+  // the turn the fit steps, in the felt direction; the standing word lives on the anatomy
+  // line. Pool phrasing is body-felt, no mechanics vocabulary.
+  if (state._grip_shift_this_turn) {
+    const _gsPool = state._grip_shift_this_turn === 'looser' ? [
+      'noticeably easier to take than it was — the snugness worked out of her for now',
+      'the body giving way quicker than before, stretched softer by use',
+      'looser tonight than she started, the fit gone easy and slick',
+    ] : [
+      'tighter again than last time — the body drawn back snug in the quiet',
+      'the rest did its work; the fit close and gripping like new',
+      'recovered snug, as if the stretching never happened',
+    ];
+    const _gs = _pickU(_gsPool);
+    if (_gs) candidates.push(['GRP', 7, _gs]);
+    delete state._grip_shift_this_turn;
+  }
+
   // Gate-fail negative block (priority insert)
   let negBlock = null;
   const gate = state._arousal_gate || {};
@@ -17687,12 +17768,12 @@ function evaluateFragments(state, events, cardSex, rs, full) {
   // Cody 2026-09-14: the fragments guide the transformation, mental state and arousal — they
   // cannot do that as three-word keys.
   if (full) {
-    const LN = { 0: 'portrait', 1: 'arousal', 2: 'effect', 3: 'identity', 4: 'pregnancy', 5: 'reaction', 6: 'first' };
+    const LN = { 0: 'portrait', 1: 'arousal', 2: 'effect', 3: 'identity', 4: 'pregnancy', 5: 'reaction', 6: 'first', 7: 'grip' };
     const byL = new Map();
     for (const p of kept) {
       if (p[0] === 'NEG' || p[0] === 'BIM') continue;
       if (!byL.has(p[1])) byL.set(p[1], []);
-      byL.get(p[1]).push((p[0] === 'PREG' || p[0] === 'RX' || p[0] === 'FP') ? String(p[2]).trim() : p[0] + ': ' + String(p[2]).trim());
+      byL.get(p[1]).push((p[0] === 'PREG' || p[0] === 'RX' || p[0] === 'FP' || p[0] === 'GRP') ? String(p[2]).trim() : p[0] + ': ' + String(p[2]).trim());
     }
     const outL = [];
     for (const pri of [...byL.keys()].sort(function (a, b) { return a - b; }))
@@ -17709,7 +17790,7 @@ function evaluateFragments(state, events, cardSex, rs, full) {
   // 3-word _condense() keys were a token-weight workaround from the chat-history era; that
   // is gone (the block ships once, we own the whole prompt). Same layer grouping as the TX
   // block, so <state> reads the same on pill and no-pill turns. NEG/BIM stay label-free.
-  const _LN = { 0: 'portrait', 1: 'arousal', 2: 'effect', 3: 'identity', 4: 'pregnancy', 5: 'reaction', 6: 'first' };
+  const _LN = { 0: 'portrait', 1: 'arousal', 2: 'effect', 3: 'identity', 4: 'pregnancy', 5: 'reaction', 6: 'first', 7: 'grip' };
   const _byLayer = new Map();
   for (const p of kept) {
     const statKey = p[0];
@@ -17717,6 +17798,7 @@ function evaluateFragments(state, events, cardSex, rs, full) {
     const token = (statKey === 'NEG' || statKey === 'BIM' || statKey === 'PREG') ? String(p[2]).trim()
                 : (statKey === 'RX') ? 'REACTION — ' + String(p[2]).trim()
                 : (statKey === 'FP') ? 'FIRST — ' + String(p[2]).trim()
+                : (statKey === 'GRP') ? 'GRIP — ' + String(p[2]).trim()
                 : statKey + ': ' + String(p[2]).trim();
     if (!_byLayer.has(pri)) _byLayer.set(pri, []);
     _byLayer.get(pri).push(token);
@@ -22069,7 +22151,9 @@ function buildXcwHudHtml(state, rs) {
       var vul = rb.vulva || {};
       var vparts = [vul.majora ? vul.majora + ' lips' : null,
                     vul.minora ? vul.minora + ' inner' : null,
-                    vul.clit ? vul.clit + ' clit' : null].filter(Boolean);
+                    vul.clit ? vul.clit + ' clit' : null,
+                    vul.grip || null,
+                    vul.depth ? (vul.depth === 'average' ? 'average depth' : vul.depth) : null].filter(Boolean);
       if (vparts.length) parts.push(vparts.join(', '));
       return parts.length ? ' · ' + parts.join(' · ') : '';
     })() + '</div>' +

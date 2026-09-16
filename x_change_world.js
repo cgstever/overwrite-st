@@ -5,7 +5,7 @@
 const LORE_DATA = 
 {
   "name": "X-Change World (Full Mechanics)",
-  "version": "7.21.0",
+  "version": "7.22.0",
   "versionUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/version.json",
   "sourceUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/x_change_world.js",
   "schema_version": 1,
@@ -8536,6 +8536,12 @@ const REBUILD_OWNED_FIELDS = [
   // _breeder_pull_seen is the rotation guard (last 3 fragments picked, to keep
   // narration from repeating itself turn over turn).
   '_breeder_first_climb_done', '_breeder_pull_seen',
+  // v7.22.0 — the pill counter. _firePillConsume increments it on the rebuild's shadow
+  // target, and ONLY the rule engine ever writes it (legacy never ticks it), so it is
+  // correctly rebuild-owned — unlike _vaginal_stretch (see 7.20.3). Without this copy-back
+  // the increment was discarded every turn; 7.18.5's seed-to-1 migration masked that, and
+  // 7.21.0's seed-to-2 exposed it (a tracked first pill read as count=2, no FIRST line).
+  '_pill_count',
   // v7.7.34 — compulsion-loop persistence. _breeder_compulsion='creampie_required'
   // is set by arousalGateOrgasmCheck when the d20 fails; cleared by resetBreederDC
   // on creampie. Post-orgasm window opens for 2 turns after the forced breeder
@@ -19327,6 +19333,21 @@ function handleResponse({assistantText, userText, state, events, config}) {
   // Parse scene tracker
   const sceneData = parseSceneTracker(assistantText || '', rs);
   if (sceneData) {
+    // v7.22.0 — DECLARED INTAKE. <pill_taken> is a report, not scene state: pull it out before
+    // the merge. Only a bare pill color counts; "none", "…", or prose leave it alone. The NEXT
+    // processTurn feeds it through the normal detector as third-person text, so validity for
+    // the body, the pending descriptor's effects, consent and the TX turn all run exactly as
+    // they would for a user-typed swallow. (Model-narrated events are otherwise ignored on
+    // purpose — Cody found regexing AI prose unreliable; this is the one declared exception.)
+    var _declRaw = String(sceneData.pill_taken || '').trim().toLowerCase();
+    delete sceneData.pill_taken;
+    var _declColor = (/\b(pink|blue|purple|green|red)\b/.exec(_declRaw) || [])[1];
+    // A color equal to the ACTIVE pill is a stale report (the model copied the field through
+    // instead of resetting it to none), not a second swallow — ignore it.
+    if (_declColor && !/^none\b/.test(_declRaw) && _declColor !== state.active_pill) {
+      state._declared_intake = _declColor;
+      console.log('[XCW] Declared intake: ' + _declColor);
+    }
     // v7.0.1: merge so location/atmosphere/_scenario_override/known_objects
     // survive across turns. The emit directive only asks for a subset of fields
     // (clothing + positions), so a plain replace wiped out the rest.
@@ -20875,7 +20896,26 @@ function processTurn({systemText, messages, state, personaState, config, charNam
   let _xrPreSnapshot = null;
   try { _xrPreSnapshot = JSON.parse(JSON.stringify(state || {})); } catch (e) { _xrPreSnapshot = null; }
 
-  const events = detectEvents(recentForIntake, state, sex, rs, false, personaState);
+  // v7.22.0 — DECLARED INTAKE: a swallow the model reported last reply (see handleResponse)
+  // is fed to the SAME detector as user text, phrased in the third person so it reads as the
+  // character taking it. Consumed once, here, so a swipe of the next reply cannot re-fire it
+  // (the normal TX swipe-reroll path takes over from the state this leaves behind).
+  let _detectWindow = recentForIntake;
+  if (state && state._declared_intake) {
+    const _dc = state._declared_intake;
+    delete state._declared_intake;
+    if (_dc === state.active_pill) { console.log('[XCW] Declared intake ignored — ' + _dc + ' already active'); }
+    else {
+    const _line = '*' + name + ' swallows the ' + _dc + ' pill.*';
+    _detectWindow = recentForIntake.slice();
+    let _li = -1;
+    for (let k = _detectWindow.length - 1; k >= 0; k--) if (_detectWindow[k].role === 'user') { _li = k; break; }
+    if (_li >= 0) _detectWindow[_li] = Object.assign({}, _detectWindow[_li], { content: (_detectWindow[_li].content || '') + '\n' + _line });
+    else _detectWindow.push({ role: 'user', content: _line });
+    console.log('[XCW] Declared intake injected for detection: ' + _line);
+    }
+  }
+  const events = detectEvents(_detectWindow, state, sex, rs, false, personaState);
 
   if (events.pill_taken) {
     console.log('[XCW] PILL TAKEN: color=' + events.pill_taken + ' → _pill_descriptor_this_turn will be set');
@@ -20891,8 +20931,11 @@ function processTurn({systemText, messages, state, personaState, config, charNam
   // Legacy mutations to those fields are overwritten. Other fields (scene
   // tracker, prompt-build artifacts, etc.) stay legacy-driven.
   try {
-    const _xrLastUser = recentForIntake.filter(function (m) { return m.role === 'user'; }).slice(-1)[0];
-    const _xrLastAsst = recentForIntake.filter(function (m) { return m.role === 'assistant'; }).slice(-1)[0];
+    // v7.22.0 — read from _detectWindow, not recentForIntake, so a declared intake (the line
+    // appended to the last user message for detection) reaches the rebuild too. active_pill
+    // is set by THIS engine's consume rules; legacy detectEvents alone never sets it.
+    const _xrLastUser = _detectWindow.filter(function (m) { return m.role === 'user'; }).slice(-1)[0];
+    const _xrLastAsst = _detectWindow.filter(function (m) { return m.role === 'assistant'; }).slice(-1)[0];
     _xRebuildSystem.runTurn(
       state,
       _xrLastUser ? _xrLastUser.content : '',
@@ -21291,6 +21334,11 @@ function _buildRequiredBlock(state, rs, isPriorityTurn) {
     var _maxW = _st.max_field_words || 20;
     var _stF = _st.fields || ['char_position','user_position','char_user_relative','clothing_char','clothing_user'];
     parts.push('- End your response with this block exactly. The clothing fields are PRE-FILLED with the CURRENT state -- copy each through UNCHANGED unless this turn physically changed it (undressing, redressing, transformation). Fill the "…" fields fresh. Hidden from user. Under ' + _maxW + ' words per field. No code fences.');
+    // v7.22.0 — DECLARED INTAKE (Cody: "im ok with the intake one as that means I can just
+    // send dialogue after the pill is shown"). The model reports a swallow it wrote, the same
+    // way it reports clothing; the engine reads it on ingest and runs the normal intake
+    // pipeline next turn. Pre-filled "none" so it copies through unless something happened.
+    parts.push('- pill_taken is pre-filled none. Change it to the pill\'s color (pink, blue, purple, green or red) ONLY if the character swallows a pill in THIS reply; otherwise leave it none.');
     parts.push('');
     parts.push('<scene_state>');
     for (var i = 0; i < _stF.length; i++) {
@@ -21305,6 +21353,7 @@ function _buildRequiredBlock(state, rs, isPriorityTurn) {
       }
       parts.push('  <' + _f + '>' + _cur + '</' + _f + '>');
     }
+    parts.push('  <pill_taken>none</pill_taken>');   // v7.22.0
     parts.push('</scene_state>');
   }
   if (!parts.length) return null;

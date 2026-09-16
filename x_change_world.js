@@ -5,7 +5,7 @@
 const LORE_DATA = 
 {
   "name": "X-Change World (Full Mechanics)",
-  "version": "7.18.2",
+  "version": "7.18.3",
   "versionUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/version.json",
   "sourceUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/x_change_world.js",
   "schema_version": 1,
@@ -17539,10 +17539,18 @@ function evaluateFragments(state, events, cardSex, rs, full) {
   if (pill && _PILL_REACTION[pill]) {
     const _rmv = parseInt(state.masculinity != null ? state.masculinity : 50, 10);
     const _rbrk = _nopillBracket(_masculinityBand(_rmv));
+    // v7.18.3 — covert POV guard: while the pill attr is hidden (covert intake, first
+    // climb not yet closed — same condition as v7.7.32), the character doesn't know a
+    // pill exists, so reaction phrases that name "the pill" must not ship. The green/red
+    // tables carry 9 such phrases each; pink/blue have none. Scrub-probe verified.
+    const _rxHidePill = (state._intake_consent === 'covert' && !state._breeder_first_climb_done);
     const _rpool = [];
     for (const _rs of ['CON', 'INT', 'WIS', 'CHA', 'DOM', 'SUB']) {
       const _ra = ((_PILL_REACTION[pill][_rs] || {})[_rbrk]) || [];
-      for (const _rp of _ra) _rpool.push(_rp);
+      for (const _rp of _ra) {
+        if (_rxHidePill && /\bpill\b/i.test(_rp)) continue;
+        _rpool.push(_rp);
+      }
     }
     const _rx = _pickU(_rpool);
     if (_rx) candidates.push(['RX', 5, _rx]);

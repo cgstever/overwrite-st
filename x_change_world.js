@@ -5,7 +5,7 @@
 const LORE_DATA = 
 {
   "name": "X-Change World (Full Mechanics)",
-  "version": "7.20.1",
+  "version": "7.20.2",
   "versionUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/version.json",
   "sourceUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/x_change_world.js",
   "schema_version": 1,
@@ -10756,6 +10756,7 @@ function _buildResistanceBeats(state) {
   var effects = state.active_effects || [];
   var resistance = state.effect_resistance || {};
   var lines = [];
+  var _groups = {};   // v7.20.2 — one block per (level, band); combos share
   var _inMotherhood = _isMotherhoodMode(state);
 
   for (var i = 0; i < effects.length; i++) {
@@ -10831,19 +10832,45 @@ function _buildResistanceBeats(state) {
     // arrived empty: <resistance effect="" level="Untouched" band="10">. An empty slot is
     // worse than no slot — with two effects active the model saw two blocks that looked
     // identical and had nothing to tell them apart. The level and band carry the meaning.
+    // v7.20.2 — COMBOS: collect per (level, band) instead of emitting one block per effect.
+    // Two effects sitting at the same band shipped two blocks with the same level and band,
+    // overlapping stats and near-identical text, and — since v7.13.39 removed effect="" —
+    // nothing to tell them apart. Cody: "when we have more than one active then we just use
+    // both." So both effects' beats go in ONE block for that band; identical text is dropped,
+    // genuinely different reads of the same stat are BOTH kept.
     if (!hasBeats) {
-      lines.push('<resistance level="' + label + '" band="' + band + '"/>');
+      _groups[label + '|' + band] = _groups[label + '|' + band] || { label: label, band: band, beats: [] };
     } else {
-      var resistOpen = '<resistance level="' + label + '" band="' + band + '">';
-      var resistChildren = [];
+      var _g = _groups[label + '|' + band] = _groups[label + '|' + band]
+        || { label: label, band: band, beats: [] };
       for (var s2 = 0; s2 < statOrder.length; s2++) {
         var stat = statOrder[s2];
-        if (bandBeats[stat]) {
-          resistChildren.push('  <beat attr="' + stat + '">' + bandBeats[stat] + '</beat>');
+        if (!bandBeats[stat]) continue;
+        var _txt = bandBeats[stat];
+        var _dup = false;
+        for (var d = 0; d < _g.beats.length; d++) {
+          if (_g.beats[d].stat === stat && _g.beats[d].text === _txt) { _dup = true; break; }
         }
+        if (!_dup) _g.beats.push({ stat: stat, text: _txt });
       }
-      lines.push(resistOpen + '\n' + resistChildren.join('\n') + '\n</resistance>');
     }
+  }
+
+  // Emit one block per (level, band), stats in engine order so the read is stable.
+  var _ORDER = ['CON', 'DOM', 'INT', 'SUB', 'CHA', 'WIS'];
+  var _keys = Object.keys(_groups);
+  for (var gi = 0; gi < _keys.length; gi++) {
+    var g = _groups[_keys[gi]];
+    if (!g.beats.length) {
+      lines.push('<resistance level="' + g.label + '" band="' + g.band + '"/>');
+      continue;
+    }
+    g.beats.sort(function (a, b) { return _ORDER.indexOf(a.stat) - _ORDER.indexOf(b.stat); });
+    var kids = g.beats.map(function (b) {
+      return '  <beat attr="' + b.stat + '">' + b.text + '</beat>';
+    });
+    lines.push('<resistance level="' + g.label + '" band="' + g.band + '">\n'
+      + kids.join('\n') + '\n</resistance>');
   }
 
   return lines;

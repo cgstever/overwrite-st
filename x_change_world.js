@@ -5,7 +5,7 @@
 const LORE_DATA = 
 {
   "name": "X-Change World (Full Mechanics)",
-  "version": "7.20.2",
+  "version": "7.20.3",
   "versionUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/version.json",
   "sourceUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/x_change_world.js",
   "schema_version": 1,
@@ -7998,9 +7998,6 @@ function registerPregnancy(engine, opts) {
     var v = engine.getFlagValue('detected_time_skip') || {};
     var weeks = v.weeks || 0;
     var label = v.label || 'some time';
-    // v7.19.0 — time recovers stretch fully: weeks pass, the grip returns to its rolled
-    // base on the next per-turn recompute (Cody: "streach and tighten up over time").
-    if (state && state._vaginal_stretch) state._vaginal_stretch = 0;
     // Idempotency key must be stable across swipes but change across turns. state.turn
     // fits (the extension does NOT increment it on a regen); the rebuild's internal
     // turn counter may tick per generation, which would double-count weeks on a swipe.
@@ -14870,7 +14867,22 @@ function processEvents(state, events, cardSex, notes, rs, personaEffects, person
       if (_gBase < 0) _gBase = 0;
       _gvb.vulva.grip_base = _gBase;
       let _stretch = parseFloat(state._vaginal_stretch || 0) || 0;
-      if (events.penetration_attempt || events.creampie_vaginal) _stretch += 1;
+      // v7.20.3 — a time skip recovers it fully (Cody: "streach and tighten up over time").
+      // This lives HERE, not in the applyTimeSkip handler: that handler runs inside the rule
+      // engine against shadow state, and _vaginal_stretch is legacy-owned (ticked every turn),
+      // so the reset was written to the shadow and thrown away. Adding the field to
+      // REBUILD_OWNED_FIELDS "fixed" the skip but broke the per-turn tick, because then the
+      // rebuild owned a field it never ticks. _last_time_skip_turn IS copied back, so the
+      // legacy side can just read it.
+      // The marker is written by the rule engine and copied back AFTER this block runs, so it
+      // is read one turn later and consumed once per distinct skip — recovery lands on the
+      // first turn after the skip, which is also when it would be felt.
+      const _tsTurn = state._last_time_skip_turn;
+      if (_tsTurn != null && state._stretch_skip_seen !== _tsTurn) {
+        state._stretch_skip_seen = _tsTurn;
+        _stretch = 0;
+      }
+      else if (events.penetration_attempt || events.creampie_vaginal) _stretch += 1;
       else _stretch = Math.max(0, _stretch - 0.5);
       state._vaginal_stretch = Math.min(60, _stretch);
       const _THRESH = [3, 8, 16, 30];

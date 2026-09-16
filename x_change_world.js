@@ -5,7 +5,7 @@
 const LORE_DATA = 
 {
   "name": "X-Change World (Full Mechanics)",
-  "version": "7.18.4",
+  "version": "7.18.5",
   "versionUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/version.json",
   "sourceUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/x_change_world.js",
   "schema_version": 1,
@@ -7606,6 +7606,10 @@ function _firePillConsume(engine, color, state) {
   if (state) {
     var _t = _getPillTarget(engine, state);
     if (_t) _t._intake_consent = _consent;
+    // v7.18.5 — pill counter (Cody: "reads like they take pills before need a counter").
+    // While the count is 1, the fragment layer ships a FIRST line so the model can't
+    // invent a pill history on a first intake; from 2 on, "the last time" is legitimate.
+    if (_t) _t._pill_count = (parseInt(_t._pill_count || 0, 10) || 0) + 1;
   }
 }
 
@@ -17566,6 +17570,26 @@ function evaluateFragments(state, events, cardSex, rs, full) {
     if (_rx) candidates.push(['RX', 5, _rx]);
   }
 
+  // v7.18.5 — FIRST-PILL line (Cody: "reads like they take pills before need a counter" —
+  // live chat had "maybe this one wouldn't be as bad as the last" on a FIRST intake).
+  // While _pill_count is 1, one line states there is no history to compare against.
+  // Phrases are pronoun-free and never name the pill (covert-safe). Older saves with a
+  // pill active but no counter are assumed mid-first-arc.
+  if (pill) {
+    if (state._pill_count == null) state._pill_count = 1;
+    if (parseInt(state._pill_count, 10) === 1) {
+      const _fpPool = [
+        'nothing to compare any of this to — no change has ever touched this body before',
+        'a first: this body has only ever been itself until now',
+        'no earlier change to measure against; every sensation without precedent',
+        'the first time this body has ever been rewritten — no memory of how this goes',
+        'never once changed before now; whatever comes next is unknown territory',
+      ];
+      const _fp = _pickU(_fpPool);
+      if (_fp) candidates.push(['FP', 6, _fp]);
+    }
+  }
+
   // Gate-fail negative block (priority insert)
   let negBlock = null;
   const gate = state._arousal_gate || {};
@@ -17663,12 +17687,12 @@ function evaluateFragments(state, events, cardSex, rs, full) {
   // Cody 2026-09-14: the fragments guide the transformation, mental state and arousal — they
   // cannot do that as three-word keys.
   if (full) {
-    const LN = { 0: 'portrait', 1: 'arousal', 2: 'effect', 3: 'identity', 4: 'pregnancy', 5: 'reaction' };
+    const LN = { 0: 'portrait', 1: 'arousal', 2: 'effect', 3: 'identity', 4: 'pregnancy', 5: 'reaction', 6: 'first' };
     const byL = new Map();
     for (const p of kept) {
       if (p[0] === 'NEG' || p[0] === 'BIM') continue;
       if (!byL.has(p[1])) byL.set(p[1], []);
-      byL.get(p[1]).push((p[0] === 'PREG' || p[0] === 'RX') ? String(p[2]).trim() : p[0] + ': ' + String(p[2]).trim());
+      byL.get(p[1]).push((p[0] === 'PREG' || p[0] === 'RX' || p[0] === 'FP') ? String(p[2]).trim() : p[0] + ': ' + String(p[2]).trim());
     }
     const outL = [];
     for (const pri of [...byL.keys()].sort(function (a, b) { return a - b; }))
@@ -17685,13 +17709,14 @@ function evaluateFragments(state, events, cardSex, rs, full) {
   // 3-word _condense() keys were a token-weight workaround from the chat-history era; that
   // is gone (the block ships once, we own the whole prompt). Same layer grouping as the TX
   // block, so <state> reads the same on pill and no-pill turns. NEG/BIM stay label-free.
-  const _LN = { 0: 'portrait', 1: 'arousal', 2: 'effect', 3: 'identity', 4: 'pregnancy', 5: 'reaction' };
+  const _LN = { 0: 'portrait', 1: 'arousal', 2: 'effect', 3: 'identity', 4: 'pregnancy', 5: 'reaction', 6: 'first' };
   const _byLayer = new Map();
   for (const p of kept) {
     const statKey = p[0];
     const pri = p[1];
     const token = (statKey === 'NEG' || statKey === 'BIM' || statKey === 'PREG') ? String(p[2]).trim()
                 : (statKey === 'RX') ? 'REACTION — ' + String(p[2]).trim()
+                : (statKey === 'FP') ? 'FIRST — ' + String(p[2]).trim()
                 : statKey + ': ' + String(p[2]).trim();
     if (!_byLayer.has(pri)) _byLayer.set(pri, []);
     _byLayer.get(pri).push(token);

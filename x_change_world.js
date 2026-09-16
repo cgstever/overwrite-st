@@ -5,7 +5,7 @@
 const LORE_DATA = 
 {
   "name": "X-Change World (Full Mechanics)",
-  "version": "7.19.0",
+  "version": "7.19.1",
   "versionUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/version.json",
   "sourceUrl": "https://raw.githubusercontent.com/cgstever/overwrite-st/main/x_change_world.js",
   "schema_version": 1,
@@ -15961,6 +15961,8 @@ var _TXB_SAY = {
   'exaggerated': 'exaggerated', 'thickened': 'thickened'
 };
 function _txbSay(v) { return _TXB_SAY[v] || v; }
+// v7.19.1 — model-facing names for the genital roll axes (see the genitals emit below).
+var _TXB_AXIS_SAY = { majora: 'outer_lips', minora: 'inner_lips' };
 // A cup letter means nothing without its band and a raw volume number reads as engine output.
 // "34DD (volume 6)" becomes "34DD, heavy" — same information, said rather than printed.
 var _TXB_VOL_WORD = [[2.0,'barely there'],[3.5,'small'],[5.0,'moderate'],[6.5,'full'],[8.0,'heavy'],[99,'enormous']];
@@ -16185,7 +16187,12 @@ function _txbBuild(cardBody, raw, rb, build, state, cardSex, color) {
          + (r.key ? ' move="' + r.key + '"' : '') + extra + '>' + r.txt + '</tx-body>';
   });
   if (_gen.length) {
-    var _gAttr = _gen.map(function (r) { return r.ax + '="' + _xmlAttr(r.a + ' -> ' + r.b) + '"'; }).join(' ');
+    // v7.19.1 — say the axis, don't print the table key. The attribute NAMES were the raw
+    // roll keys (majora/minora), and the model read them as nouns: live play produced "an
+    // average set of majora" and "average majora with small minora tucked neat behind".
+    // Alias at emit time only — internal keys, weights, overrides and every saved
+    // resolved_body stay exactly as they are.
+    var _gAttr = _gen.map(function (r) { return (_TXB_AXIS_SAY[r.ax] || r.ax) + '="' + _xmlAttr(r.a + ' -> ' + r.b) + '"'; }).join(' ');
     out.push('  <tx-body axis="genitals" ' + _gAttr + '>'
       + _gen.map(function (r) { return r.txt; }).join(' | ') + '</tx-body>');
   }
